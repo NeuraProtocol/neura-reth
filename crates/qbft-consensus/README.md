@@ -61,15 +61,15 @@ validator_multiplier = 1
 3. Build the QBFT node example:
    ```bash
    # Build in debug mode (faster compilation, slower execution)
-   cargo build -p qbft-node
+   cargo build --example qbft-node
 
    # Build in release mode (slower compilation, faster execution)
-   cargo build --release -p qbft-node
+   cargo build --release --example qbft-node
    ```
 
    The executable will be created at:
-   - Debug build: `target/debug/qbft-node`
-   - Release build: `target/release/qbft-node`
+   - Debug build: `target/debug/examples/qbft-node`
+   - Release build: `target/release/examples/qbft-node`
 
 4. (Optional) Install the executable globally:
    ```bash
@@ -83,10 +83,10 @@ validator_multiplier = 1
 2. Run the node:
    ```bash
    # Using default config.toml in the current directory
-   cargo run -p qbft-node
+   cargo run --example qbft-node
 
    # Using a specific configuration file
-   cargo run -p qbft-node -- --config path/to/your/config.toml
+   cargo run --example qbft-node -- --config path/to/your/config.toml
 
    # If you installed globally, you can run it directly:
    qbft-node --config path/to/your/config.toml
