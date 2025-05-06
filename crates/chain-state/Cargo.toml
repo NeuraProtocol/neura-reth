@@ -21,6 +21,8 @@ reth-ethereum-primitives.workspace = true
 reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
 reth-trie.workspace = true
+reth-node-builder = { workspace = true }
+reth-qbft-consensus = { path = "../qbft-consensus" }
 
 # ethereum
 alloy-eips.workspace = true

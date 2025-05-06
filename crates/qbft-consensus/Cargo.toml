@@ -1,0 +1,26 @@
+[package]
+name = "reth-qbft-consensus"
+version = "0.1.0"
+edition = "2021"
+description = "QBFT consensus implementation for Reth"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+alloy-consensus = { workspace = true }
+alloy-primitives = { workspace = true }
+alloy-rpc-types-engine = { workspace = true }
+async-trait = "0.1"
+eyre = "0.6"
+futures = "0.3"
+parking_lot = "0.12"
+reth-consensus = { workspace = true }
+reth-engine-primitives = { workspace = true }
+reth-ethereum-primitives = { workspace = true }
+reth-primitives-traits = { workspace = true }
+reth-provider = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = "0.1"
+
+[dev-dependencies]
+reth-testing-utils = { workspace = true } 

@@ -1,0 +1,25 @@
+[qbft]
+# Block period in seconds
+block_period = 5
+
+# Epoch length in blocks
+epoch_length = 30000
+
+# Validator set constraints
+min_validators = 3
+max_validators = 10
+
+# Initial validator set (replace with your actual validator addresses)
+validators = [
+    "0x0101010101010101010101010101010101010101",
+    "0x0202020202020202020202020202020202020202",
+    "0x0303030303030303030303030303030303030303"
+]
+
+[qbft.rewards]
+# Base reward in wei (2 ETH)
+base_reward = "2000000000000000000"
+# Multiplier for block proposer
+proposer_multiplier = 2
+# Multiplier for validators
+validator_multiplier = 1 
