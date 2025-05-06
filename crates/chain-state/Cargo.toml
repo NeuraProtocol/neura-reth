@@ -21,7 +21,7 @@ reth-ethereum-primitives.workspace = true
 reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
 reth-trie.workspace = true
-reth-qbft-consensus = { path = "../qbft-consensus", optional = true }
+reth-consensus-common = { path = "../consensus/common" }
 
 # ethereum
 alloy-eips.workspace = true
@@ -68,4 +68,3 @@ test-utils = [
     "reth-trie/test-utils",
     "reth-ethereum-primitives/test-utils",
 ]
-qbft = ["dep:reth-qbft-consensus"]

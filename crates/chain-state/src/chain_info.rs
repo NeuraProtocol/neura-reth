@@ -3,8 +3,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::{Address, BlockNumber, U256};
 use parking_lot::RwLock;
 use reth_chainspec::{ChainInfo, ChainSpec};
-use reth_node_builder::NodeBuilder;
-use reth_qbft_consensus::{QBFTChainSpec, QBFTConfig, QBFTEngineValidatorBuilder, QBFTNodeBuilder, RewardConfig};
+use reth_consensus_common::ConsensusEngine;
 use reth_primitives_traits::{NodePrimitives, SealedHeader};
 use std::{
     sync::{
@@ -374,41 +373,4 @@ mod tests {
         // Assert that the BlockNumHash returned matches the safe header
         assert_eq!(tracker.get_safe_num_hash(), Some(safe_header.num_hash()));
     }
-}
-
-/// Initialize a QBFT node with the given configuration
-pub async fn init_qbft_node() -> eyre::Result<()> {
-    // Create the base chain specification
-    let base_chain_spec = ChainSpec::mainnet();
-
-    // Create QBFT configuration
-    let qbft_config = QBFTConfig {
-        block_period: 5, // 5 seconds
-        validators: vec![
-            Address::from([0x1; 20]),
-            Address::from([0x2; 20]),
-            Address::from([0x3; 20]),
-        ],
-        epoch_length: 30000, // 30000 blocks
-        min_validators: 3,
-        max_validators: 10,
-        reward_config: RewardConfig {
-            base_reward: U256::from(2_000_000_000_000_000_000u128), // 2 ETH
-            proposer_multiplier: 2,
-            validator_multiplier: 1,
-        },
-    };
-
-    // Create the QBFT chain specification
-    let chain_spec = QBFTChainSpec::new(base_chain_spec, qbft_config);
-
-    let node = NodeBuilder::default()
-        .with_consensus_builder(QBFTNodeBuilder)
-        .with_engine_validator_builder(QBFTEngineValidatorBuilder)
-        .with_chain_spec(chain_spec)
-        .build()
-        .await?;
-
-    node.start().await?;
-    Ok(())
 }

@@ -1,22 +1,36 @@
 [package]
 name = "reth-qbft-consensus"
 version = "0.1.0"
-edition = "2021"
-description = "QBFT consensus implementation for Reth"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "QBFT consensus implementation for Reth."
+
+[lints]
+workspace = true
 
 [dependencies]
-alloy-consensus = { workspace = true }
-alloy-primitives = { workspace = true }
+# reth
+reth-consensus-common = { path = "../consensus/common" }
+reth-primitives-traits.workspace = true
+reth-engine-primitives.workspace = true
+
+# ethereum
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+
+# async
+async-trait.workspace = true
+
+# misc
+derive_more.workspace = true
+
 alloy-rpc-types-engine = { workspace = true }
-async-trait = "0.1"
-eyre = "0.6"
 futures = "0.3"
 parking_lot = "0.12"
-reth-consensus = { workspace = true }
-reth-engine-primitives = { workspace = true }
 reth-ethereum-primitives = { workspace = true }
-reth-primitives-traits = { workspace = true }
 reth-provider = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

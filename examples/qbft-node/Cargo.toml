@@ -4,11 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# reth
 reth-node-builder = { path = "../../crates/node/builder" }
 reth-qbft-consensus = { path = "../../crates/qbft-consensus" }
 reth-chainspec = { path = "../../crates/chainspec" }
+
+# ethereum
 alloy-primitives = { version = "0.1.0", features = ["serde"] }
+
+# async
 tokio = { version = "1.0", features = ["full"] }
+
+# misc
 eyre = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"

@@ -9,5 +9,27 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use alloy_primitives::BlockNumber;
+use reth_primitives_traits::SealedHeader;
+
 /// Collection of consensus validation methods.
 pub mod validation;
+
+/// Common consensus engine trait that all consensus engines must implement
+#[async_trait::async_trait]
+pub trait ConsensusEngine: Send + Sync {
+    /// The block header type used by this consensus engine
+    type BlockHeader;
+
+    /// Get the current block number
+    fn block_number(&self) -> BlockNumber;
+
+    /// Get the current block header
+    fn block_header(&self) -> SealedHeader<Self::BlockHeader>;
+
+    /// Get the safe block header if available
+    fn safe_block_header(&self) -> Option<SealedHeader<Self::BlockHeader>>;
+
+    /// Get the finalized block header if available
+    fn finalized_block_header(&self) -> Option<SealedHeader<Self::BlockHeader>>;
+}
