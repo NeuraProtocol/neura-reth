@@ -61,10 +61,10 @@ validator_multiplier = 1
 3. Build the QBFT node example:
    ```bash
    # Build in debug mode (faster compilation, slower execution)
-   cargo build --example qbft-node --features qbft
+   cargo build --example qbft-node --features reth-chain-state/qbft
 
    # Build in release mode (slower compilation, faster execution)
-   cargo build --release --example qbft-node --features qbft
+   cargo build --release --example qbft-node --features reth-chain-state/qbft
    ```
 
    The executable will be created at:
@@ -73,7 +73,7 @@ validator_multiplier = 1
 
 4. (Optional) Install the executable globally:
    ```bash
-   cargo install --path . --example qbft-node --features qbft
+   cargo install --path . --example qbft-node --features reth-chain-state/qbft
    ```
 
 ### Running the Node
@@ -83,10 +83,10 @@ validator_multiplier = 1
 2. Run the node:
    ```bash
    # Using default config.toml in the current directory
-   cargo run --example qbft-node --features qbft
+   cargo run --example qbft-node --features reth-chain-state/qbft
 
    # Using a specific configuration file
-   cargo run --example qbft-node --features qbft -- --config path/to/your/config.toml
+   cargo run --example qbft-node --features reth-chain-state/qbft -- --config path/to/your/config.toml
 
    # If you installed globally, you can run it directly:
    qbft-node --config path/to/your/config.toml
