@@ -5,10 +5,16 @@ use alloy_rpc_types_engine::{
 };
 use async_trait::async_trait;
 use reth_engine_primitives::{
-    EngineApiError, EngineApiMessageVersion, EngineTypes, EngineValidator, PayloadValidator,
+    EngineTypes, EngineValidator, PayloadValidator,
 };
 use reth_ethereum_primitives::EthPrimitives;
-use reth_primitives_traits::{Block, NodePrimitives, RecoveredBlock};
+use reth_payload_primitives::{
+    EngineApiMessageVersion, PayloadTypes, BuiltPayload as PayloadBuiltPayload,
+    PayloadBuilderAttributes, PayloadOrAttributes, EngineObjectValidationError,
+    EngineApiError,
+};
+use reth_primitives_traits::{Block, NodePrimitives, RecoveredBlock, SealedBlock};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::{
@@ -17,13 +23,27 @@ use crate::{
 };
 
 /// QBFT engine types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QBFTEngineTypes;
 
-impl EngineTypes for QBFTEngineTypes {
-    type PayloadAttributes = PayloadAttributes;
-    type ExecutionPayload = ExecutionPayload;
+impl PayloadTypes for QBFTEngineTypes {
+    type ExecutionData = ExecutionPayload;
     type BuiltPayload = ExecutionPayload;
+    type PayloadAttributes = PayloadAttributes;
+    type PayloadBuilderAttributes = PayloadAttributes;
+
+    fn block_to_payload(
+        block: SealedBlock<<EthPrimitives as NodePrimitives>::Block>,
+    ) -> Self::ExecutionData {
+        ExecutionPayload::from_block_unchecked(block.hash(), &block.into_block())
+    }
+}
+
+impl EngineTypes for QBFTEngineTypes {
+    type ExecutionPayloadEnvelopeV1 = ExecutionPayload;
+    type ExecutionPayloadEnvelopeV2 = ExecutionPayload;
+    type ExecutionPayloadEnvelopeV3 = ExecutionPayload;
+    type ExecutionPayloadEnvelopeV4 = ExecutionPayload;
 }
 
 /// QBFT engine validator
@@ -45,102 +65,40 @@ impl QBFTEngineValidator {
     }
 }
 
-#[async_trait]
-impl EngineValidator for QBFTEngineValidator {
-    type Error = EngineApiError;
-    type PayloadAttributes = PayloadAttributes;
-    type ExecutionPayload = ExecutionPayload;
-    type BuiltPayload = ExecutionPayload;
-
-    async fn validate_payload_attributes(
+impl EngineValidator<QBFTEngineTypes> for QBFTEngineValidator {
+    fn validate_version_specific_fields(
         &self,
-        payload_attrs: &Self::PayloadAttributes,
         version: EngineApiMessageVersion,
-    ) -> Result<(), Self::Error> {
+        payload_or_attrs: PayloadOrAttributes<'_, QBFTEngineTypes::ExecutionData, QBFTEngineTypes::PayloadAttributes>,
+    ) -> Result<(), EngineObjectValidationError> {
+        // QBFT doesn't have any version-specific fields to validate
+        Ok(())
+    }
+
+    fn ensure_well_formed_attributes(
+        &self,
+        version: EngineApiMessageVersion,
+        attributes: &QBFTEngineTypes::PayloadAttributes,
+    ) -> Result<(), EngineObjectValidationError> {
         // Validate timestamp
         let block_period = self.chain_spec.block_period();
-        if payload_attrs.timestamp % block_period != 0 {
-            return Err(EngineApiError::InvalidPayloadAttributes(
+        if attributes.timestamp % block_period != 0 {
+            return Err(EngineObjectValidationError::InvalidParams(
                 "Invalid timestamp".into(),
             ));
         }
 
         // Validate proposer
-        let validators = self.chain_spec.validators_at_block(payload_attrs.block_number);
-        let proposer_index = (payload_attrs.block_number % validators.len() as u64) as usize;
+        let validators = self.chain_spec.validators_at_block(attributes.block_number);
+        let proposer_index = (attributes.block_number % validators.len() as u64) as usize;
         let expected_proposer = validators[proposer_index];
 
-        if payload_attrs.suggested_fee_recipient != expected_proposer {
-            return Err(EngineApiError::InvalidPayloadAttributes(
+        if attributes.suggested_fee_recipient != expected_proposer {
+            return Err(EngineObjectValidationError::InvalidParams(
                 "Invalid fee recipient".into(),
             ));
         }
 
-        Ok(())
-    }
-
-    async fn validate_payload(
-        &self,
-        payload: &Self::ExecutionPayload,
-        version: EngineApiMessageVersion,
-    ) -> Result<(), Self::Error> {
-        // Validate block number
-        if payload.block_number == 0 {
-            return Ok(());
-        }
-
-        // Validate timestamp
-        let block_period = self.chain_spec.block_period();
-        if payload.timestamp % block_period != 0 {
-            return Err(EngineApiError::InvalidPayload("Invalid timestamp".into()));
-        }
-
-        // Validate proposer
-        let validators = self.chain_spec.validators_at_block(payload.block_number);
-        let proposer_index = (payload.block_number % validators.len() as u64) as usize;
-        let expected_proposer = validators[proposer_index];
-
-        if payload.fee_recipient != expected_proposer {
-            return Err(EngineApiError::InvalidPayload("Invalid fee recipient".into()));
-        }
-
-        Ok(())
-    }
-
-    async fn validate_forkchoice_state(
-        &self,
-        state: &ForkchoiceState,
-        version: EngineApiMessageVersion,
-    ) -> Result<(), Self::Error> {
-        // Validate that the head block exists
-        if state.head_block_hash.is_zero() {
-            return Err(EngineApiError::InvalidForkchoiceState(
-                "Invalid head block hash".into(),
-            ));
-        }
-
-        // Validate that the safe block exists
-        if state.safe_block_hash.is_zero() {
-            return Err(EngineApiError::InvalidForkchoiceState(
-                "Invalid safe block hash".into(),
-            ));
-        }
-
-        // Validate that the finalized block exists
-        if state.finalized_block_hash.is_zero() {
-            return Err(EngineApiError::InvalidForkchoiceState(
-                "Invalid finalized block hash".into(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    async fn validate_transition_configuration(
-        &self,
-        config: &TransitionConfiguration,
-    ) -> Result<(), Self::Error> {
-        // QBFT doesn't use total difficulty, so we can skip this validation
         Ok(())
     }
 }

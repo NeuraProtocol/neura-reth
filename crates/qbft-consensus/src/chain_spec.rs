@@ -86,63 +86,7 @@ impl QBFTChainSpec {
 }
 
 impl EthereumHardforks for QBFTChainSpec {
-    fn is_homestead_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_homestead_active_at_timestamp(timestamp)
-    }
-
-    fn is_tangerine_whistle_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_tangerine_whistle_active_at_timestamp(timestamp)
-    }
-
-    fn is_spurious_dragon_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_spurious_dragon_active_at_timestamp(timestamp)
-    }
-
-    fn is_byzantium_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_byzantium_active_at_timestamp(timestamp)
-    }
-
-    fn is_constantinople_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_constantinople_active_at_timestamp(timestamp)
-    }
-
-    fn is_petersburg_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_petersburg_active_at_timestamp(timestamp)
-    }
-
-    fn is_istanbul_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_istanbul_active_at_timestamp(timestamp)
-    }
-
-    fn is_muir_glacier_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_muir_glacier_active_at_timestamp(timestamp)
-    }
-
-    fn is_berlin_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_berlin_active_at_timestamp(timestamp)
-    }
-
-    fn is_london_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_london_active_at_timestamp(timestamp)
-    }
-
-    fn is_arrow_glacier_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_arrow_glacier_active_at_timestamp(timestamp)
-    }
-
-    fn is_gray_glacier_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_gray_glacier_active_at_timestamp(timestamp)
-    }
-
-    fn is_paris_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_paris_active_at_timestamp(timestamp)
-    }
-
-    fn is_shanghai_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_shanghai_active_at_timestamp(timestamp)
-    }
-
-    fn is_cancun_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.base.is_cancun_active_at_timestamp(timestamp)
+    fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
+        self.base.fork(fork)
     }
 } 

@@ -154,6 +154,7 @@ members = [
     "examples/node-custom-rpc/",
     "examples/node-event-hooks/",
     "examples/polygon-p2p/",
+    "examples/qbft-node/",
     "examples/rpc-db/",
     "examples/precompile-cache/",
     "examples/txpool-tracing/",

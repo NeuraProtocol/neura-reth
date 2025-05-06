@@ -1,6 +1,8 @@
-use reth_node_api::{
-    ConsensusBuilder, EngineValidatorBuilder, FullNodeComponents, FullNodeTypes, NodeTypes,
+use reth_node_builder::{
+    components::ConsensusBuilder,
+    rpc::EngineValidatorBuilder,
 };
+use reth_node_api::{FullNodeComponents, FullNodeTypes, NodeTypes};
 use reth_node_builder::BuilderContext;
 use std::sync::Arc;
 

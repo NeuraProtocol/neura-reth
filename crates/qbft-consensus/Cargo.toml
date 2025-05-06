@@ -16,6 +16,12 @@ workspace = true
 reth-consensus-common = { path = "../consensus/common" }
 reth-primitives-traits.workspace = true
 reth-engine-primitives.workspace = true
+reth-chainspec.workspace = true
+reth-consensus.workspace = true
+reth-execution-types.workspace = true
+reth-node-api.workspace = true
+reth-node-builder.workspace = true
+reth-payload-primitives.workspace = true
 
 # ethereum
 alloy-primitives.workspace = true
@@ -26,6 +32,7 @@ async-trait.workspace = true
 
 # misc
 derive_more.workspace = true
+eyre.workspace = true
 
 alloy-rpc-types-engine = { workspace = true }
 futures = "0.3"
