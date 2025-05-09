@@ -61,6 +61,28 @@ pub enum QbftError {
     NoValidators,
     #[error("Consensus invariant violation: {0}")]
     ConsensusInvariantViolation(String),
+    #[error("Invalid state: {0}")]
+    InvalidState(String),
+    #[error("Signing error: {0}")]
+    SigningError(String),
+    #[error("Recovery error: {0}")]
+    RecoveryError(String),
+    #[error("Block creation error: {0}")]
+    BlockCreationError(String),
+    #[error("Block import error: {0}")]
+    BlockImportError(String),
+    #[error("Timeout error: {0}")]
+    TimeoutError(String),
+    #[error("Replica is not a validator")]
+    NotValidator,
+    #[error("Replica is not the proposer for the current round")]
+    NotProposer,
+    #[error("Message from future round")]
+    MessageFromFutureRound,
+    #[error("Message from past round")]
+    MessageFromPastRound,
+    #[error("Unknown error")]
+    Unknown,
 }
 
 // Helper to convert k256::ecdsa::Error to QbftError

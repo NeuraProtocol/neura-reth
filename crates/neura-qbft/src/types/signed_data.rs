@@ -1,21 +1,17 @@
 use alloy_primitives::{Address, Signature as AlloyPrimitiveSignature, B256 as Hash, U256, keccak256};
-use alloy_rlp::{Encodable, Decodable, Header, RlpMaxEncodedLen};
+use alloy_rlp::{Encodable, Decodable, Header};
 use k256::ecdsa::{
     // SigningKey as K256SigningKey, // NodeKey is K256SigningKey directly or Arc-wrapped
     // VerifyingKey as K256VerifyingKey, 
     // signature::Signer, 
     // signature::Verifier,
-    hazmat::SignPrimitive, // Corrected path for SignPrimitive
     VerifyingKey as K256VerifyingKey,
     Signature as K256Signature,      // The standard Signature type
     RecoveryId as K256RecoveryId,    // For recovery ID
 };
-use k256::FieldBytes;
 use crate::error::QbftError;
-use sha3::{Keccak256, Digest}; // For hashing the payload before signing
-use crate::payload::qbft_payload::QbftPayload;
+use sha3::Digest; // For hashing the payload before signing
 use crate::types::NodeKey;
-use serde::{Deserialize, Serialize};
 use crate::types::RlpSignature; // Added import for RlpSignature
 
 // Generic struct to hold a payload and its signature.

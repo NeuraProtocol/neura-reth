@@ -1,12 +1,13 @@
-use alloy_primitives::{Address, Bytes, Signature as AlloyPrimitiveSignature, B256};
-use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable, Header, BufMut, Error as RlpError};
+use alloy_primitives::{Address, Bytes, Signature};
+use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable, Error as RlpError};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use crate::error::QbftError;
-use std::collections::VecDeque; // For vanity data matching Besu, not used in current struct
+ // For vanity data matching Besu, not used in current struct
 use crate::types::RlpSignature;
 
 /// Represents the BFT-specific data stored in the `extraData` field of a block header.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[rlp(trailing)] // For committed_seals if it becomes Option or for future optional fields
 pub struct BftExtraData {
     // Fixed-size byte array for vanity data, chosen to match Besu's 32 bytes.
@@ -59,7 +60,7 @@ mod tests {
         let r_b256 = B256::from(r.to_be_bytes());
         let s_b256 = B256::from(s.to_be_bytes());
 
-        let sig = AlloyPrimitiveSignature::from_scalars_and_parity(r_b256, s_b256, parity_bool);
+        let sig = Signature::from_scalars_and_parity(r_b256, s_b256, parity_bool);
         RlpSignature(sig)
     }
 

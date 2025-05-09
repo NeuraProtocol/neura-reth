@@ -2,7 +2,7 @@ use std::sync::Arc;
 use crate::messagewrappers::{Commit, Proposal};
 use crate::types::QbftFinalState;
 use crate::error::QbftError;
-use alloy_primitives::{B256 as Hash, Address, Signature as AlloySignature};
+use alloy_primitives::B256 as Hash;
 
 pub struct CommitValidator {
     pub final_state: Arc<dyn QbftFinalState>,

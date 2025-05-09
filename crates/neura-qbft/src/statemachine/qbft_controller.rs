@@ -1,12 +1,11 @@
 use std::sync::Arc;
 use crate::types::{
-    QbftBlockHeader, QbftFinalState, BlockTimer, RoundTimer, 
-    QbftBlockCreator, QbftBlockImporter, ValidatorMulticaster, BftExtraDataCodec, 
+    QbftBlockHeader, QbftFinalState, BlockTimer, RoundTimer, QbftBlockImporter, ValidatorMulticaster, BftExtraDataCodec, 
     ConsensusRoundIdentifier, QbftBlockCreatorFactory
 };
 use crate::statemachine::{QbftBlockHeightManager, QbftMinedBlockObserver};
 use crate::payload::MessageFactory;
-use crate::validation::{MessageValidator, RoundChangeMessageValidator, MessageValidatorFactory, RoundChangeMessageValidatorFactory};
+use crate::validation::{MessageValidatorFactory, RoundChangeMessageValidatorFactory};
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
 
@@ -220,5 +219,16 @@ impl QbftController {
             self.mined_block_observers.clone(),
         );
         Ok(height_manager)
+    }
+
+    pub fn on_new_block_header(&mut self, header: &QbftBlockHeader) -> Result<(), QbftError> {
+        // This would be called when a new block is externally observed (e.g., from network sync)
+        // It might trigger state updates, potentially halting local proposal if a valid future block is seen.
+        let _block_number = header.number; // Prefixed with _
+        log::info!(
+            "Observed new block header via on_new_block_header: Number={}, Hash={:?}. QBFT controller may update its state.", 
+            header.number, header.hash()
+        );
+        Ok(())
     }
 } 

@@ -1,5 +1,5 @@
 // crates/neura-qbft/src/payload/message_factory.rs
-use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock, NodeKey, QbftBlockHeader, RlpSignature};
+use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock, NodeKey, RlpSignature};
 use crate::payload::{
     ProposalPayload, PreparePayload, CommitPayload, RoundChangePayload, PreparedRoundMetadata
 };
@@ -7,10 +7,7 @@ use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange, PreparedCer
 use crate::error::QbftError;
 
 use alloy_primitives::{Address, B256 as Hash, Signature, U256, keccak256};
-use k256::ecdsa::{
-    SigningKey as K256SigningKey, // NodeKey is Arc<K256SigningKey>
-    VerifyingKey as K256VerifyingKey
-};
+use k256::ecdsa::VerifyingKey as K256VerifyingKey;
 use std::sync::Arc;
 
 pub struct MessageFactory {

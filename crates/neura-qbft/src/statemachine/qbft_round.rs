@@ -1,17 +1,22 @@
+use crate::error::QbftError;
+// use std::collections::HashSet; // Removed based on build log
 use std::sync::Arc;
-use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::types::{
-    ConsensusRoundIdentifier, QbftBlock, QbftBlockHeader, SignedData, 
-    BftExtraData, BftExtraDataCodec, QbftFinalState, QbftBlockCreator, 
-    QbftBlockImporter, RoundTimer, ValidatorMulticaster, RlpSignature
+    ConsensusRoundIdentifier, NodeKey, QbftBlock, QbftBlockHeader, SignedData, /* BftExtraData, */ BftExtraDataCodec, QbftFinalState, QbftBlockCreator, 
+    QbftBlockImporter, RoundTimer, ValidatorMulticaster, RlpSignature,
+    // PreparedCertificate // Removed this line
 };
-use crate::statemachine::round_state::{RoundState, PreparedCertificate};
-use crate::payload::{MessageFactory, ProposalPayload, PreparePayload, CommitPayload, RoundChangePayload};
+use crate::statemachine::round_state::{RoundState, PreparedCertificate as RoundStatePreparedCertificate};
+// Removed CommitPayload, ProposalPayload from payload import based on build log
+use crate::payload::{MessageFactory, PreparePayload, RoundChangePayload};
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange, PreparedCertificateWrapper};
-use crate::error::QbftError;
-use alloy_primitives::{Address, B256 as Hash, keccak256, Signature, Bytes};
+// Removing this problematic line again, as the types are imported directly or aliased above.
+// use crate::statemachine::{PreparedCertificate as StatemachinePreparedCertificate, RoundState as StatemachineRoundState};
+use crate::validation::{MessageValidator, RoundChangeMessageValidator};
+// Removed Address, Bytes, keccak256 from alloy_primitives import based on build log
+use alloy_primitives::{B256 as Hash, Signature};
 use crate::statemachine::round_change_manager::RoundChangeArtifacts;
 
 // Observers for when a block is mined/imported successfully.
@@ -281,8 +286,19 @@ impl QbftRound {
     }
 
     fn import_block_to_chain(&mut self) -> Result<(), QbftError> {
-        if let Some(proposed_block_ref) = self.round_state.proposal_message().map(|p| p.block()) {
-            let original_header = &proposed_block_ref.header;
+        // Ensure the round is committed
+        if !self.round_state.is_committed() {
+            log::error!(
+                "Attempted to import block for round {:?} which is not committed.", 
+                self.round_identifier()
+            );
+            return Err(QbftError::InvalidState("Round not committed".into()));
+        }
+
+        let _finalized_block = self.round_state.proposed_block().cloned(); // Prefixed with _
+        if let Some(block_to_import) = self.round_state.proposed_block() {
+            let block_hash = block_to_import.hash();
+            let original_header = &block_to_import.header;
             let commit_seals_option: Option<Vec<Signature>> = self.round_state.get_commit_seals_if_committed();
 
             let rlp_commit_seals: Vec<RlpSignature> = commit_seals_option
@@ -317,10 +333,9 @@ impl QbftRound {
             
             let block_to_import = QbftBlock::new(
                 new_header,
-                proposed_block_ref.body_transactions.clone(),
-                proposed_block_ref.body_ommers.clone(),
+                block_to_import.body_transactions.clone(),
+                block_to_import.body_ommers.clone(),
             );
-            let block_hash = block_to_import.hash();
 
             log::info!(
                 "Block {:?} prepared for import with {} commit seals. Round: {}", 
@@ -339,7 +354,7 @@ impl QbftRound {
         }
     }
 
-    pub fn construct_prepared_certificate(&self) -> Option<PreparedCertificate> {
+    pub fn construct_prepared_certificate(&self) -> Option<RoundStatePreparedCertificate> {
         self.round_state.construct_prepared_certificate()
     }
 

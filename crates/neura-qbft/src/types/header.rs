@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, Bloom, Bytes, B256 as Hash, U256};
-use alloy_rlp::{RlpEncodable, RlpDecodable, Header as RlpHeader, BufMut, Decodable, Encodable, Error as RlpError};
+use alloy_rlp::{Header as RlpHeader, BufMut, Decodable, Encodable, Error as RlpError};
 
 // Based on standard Ethereum block header structure
 #[derive(Debug, Clone, PartialEq, Eq)]

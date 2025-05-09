@@ -1,8 +1,9 @@
 use crate::types::{ConsensusRoundIdentifier, NodeKey}; // Corrected NodeKey path
 use crate::types::header::QbftBlockHeader; // Corrected path
 use crate::types::block_creator::QbftBlockCreator; // Corrected path
+use crate::types::block::QbftBlock; // Added import for QbftBlock
 use crate::error::QbftError; // Corrected path
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256 as Hash}; // Added B256 as Hash for Hash type
 use std::collections::HashSet; // For validator set
 use std::sync::Arc;
 
@@ -61,10 +62,10 @@ pub trait QbftFinalState: Send + Sync {
     }
 
     fn quorum_size(&self) -> usize; // Calculated as 2f+1
-    fn Byzantine_fault_tolerance_f(&self) -> usize; // Calculated as (N-1)/3
+    fn byzantine_fault_tolerance_f(&self) -> usize; // Calculated as (N-1)/3
 
     fn get_byzantine_fault_tolerance(&self) -> usize {
-        self.Byzantine_fault_tolerance_f()
+        self.byzantine_fault_tolerance_f()
     }
 
     // Proposer selection
@@ -86,4 +87,9 @@ pub trait QbftFinalState: Send + Sync {
 
     // Clock for consistent time
     // fn clock(&self) -> Arc<dyn std::time::SystemTime>; // Or a mockable clock trait
+
+    fn current_validators(&self) -> Vec<Address>;
+    fn get_validator_node_key(&self, address: &Address) -> Option<Arc<NodeKey>>;
+    fn get_block_by_hash(&self, hash: &Hash) -> Option<QbftBlock>;
+    fn get_block_header(&self, hash: &Hash) -> Option<QbftBlockHeader>;
 } 

@@ -1,8 +1,7 @@
 use std::sync::Arc;
-use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, ConsensusRoundIdentifier};
-use crate::validation::{MessageValidator, RoundChangeMessageValidatorFactory, ProposalValidator, PrepareValidator, CommitValidator, RoundChangeMessageValidator};
+use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec};
+use crate::validation::{MessageValidator, RoundChangeMessageValidatorFactory};
 use crate::error::QbftError;
-use alloy_primitives::Address;
 
 /// A factory for creating `MessageValidator` instances.
 /// The validator needs to be configured for a specific consensus context (e.g., block height, active validators).

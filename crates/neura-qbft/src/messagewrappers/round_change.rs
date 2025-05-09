@@ -4,8 +4,8 @@ use crate::types::{SignedData, QbftBlock};
 use crate::payload::PreparePayload;
 use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable}; // Correct RLP imports
 use std::ops::Deref;
-use alloy_primitives::Address; // For author
-use crate::error::QbftError; // For author
+ // For author
+ // For author
 
 /// Represents a QBFT RoundChange message, including any piggybacked prepared certificate.
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]

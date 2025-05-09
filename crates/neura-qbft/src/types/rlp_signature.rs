@@ -1,10 +1,12 @@
 use alloy_primitives::{Signature, U256, B256};
 use alloy_rlp::{Encodable, Decodable, Error as RlpError, Header, BufMut};
+#[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
 
 /// A wrapper around alloy_primitives::Signature to provide RLP Encodable/Decodable support
 /// based on RLP([v, r, s]), where v is a u8 parity bit (0 or 1).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RlpSignature(pub Signature);
 
 impl RlpSignature {

@@ -6,8 +6,7 @@ use crate::statemachine::round_state::PreparedCertificate; // Used by RoundChang
 use crate::validation::RoundChangeMessageValidator; // Corrected import
 use crate::error::QbftError;
 
-use std::collections::{HashMap, HashSet};
-use std::cmp::Ordering;
+use std::collections::HashMap;
 
 /// Holds the artifacts from a collection of RoundChange messages that justify a round transition.
 #[derive(Debug, Clone)]

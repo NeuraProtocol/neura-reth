@@ -15,7 +15,7 @@ chrono = "0.4"
 log = "0.4"
 thiserror = "1.0"
 bytes = "1.5" # If alloy-primitives doesn't cover all Bytes needs directly
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"], optional = true } # Made optional
 
 # For development, consider:
 # env_logger = "0.10"
@@ -24,3 +24,7 @@ serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 rand = "0.8" # Added rand for tests 
+
+[features]
+default = []
+serde = ["dep:serde", "alloy-primitives/serde"] # Expose a "serde" feature for this crate 

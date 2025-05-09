@@ -1,6 +1,6 @@
 use crate::types::{QbftBlock, ConsensusRoundIdentifier /* QbftBlockHeader removed */ };
 use crate::error::QbftError;
-use alloy_primitives::Bytes; // Assuming Bytes is needed for some QbftBlockCreator logic, ensure imported
+ // Assuming Bytes is needed for some QbftBlockCreator logic, ensure imported
 
 // Placeholder for QbftBlockHeader - REMOVED
 // #[derive(Debug, Clone, PartialEq, Eq)]

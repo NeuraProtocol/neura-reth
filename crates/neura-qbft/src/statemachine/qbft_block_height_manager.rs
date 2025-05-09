@@ -7,13 +7,12 @@ use crate::types::{
 use crate::statemachine::{
     QbftRound, RoundChangeManager, RoundChangeArtifacts, QbftMinedBlockObserver
 };
-use crate::payload::{MessageFactory, PreparePayload, CommitPayload, RoundChangePayload, PreparedRoundMetadata};
-use crate::validation::{MessageValidator, RoundChangeMessageValidator, MessageValidatorFactory}; // Assuming these are configured and passed in
+use crate::payload::{MessageFactory, PreparedRoundMetadata};
+use crate::validation::{MessageValidator, RoundChangeMessageValidator}; // Assuming these are configured and passed in
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
-use alloy_primitives::Address; // For proposerded import
+ // For proposerded import
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // TODO: Define QbftEventQueue or similar for handling events like timer expiries, received messages.
 
@@ -462,5 +461,15 @@ impl QbftBlockHeightManager {
             current_round.cancel_timers();
         }
         Ok(())
+    }
+
+    pub fn lowest_future_round_with_early_quorum(&self) -> Option<u32> {
+        // Assuming current_round_identifier is correctly maintained and accessible
+        // The sequence number must match the current block height being processed.
+        let _current_round_number = self.current_round.as_ref().map(|cr| cr.round_identifier().round_number).unwrap_or(0); // Prefixed with _
+        self.round_change_manager.lowest_future_round_with_early_quorum(
+            _current_round_number, 
+            self.height
+        )
     }
 } 
