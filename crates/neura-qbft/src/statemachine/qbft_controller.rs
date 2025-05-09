@@ -82,7 +82,8 @@ impl QbftController {
 
         let message_validator = self.message_validator_factory.create_message_validator(
             &parent_header, 
-            self.final_state_provider.clone()
+            self.final_state_provider.clone(),
+            self.extra_data_codec.clone()
         )?;
         let round_change_message_validator = self.round_change_message_validator_factory.create_round_change_message_validator(
             &parent_header, 
