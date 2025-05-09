@@ -1,0 +1,22 @@
+[package]
+name = "neura_qbft_core"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+alloy-primitives = { version = "0.7", features = ["rlp"] } # For Address, H256, U256, Bytes and RLP support
+alloy-rlp = { version = "0.7", features = ["derive"] }    # For RLP encoding/decoding derive macros
+k256 = { version = "0.13", features = ["ecdsa", "keccak256"] } # For ECDSA and Keccak256
+ecdsa = { version = "0.16", features = ["signing", "verifying"] }
+sha3 = "0.10" # Keccak256 is part of this
+chrono = "0.4"
+log = "0.4"
+thiserror = "1.0"
+bytes = "1.5" # If alloy-primitives doesn't cover all Bytes needs directly
+
+# For development, consider:
+# env_logger = "0.10"
+# tracing = "0.1"
+# tracing-subscriber = "0.3" 
