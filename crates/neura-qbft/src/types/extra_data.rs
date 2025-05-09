@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, Signature};
+use alloy_primitives::{Address, Bytes};
 use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable, Error as RlpError};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,7 @@ impl BftExtraDataCodec for AlloyBftExtraDataCodec {
 #[cfg(test)]
 mod tests {
     use super::*;    
-    use alloy_primitives::{hex, Address, U256, Bytes, B256};
+    use alloy_primitives::{hex, Address, U256, Bytes, B256, Signature};
 
     fn dummy_rlp_signature(val: u64) -> RlpSignature {
         let r = U256::from(val);

@@ -1,59 +1,19 @@
    Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
-warning: unused import: `NodeKey`
- --> crates/neura-qbft/src/statemachine/qbft_round.rs:7:31
-  |
-7 |     ConsensusRoundIdentifier, NodeKey, QbftBlock, QbftBlockHeader, SignedData, /* BftExtraData, */ BftExtraDataCodec, QbftFinalState, QbftBlockCreator,
-  |                               ^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` on by default
-
-warning: unused imports: `MessageValidator` and `RoundChangeMessageValidator`
-  --> crates/neura-qbft/src/statemachine/qbft_round.rs:17:25
-   |
-17 | use crate::validation::{MessageValidator, RoundChangeMessageValidator};
-   |                         ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `Signature`
- --> crates/neura-qbft/src/types/extra_data.rs:1:40
-  |
-1 | use alloy_primitives::{Address, Bytes, Signature};
-  |                                        ^^^^^^^^^
-
-warning: unused imports: `Commit`, `Prepare`, `Proposal`, and `RoundChange`
-  --> crates/neura-qbft/src/validation/mod.rs:27:30
-   |
-27 | use crate::messagewrappers::{Commit, Prepare, Proposal, RoundChange};
-   |                              ^^^^^^  ^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^
-
-warning: unused import: `crate::types::QbftBlockHeader`
-  --> crates/neura-qbft/src/validation/mod.rs:29:5
-   |
-29 | use crate::types::QbftBlockHeader;
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `crate::error::QbftError`
-  --> crates/neura-qbft/src/validation/mod.rs:30:5
-   |
-30 | use crate::error::QbftError;
-   |     ^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unused import: `alloy_primitives::Address`
-  --> crates/neura-qbft/src/validation/mod.rs:31:5
-   |
-31 | use alloy_primitives::Address;
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
-
 warning: unused import: `fixed_bytes`
   --> crates/neura-qbft/src/payload/commit_payload.rs:38:34
    |
 38 |     use alloy_primitives::{b256, fixed_bytes, Signature as AlloyPrimitiveSignature, U256, B256 as HashB256};
    |                                  ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
 
 warning: unused import: `QbftPayload`
  --> crates/neura-qbft/src/statemachine/round_state.rs:2:22
   |
 2 | use crate::payload::{QbftPayload, PreparePayload, CommitPayload};
   |                      ^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
 
 warning: unused import: `Decodable`
  --> crates/neura-qbft/src/messagewrappers/round_change.rs:5:56
@@ -109,10 +69,16 @@ warning: unused import: `Encodable`
 5 | use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
   |                            ^^^^^^^^^
 
+warning: unused import: `QbftPayload`
+ --> crates/neura-qbft/src/statemachine/round_state.rs:2:22
+  |
+2 | use crate::payload::{QbftPayload, PreparePayload, CommitPayload};
+  |                      ^^^^^^^^^^^
+
 warning: unused variable: `block`
-   --> crates/neura-qbft/src/statemachine/qbft_round.rs:175:32
+   --> crates/neura-qbft/src/statemachine/qbft_round.rs:174:32
     |
-175 |     fn send_prepare(&mut self, block: QbftBlock, block_digest: Hash) -> Result<(), QbftError> {
+174 |     fn send_prepare(&mut self, block: QbftBlock, block_digest: Hash) -> Result<(), QbftError> {
     |                                ^^^^^ help: if this is intentional, prefix it with an underscore: `_block`
     |
     = note: `#[warn(unused_variables)]` on by default
@@ -130,41 +96,41 @@ warning: unused variable: `proposer_address`
     |             ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_proposer_address`
 
 warning: fields `final_state`, `locked_block`, `proposal_sent`, `prepare_sent`, and `finalized_block_hash_in_round` are never read
-  --> crates/neura-qbft/src/statemachine/qbft_round.rs:30:5
+  --> crates/neura-qbft/src/statemachine/qbft_round.rs:29:5
    |
-27 | pub struct QbftRound {
+26 | pub struct QbftRound {
    |            --------- fields in this struct
 ...
-30 |     final_state: Arc<dyn QbftFinalState>,
+29 |     final_state: Arc<dyn QbftFinalState>,
    |     ^^^^^^^^^^^
 ...
-38 |     locked_block: Option<QbftBlock>,
+37 |     locked_block: Option<QbftBlock>,
    |     ^^^^^^^^^^^^
-39 |     proposal_sent: bool,
+38 |     proposal_sent: bool,
    |     ^^^^^^^^^^^^^
-40 |     prepare_sent: bool,
+39 |     prepare_sent: bool,
    |     ^^^^^^^^^^^^
-41 |     finalized_block_hash_in_round: Option<Hash>,
+40 |     finalized_block_hash_in_round: Option<Hash>,
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: `#[warn(dead_code)]` on by default
 
 warning: methods `get_block_to_propose`, `send_proposal_if_new_block_available`, `send_prepare_if_proposal_accepted`, and `add_prepare_if_valid` are never used
-   --> crates/neura-qbft/src/statemachine/qbft_round.rs:362:8
+   --> crates/neura-qbft/src/statemachine/qbft_round.rs:361:8
     |
-44  | impl QbftRound {
+43  | impl QbftRound {
     | -------------- methods in this implementation
 ...
-362 |     fn get_block_to_propose(&mut self, target_round_identifier: ConsensusRoundIdentifier) -> Result<QbftBlock, QbftError> {
+361 |     fn get_block_to_propose(&mut self, target_round_identifier: ConsensusRoundIdentifier) -> Result<QbftBlock, QbftError> {
     |        ^^^^^^^^^^^^^^^^^^^^
 ...
-373 |     fn send_proposal_if_new_block_available(
+372 |     fn send_proposal_if_new_block_available(
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
-409 |     fn send_prepare_if_proposal_accepted(&mut self) -> Result<(), QbftError> {
+408 |     fn send_prepare_if_proposal_accepted(&mut self) -> Result<(), QbftError> {
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
-431 |     fn add_prepare_if_valid(&mut self, prepare: Prepare) -> Result<bool, QbftError> {
+430 |     fn add_prepare_if_valid(&mut self, prepare: Prepare) -> Result<bool, QbftError> {
     |        ^^^^^^^^^^^^^^^^^^^^
 
 warning: fields `round_change_message_validator`, `locked_block`, `finalized_block`, and `round_timeout_count` are never read
@@ -232,6 +198,6 @@ warning: function `MOCK_RLP_SIGNATURE` should have a snake case name
 50 |     fn MOCK_RLP_SIGNATURE() -> RlpSignature {
    |        ^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `mock_rlp_signature`
 
-warning: `neura_qbft_core` (lib) generated 26 warnings (run `cargo fix --lib -p neura_qbft_core` to apply 7 suggestions)
-warning: `neura_qbft_core` (lib test) generated 27 warnings (23 duplicates) (run `cargo fix --lib -p neura_qbft_core --tests` to apply 1 suggestion)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.17s
+warning: `neura_qbft_core` (lib) generated 19 warnings
+warning: `neura_qbft_core` (lib test) generated 21 warnings (16 duplicates) (run `cargo fix --lib -p neura_qbft_core --tests` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.10s
