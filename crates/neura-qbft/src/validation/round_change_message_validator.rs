@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use crate::messagewrappers::RoundChange;
 use crate::types::{QbftFinalState, QbftBlockHeader};
-use crate::payload::QbftPayload;
 use crate::error::QbftError;
  // To validate proposals within prepared certs
 use alloy_primitives::Address;

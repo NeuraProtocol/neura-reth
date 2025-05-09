@@ -1,5 +1,5 @@
 use crate::messagewrappers::{Commit, Prepare, Proposal};
-use crate::payload::{QbftPayload, PreparePayload, CommitPayload};
+use crate::payload::{PreparePayload, CommitPayload};
 use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock};
 use crate::validation::MessageValidator;
 use crate::error::QbftError;

@@ -45,7 +45,7 @@ impl RoundChangeArtifacts {
                 rc_wrapper.prepared_block().as_ref().and_then(|block| { 
                     rc_wrapper.payload().prepared_round_metadata.as_ref().map(|metadata| {
                         PreparedCertificate::new(
-                            block.clone().clone(),
+                            (**block).clone(),
                             metadata.prepares.clone(),
                             metadata.prepared_round,
                         )

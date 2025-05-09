@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::collections::HashSet;
 use crate::messagewrappers::Proposal;
 use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraDataCodec, ConsensusRoundIdentifier};
-use crate::payload::QbftPayload;
 use crate::error::QbftError;
 use crate::validation::RoundChangeMessageValidatorFactory;
 // Placeholder for block header validation logic

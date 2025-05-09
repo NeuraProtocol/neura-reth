@@ -1,14 +1,15 @@
 use crate::messagewrappers::bft_message::BftMessage;
-use crate::payload::RoundChangePayload;
-use crate::types::{SignedData, QbftBlock};
-use crate::payload::PreparePayload;
-use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable}; // Correct RLP imports
+use crate::payload::{RoundChangePayload, PreparePayload};
+use crate::types::{SignedData, QbftBlock, ConsensusRoundIdentifier, QbftBlockHeader};
+use alloy_rlp::{RlpEncodable, RlpDecodable}; // Encodable, Decodable were removed as per build log
 use std::ops::Deref;
- // For author
- // For author
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+// Removed redundant imports and consolidated crate::types imports
 
 /// Represents a QBFT RoundChange message, including any piggybacked prepared certificate.
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))] // Assuming it might need serde
 #[rlp(trailing)] // For Option fields
 pub struct RoundChange {
     bft_message: BftMessage<RoundChangePayload>,
