@@ -1,4 +1,7 @@
 use crate::types::{ConsensusRoundIdentifier, NodeKey}; // Corrected NodeKey path
+use crate::types::header::QbftBlockHeader; // Corrected path
+use crate::types::block_creator::QbftBlockCreator; // Corrected path
+use crate::error::QbftError; // Corrected path
 use alloy_primitives::Address;
 use std::collections::HashSet; // For validator set
 use std::sync::Arc;
@@ -50,7 +53,8 @@ pub trait QbftFinalState: Send + Sync {
     fn node_key(&self) -> Arc<NodeKey>;
     fn local_address(&self) -> Address;
     
-    fn validators(&self) -> HashSet<Address>; // Set of current validators
+    fn validators(&self) -> HashSet<Address>; // Set of current validators for the *current* state
+    fn get_validators_for_block(&self, block_number: u64) -> Result<Vec<Address>, QbftError>;
     fn is_validator(&self, address: Address) -> bool;
     fn is_local_node_validator(&self) -> bool {
         self.is_validator(self.local_address())
@@ -58,6 +62,10 @@ pub trait QbftFinalState: Send + Sync {
 
     fn quorum_size(&self) -> usize; // Calculated as 2f+1
     fn Byzantine_fault_tolerance_f(&self) -> usize; // Calculated as (N-1)/3
+
+    fn get_byzantine_fault_tolerance(&self) -> usize {
+        self.Byzantine_fault_tolerance_f()
+    }
 
     // Proposer selection
     fn is_proposer_for_round(&self, proposer: Address, round: &ConsensusRoundIdentifier) -> bool;

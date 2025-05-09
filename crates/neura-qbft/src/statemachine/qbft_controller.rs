@@ -83,7 +83,8 @@ impl QbftController {
         let message_validator = self.message_validator_factory.create_message_validator(
             &parent_header, 
             self.final_state_provider.clone(),
-            self.extra_data_codec.clone()
+            self.extra_data_codec.clone(),
+            self.round_change_message_validator_factory.clone()
         )?;
         let round_change_message_validator = self.round_change_message_validator_factory.create_round_change_message_validator(
             &parent_header, 
@@ -168,4 +169,56 @@ impl QbftController {
 
     // TODO: handle_block_timer_event if the BlockTimer itself emits events.
     // Current design uses BlockTimer more as a utility for timestamp calculation.
+
+    fn create_height_manager(&self, parent_header: &QbftBlockHeader) -> Result<QbftBlockHeightManager, QbftError> {
+        let block_number = parent_header.number + 1;
+
+        // Determine the proposer for the first round (round 0) at this new height.
+        let validators = self.final_state_provider.get_validators_for_block(block_number)?;
+        if validators.is_empty() {
+            return Err(QbftError::NoValidators);
+        }
+        let proposer_index = (block_number as usize) % validators.len();
+        let proposer_address = validators[proposer_index]; // This is for MessageValidator config if it needs initial proposer
+
+        // Create a MessageValidator instance for this height.
+        // Note: MessageValidator constructor might not need proposer_address directly if it's derived from final_state + round_id.
+        // The trait for MessageValidatorFactory::create_message_validator expects parent_header, final_state, codec, and rc_validator_factory.
+        // It does not take block_number or proposer_address directly in its trait signature.
+        // The `MessageValidator` itself might use these via the `final_state_provider`.
+        let message_validator = self.message_validator_factory.create_message_validator(
+            parent_header, // Correct: parent_header
+            self.final_state_provider.clone(), // Correct: final_state_view
+            self.extra_data_codec.clone(),     // Correct: extra_data_codec
+            self.round_change_message_validator_factory.clone() // Correct: round_change_message_validator_factory
+        )?;
+
+        // Create RoundChangeMessageValidator for this height
+        let round_change_message_validator = self.round_change_message_validator_factory.create_round_change_message_validator(
+            parent_header,
+            self.final_state_provider.clone()
+        )?;
+
+        // Create BlockCreator for this height
+        let block_creator = self.block_creator_factory.create_block_creator(
+            parent_header, 
+            self.final_state_provider.clone()
+        )?;
+
+        let height_manager = QbftBlockHeightManager::new(
+            parent_header.clone(), // BHM takes parent_header by value
+            self.final_state_provider.clone(),
+            block_creator, // Pass the created Arc<dyn QbftBlockCreator>
+            self.block_importer.clone(),
+            self.message_factory.clone(), 
+            self.validator_multicaster.clone(),
+            self.block_timer.clone(), 
+            self.round_timer.clone(),
+            self.extra_data_codec.clone(),
+            message_validator, // The specific message validator for this height
+            round_change_message_validator, // The specific RC validator for this height
+            self.mined_block_observers.clone(),
+        );
+        Ok(height_manager)
+    }
 } 

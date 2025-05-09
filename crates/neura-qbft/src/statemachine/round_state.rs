@@ -1,9 +1,9 @@
-use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock};
+use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock, RlpSignature};
 use crate::messagewrappers::{Proposal, Prepare, Commit};
-use crate::payload::PreparePayload; // For PreparedCertificate
+use crate::payload::{PreparePayload, CommitPayload}; // Added CommitPayload
 use crate::validation::MessageValidator; // Corrected import
 use crate::error::QbftError;
-use alloy_primitives::{Address, B256 as Hash};
+use alloy_primitives::{Address, B256 as Hash, Signature};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc; // For MessageValidator if it becomes shared
 
@@ -145,15 +145,32 @@ impl RoundState {
         self.proposal.as_ref()
     }
 
-    pub fn get_prepare_messages(&self) -> Vec<&Prepare> {
-        self.prepare_messages.values().collect()
+    pub fn get_prepare_messages(&self) -> Vec<&SignedData<PreparePayload>> {
+        self.prepare_messages.values().map(|prepare_wrapper| &prepare_wrapper.signed_payload).collect()
     }
 
-    pub fn get_commit_seals(&self) -> Vec<alloy_primitives::Signature> {
-        self.commit_messages
-            .values()
-            .map(|commit| commit.payload().commit_seal.clone())
-            .collect()
+    pub fn get_commit_messages(&self) -> Vec<&SignedData<CommitPayload>> {
+        self.commit_messages.values().map(|commit_wrapper| &commit_wrapper.signed_payload).collect()
+    }
+
+    // Get only the commit seals (signatures) for committed messages
+    pub fn get_commit_seals_if_committed(&self) -> Option<Vec<Signature>> {
+        if self.is_committed() { 
+            Some(self.commit_messages.values()
+                .map(|commit| commit.payload().committed_seal.0.clone())
+                .collect())
+        } else {
+            None
+        }
+    }
+    pub fn get_commit_seals_if_committing(&self) -> Option<Vec<Signature>> {
+        if self.is_committed() { // Should likely be is_prepared_for_commit or similar state if one exists
+            Some(self.commit_messages.values()
+            .map(|commit| commit.payload().committed_seal.0.clone())
+            .collect())
+        } else {
+            None
+        }
     }
 
     pub fn construct_prepared_certificate(&self) -> Option<PreparedCertificate> {

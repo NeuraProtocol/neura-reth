@@ -53,6 +53,14 @@ pub enum QbftError {
     NodeKeyUnavailable,
     #[error("Crypto operation failed: {0}")]
     CryptoError(String),
+    #[error("RLP error: {0}")]
+    RlpError(#[from] alloy_rlp::Error),
+    #[error("Invalid message type: {0}")]
+    InvalidMessageType(u8),
+    #[error("No validators available to select proposer")]
+    NoValidators,
+    #[error("Consensus invariant violation: {0}")]
+    ConsensusInvariantViolation(String),
 }
 
 // Helper to convert k256::ecdsa::Error to QbftError

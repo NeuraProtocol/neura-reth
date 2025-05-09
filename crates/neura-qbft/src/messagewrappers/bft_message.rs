@@ -2,11 +2,11 @@ use crate::payload::QbftPayload;
 use crate::types::{SignedData, ConsensusRoundIdentifier};
 use alloy_primitives::Address;
 use crate::error::QbftError;
-use alloy_rlp::{Encodable, Decodable}; // For the RLP bounds on P
+use alloy_rlp::{Encodable, Decodable, RlpEncodable, RlpDecodable};
 
 // Generic BFT message wrapper.
 // P is the specific payload type (e.g., ProposalPayload).
-#[derive(Debug, Clone, PartialEq, Eq)] // RLP traits will be on concrete types
+#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct BftMessage<P: QbftPayload + Encodable + Decodable + Clone + std::fmt::Debug + Send + Sync> {
     pub signed_payload: SignedData<P>,
     // Author can be recovered from signed_payload, so not stored directly

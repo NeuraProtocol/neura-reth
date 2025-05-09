@@ -5,8 +5,8 @@ use crate::error::QbftError;
 use alloy_primitives::{B256 as Hash, Address, Signature as AlloySignature};
 
 pub struct CommitValidator {
-    final_state: Arc<dyn QbftFinalState>,
-    expected_proposal_digest: Hash,
+    pub final_state: Arc<dyn QbftFinalState>,
+    pub expected_proposal_digest: Hash,
 }
 
 impl CommitValidator {
@@ -42,8 +42,8 @@ impl CommitValidator {
         // 3. Validate committed_seal: 
         // It must be a signature by `author_address` over `payload.digest`.
         // `payload.digest` is already a hash (B256), so it's used as a prehashed message for recovery.
-        let seal_signer_address = match payload.committed_seal.recover_address_from_prehash(&payload.digest) {
-            Ok(address) => address,
+        let seal_signer_address = match payload.committed_seal.0.recover_address_from_prehash(&payload.digest) {
+            Ok(addr) => addr,
             Err(e) => {
                 log::warn!(
                     "Failed to recover signer from committed_seal. Commit author: {:?}, Digest: {:?}, Error: {}", 

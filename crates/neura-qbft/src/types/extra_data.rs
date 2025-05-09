@@ -1,20 +1,24 @@
-use alloy_primitives::{Address, Bytes, Signature, B256};
-use alloy_rlp::{RlpEncodable, RlpDecodable, Header, BufMut, Error as RlpError};
+use alloy_primitives::{Address, Bytes, Signature as AlloyPrimitiveSignature, B256};
+use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable, Header, BufMut, Error as RlpError};
+use serde::{Deserialize, Serialize};
 use crate::error::QbftError;
 use std::collections::VecDeque; // For vanity data matching Besu, not used in current struct
+use crate::types::RlpSignature;
 
-/// Represents the structured data within a QBFT block header's extraData field.
-#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable, Default)]
+/// Represents the BFT-specific data stored in the `extraData` field of a block header.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+#[rlp(trailing)] // For committed_seals if it becomes Option or for future optional fields
 pub struct BftExtraData {
-    // In Besu, vanity_data is Bytes32. Here, using Bytes for flexibility, though it must be 32 bytes for QBFT spec typically.
-    // Let's use a fixed-size array for vanity data if it's truly fixed or ensure it's handled correctly.
-    // For now, assuming it's part of a larger RLP structure that the codec handles.
-    // The RLP structure of extraData is: RLP_LIST[vanityData, validators, commitSeals, roundNumber]
-    // Let's make BftExtraData directly RlpEncodable/Decodable.
-    pub vanity_data: Bytes, // Typically 32 bytes of arbitrary data.
+    // Fixed-size byte array for vanity data, chosen to match Besu's 32 bytes.
+    pub vanity_data: Bytes, // Should be exactly 32 bytes when encoding/decoding if enforced
+    // List of validators for the *next* block.
     pub validators: Vec<Address>,
-    pub committed_seals: Vec<Signature>,
-    pub round_number: u32, // In Besu, this is always present for QBFT.
+    // List of validator signatures (seals) that voted for the block.
+    // This is RLP-encoded as a list of signatures.
+    pub committed_seals: Vec<RlpSignature>,
+    // The consensus round number in which this block was agreed upon.
+    pub round_number: u32,
+    // Besu also has vote: Option<BftVote> - not included for now for simplicity
 }
 
 // The BftExtraDataCodec trait might not be needed if BftExtraData itself is RLP-aware
@@ -22,22 +26,102 @@ pub struct BftExtraData {
 // For now, we'll assume the header stores raw Bytes and we might have a codec helper.
 
 pub trait BftExtraDataCodec: Send + Sync {
-    fn decode(&self, extra_data_bytes: &Bytes) -> Result<BftExtraData, QbftError>;
-    fn encode(&self, bft_extra_data: &BftExtraData) -> Result<Bytes, QbftError>;
+    fn decode(&self, extra_data_bytes: &Bytes) -> Result<BftExtraData, RlpError>;
+    fn encode(&self, bft_extra_data: &BftExtraData) -> Result<Bytes, RlpError>;
 }
 
 // Default implementation for the codec using alloy-rlp for BftExtraData struct
+#[derive(Debug, Clone, Default)]
 pub struct AlloyBftExtraDataCodec;
 
 impl BftExtraDataCodec for AlloyBftExtraDataCodec {
-    fn decode(&self, extra_data_bytes: &Bytes) -> Result<BftExtraData, QbftError> {
+    fn decode(&self, extra_data_bytes: &Bytes) -> Result<BftExtraData, RlpError> {
         BftExtraData::decode(&mut extra_data_bytes.as_ref())
-            .map_err(|e| QbftError::RlpDecodingError(format!("BftExtraData: {}", e)))
     }
 
-    fn encode(&self, bft_extra_data: &BftExtraData) -> Result<Bytes, QbftError> {
+    fn encode(&self, bft_extra_data: &BftExtraData) -> Result<Bytes, RlpError> {
         let mut out = Vec::new();
         bft_extra_data.encode(&mut out);
         Ok(Bytes::from(out))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;    
+    use alloy_primitives::{hex, Address, U256, Bytes, B256};
+
+    fn dummy_rlp_signature(val: u64) -> RlpSignature {
+        let r = U256::from(val);
+        let s = U256::from(val + 1);
+        let parity_bool = val % 2 != 0;
+        
+        let r_b256 = B256::from(r.to_be_bytes());
+        let s_b256 = B256::from(s.to_be_bytes());
+
+        let sig = AlloyPrimitiveSignature::from_scalars_and_parity(r_b256, s_b256, parity_bool);
+        RlpSignature(sig)
+    }
+
+    #[test]
+    fn test_bft_extra_data_rlp_roundtrip() {
+        let address1 = Address::from_slice(&hex!("0000000000000000000000000000000000000001"));
+        let address2 = Address::from_slice(&hex!("0000000000000000000000000000000000000002"));
+        let extra_data = BftExtraData {
+            vanity_data: Bytes::from_static(&[0u8; 32]),
+            validators: vec![address1, address2],
+            committed_seals: vec![
+                dummy_rlp_signature(1),
+                dummy_rlp_signature(4),
+            ],
+            round_number: 5,
+        };
+
+        let codec = AlloyBftExtraDataCodec::default();
+        let encoded = codec.encode(&extra_data).unwrap();
+        let decoded = codec.decode(&encoded).unwrap();
+
+        assert_eq!(extra_data, decoded);
+    }
+
+     #[test]
+    fn test_bft_extra_data_empty_seals_validators() {
+        let extra_data = BftExtraData {
+            vanity_data: Bytes::from_static(&[1u8; 32]),
+            validators: vec![],
+            committed_seals: vec![],
+            round_number: 0,
+        };
+        let codec = AlloyBftExtraDataCodec::default();
+        let encoded = codec.encode(&extra_data).unwrap();
+        let decoded = codec.decode(&encoded).unwrap();
+        assert_eq!(extra_data, decoded);
+    }
+
+    #[test]
+    fn test_besu_like_round_0_extra_data() {
+        let expected_vanity = Bytes::from_static(&[0u8; 32]);
+        let extra_data = BftExtraData {
+            vanity_data: expected_vanity.clone(),
+            validators: vec![],
+            committed_seals: vec![],
+            round_number: 0,
+        };
+
+        let codec = AlloyBftExtraDataCodec::default();
+        let encoded_bytes = codec.encode(&extra_data).unwrap();
+        
+        let mut expected_rlp = Vec::new();
+        expected_rlp.push(0xe4); 
+        expected_rlp.push(0xa0); 
+        expected_rlp.extend_from_slice(&[0u8; 32]); 
+        expected_rlp.push(0xc0); 
+        expected_rlp.push(0xc0); 
+        expected_rlp.push(0x00); 
+
+        assert_eq!(encoded_bytes, Bytes::from(expected_rlp));
+
+        let decoded = codec.decode(&encoded_bytes).unwrap();
+        assert_eq!(extra_data, decoded);
     }
 } 

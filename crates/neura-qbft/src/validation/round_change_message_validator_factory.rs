@@ -12,4 +12,21 @@ pub trait RoundChangeMessageValidatorFactory: Send + Sync {
         parent_header: &QbftBlockHeader,
         final_state_view: Arc<dyn QbftFinalState>
     ) -> Result<RoundChangeMessageValidator, QbftError>;
+}
+
+/// Concrete Implementation of RoundChangeMessageValidatorFactory
+#[derive(Default)] // Added default for easier instantiation if no special state
+pub struct RoundChangeMessageValidatorFactoryImpl;
+
+impl RoundChangeMessageValidatorFactory for RoundChangeMessageValidatorFactoryImpl {
+    fn create_round_change_message_validator(
+        &self,
+        parent_header: &QbftBlockHeader,
+        final_state_view: Arc<dyn QbftFinalState>
+    ) -> Result<RoundChangeMessageValidator, QbftError> {
+        Ok(RoundChangeMessageValidator::new(
+            final_state_view.clone(),
+            Arc::new(parent_header.clone()), // RoundChangeMessageValidator expects Arc<QbftBlockHeader>
+        ))
+    }
 } 

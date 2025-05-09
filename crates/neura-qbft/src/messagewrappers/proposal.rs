@@ -1,122 +1,64 @@
-use crate::payload::{ProposalPayload, RoundChangePayload, PreparePayload};
-use crate::types::{SignedData, QbftBlock};
+use crate::payload::ProposalPayload;
+use crate::types::{QbftBlock, QbftBlockHeader};
 use crate::messagewrappers::bft_message::BftMessage;
-use alloy_rlp::{Encodable, Decodable, Header, length_of_length, BufMut};
+use crate::messagewrappers::round_change::RoundChange;
+use crate::messagewrappers::prepared_certificate::PreparedCertificateWrapper;
+// Use derive macros from alloy_rlp directly when 'derive' feature is enabled
+use alloy_rlp::{RlpEncodable, RlpDecodable};
 use std::ops::Deref;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Represents a QBFT Proposal message.
+/// RLP structure: [bft_message, proposed_block_header, [round_change_proofs], prepared_certificate_option]
+/// where prepared_certificate_option is either an RLP list (if Some) or an RLP empty list 0xc0 (if None).
+#[derive(Clone, Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[rlp(trailing)]
 pub struct Proposal {
-    // Inner BftMessage holds the SignedData<ProposalPayload>
-    inner: BftMessage<ProposalPayload>,
-    // Additional fields specific to Proposal wrapper
-    round_changes: Vec<SignedData<RoundChangePayload>>,
-    prepares: Vec<SignedData<PreparePayload>>,
+    bft_message: BftMessage<ProposalPayload>,
+    proposed_block_header: QbftBlockHeader, 
+    round_change_proofs: Vec<RoundChange>,
+    pub prepared_certificate: Option<PreparedCertificateWrapper>,
 }
 
 // Implement Deref to easily access BftMessage methods (author, payload, round_identifier, etc.)
 impl Deref for Proposal {
     type Target = BftMessage<ProposalPayload>;
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.bft_message
     }
 }
 
 impl Proposal {
     pub fn new(
-        signed_payload: SignedData<ProposalPayload>,
-        round_changes: Vec<SignedData<RoundChangePayload>>,
-        prepares: Vec<SignedData<PreparePayload>>,
+        bft_message: BftMessage<ProposalPayload>,
+        proposed_block_header: QbftBlockHeader,
+        round_change_proofs: Vec<RoundChange>,
+        prepared_certificate: Option<PreparedCertificateWrapper>,
     ) -> Self {
         Self {
-            inner: BftMessage::new(signed_payload),
-            round_changes,
-            prepares,
+            bft_message,
+            proposed_block_header,
+            round_change_proofs,
+            prepared_certificate,
         }
     }
 
-    pub fn round_changes(&self) -> &Vec<SignedData<RoundChangePayload>> {
-        &self.round_changes
+    pub fn bft_message(&self) -> &BftMessage<ProposalPayload> {
+        &self.bft_message
     }
 
-    pub fn prepares(&self) -> &Vec<SignedData<PreparePayload>> {
-        &self.prepares
+    pub fn proposed_block_header(&self) -> &QbftBlockHeader {
+        &self.proposed_block_header
     }
 
-    pub fn block(&self) -> &QbftBlock {
-        &self.payload().proposed_block // Access payload via Deref
-    }
-}
-
-// RLP Encoding: RLP_LIST(SignedProposalPayload, RLP_LIST(Vec<SignedRoundChange>, Vec<SignedPrepare>))
-impl Encodable for Proposal {
-    fn encode(&self, out: &mut dyn BufMut) {
-        let signed_payload_len = self.inner.signed_payload.length();
-        
-        let mut round_changes_encoded = Vec::new();
-        self.round_changes.encode(&mut round_changes_encoded);
-
-        let mut prepares_encoded = Vec::new();
-        self.prepares.encode(&mut prepares_encoded);
-
-        let inner_list_items_payload_length = round_changes_encoded.len() + prepares_encoded.len();
-        let inner_list_header = Header { list: true, payload_length: inner_list_items_payload_length };
-        
-        let total_payload_length = signed_payload_len + inner_list_header.length() + inner_list_items_payload_length;
-        Header { list: true, payload_length: total_payload_length }.encode(out);
-        
-        self.inner.signed_payload.encode(out);
-        inner_list_header.encode(out);
-        out.put_slice(&round_changes_encoded);
-        out.put_slice(&prepares_encoded);
+    pub fn round_change_proofs(&self) -> &Vec<RoundChange> {
+        &self.round_change_proofs
     }
 
-    fn length(&self) -> usize {
-        let signed_payload_len = self.inner.signed_payload.length();
-        
-        let round_changes_encoded_len = self.round_changes.length();
-        let prepares_encoded_len = self.prepares.length();
-
-        let inner_list_items_payload_length = round_changes_encoded_len + prepares_encoded_len;
-        let inner_list_header_len = Header { list: true, payload_length: inner_list_items_payload_length }.length();
-        
-        let total_payload_length = signed_payload_len + inner_list_header_len + inner_list_items_payload_length;
-        Header { list: true, payload_length: total_payload_length }.length() + total_payload_length
+    pub fn prepared_certificate(&self) -> Option<&PreparedCertificateWrapper> {
+        self.prepared_certificate.as_ref()
     }
-}
 
-impl Decodable for Proposal {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let outer_header = Header::decode(buf)?;
-        if !outer_header.list {
-            return Err(alloy_rlp::Error::Custom("Proposal RLP must be a list"));
-        }
-        let outer_payload_start_len = buf.len();
-
-        let signed_payload = SignedData::<ProposalPayload>::decode(buf)?;
-
-        let inner_list_header = Header::decode(buf)?;
-        if !inner_list_header.list {
-            return Err(alloy_rlp::Error::Custom("Proposal inner RLP for certs must be a list"));
-        }
-        let inner_list_payload_start_len = buf.len();
-
-        let round_changes = Vec::<SignedData<RoundChangePayload>>::decode(buf)?;
-        let prepares = Vec::<SignedData<PreparePayload>>::decode(buf)?;
-        
-        let inner_list_decoded_bytes = inner_list_payload_start_len - buf.len();
-        if inner_list_decoded_bytes != inner_list_header.payload_length {
-            // If the Vec<T>::decode consumed exactly the header.payload_length, this check might be redundant
-            // or needs to account for how Vec<T>::decode works with the buffer length.
-            // For now, let's assume Vec<T>::decode consumes its items and leaves the buffer at the end of its list.
-            // The check here compares actual bytes consumed for items vs header.payload_length for those items.
-             return Err(alloy_rlp::Error::UnexpectedLength);
-        }
-
-        let outer_decoded_bytes = outer_payload_start_len - buf.len();
-        if outer_decoded_bytes != outer_header.payload_length {
-            return Err(alloy_rlp::Error::UnexpectedLength);
-        }
-
-        Ok(Proposal::new(signed_payload, round_changes, prepares))
+    pub fn block(&self) -> &QbftBlock { // Assuming ProposalPayload has a proposed_block field
+        &self.bft_message.payload().proposed_block
     }
 } 

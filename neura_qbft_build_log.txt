@@ -1,0 +1,8 @@
+error: failed to select a version for `alloy-primitives`.
+    ... required by package `reth-bench v1.3.12 (/home/peastew/src/neura-reth/bin/reth-bench)`
+versions that meet the requirements `^1.1.0` (locked to 1.1.0) are: 1.1.0
+
+the package `reth-bench` depends on `alloy-primitives`, with features: `geth-signer` but `alloy-primitives` does not have these features.
+
+
+failed to select a version for `alloy-primitives` which could resolve this conflict

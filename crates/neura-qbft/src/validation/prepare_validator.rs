@@ -5,9 +5,9 @@ use crate::error::QbftError;
 use alloy_primitives::B256 as Hash;
 
 pub struct PrepareValidator {
-    final_state: Arc<dyn QbftFinalState>,
+    pub final_state: Arc<dyn QbftFinalState>,
     // Context about the current proposal this Prepare is for:
-    expected_proposal_digest: Hash, 
+    pub expected_proposal_digest: Hash, 
     // expected_round_identifier: ConsensusRoundIdentifier, // From Proposal
 }
 

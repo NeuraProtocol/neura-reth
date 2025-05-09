@@ -1,7 +1,8 @@
 use std::sync::Arc;
 use std::collections::HashSet;
 use crate::messagewrappers::{Proposal, RoundChange, PreparedCertificateWrapper};
-use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraData, BftExtraDataCodec, ConsensusRoundIdentifier, QbftPayload};
+use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraData, BftExtraDataCodec, ConsensusRoundIdentifier};
+use crate::payload::QbftPayload;
 use crate::error::QbftError;
 use crate::validation::RoundChangeMessageValidatorFactory;
 // Placeholder for block header validation logic
@@ -106,18 +107,14 @@ impl ProposalValidator {
 
         // 4. Validate piggybacked RoundChange messages
         // The Proposal struct directly contains Vec<RoundChange> (parsed from RLP list)
-        for piggybacked_rc in proposal.round_changes() {
-            // Create a RoundChangeMessageValidator for the context of this proposal (height).
-            // The RCMVFactory takes parent_header and final_state_view.
-            // parent_header is correct for this height.
-            // final_state_view is also appropriate for this height.
+        for piggybacked_rc in proposal.round_change_proofs() {
             let rc_validator = self.round_change_message_validator_factory
                 .create_round_change_message_validator(&self.parent_header, self.final_state.clone())?;
             
             if !rc_validator.validate(piggybacked_rc)? {
                 log::warn!(
                     "Proposal from {:?} for round {:?} contains an invalid piggybacked RoundChange message from {:?}. Target round: {:?}", 
-                    author, proposal_round_identifier, piggybacked_rc.author()?, piggybacked_rc.payload().target_round
+                    author, proposal_round_identifier, piggybacked_rc.author()?, piggybacked_rc.payload().target_round_identifier
                 );
                 return Ok(false);
             }
@@ -127,19 +124,18 @@ impl ProposalValidator {
         if let Some(cert_wrapper) = &proposal.prepared_certificate {
             log::debug!("Validating piggybacked PreparedCertificate in proposal for round {:?}", proposal_round_identifier);
 
-            // 5.1. Determine the assumed prepared_round
             if proposal_round_identifier.round_number == 0 {
                 log::warn!("Proposal for round 0 cannot have a prepared certificate.");
-                return Ok(false); // Round 0 cannot have a prepare from a previous round.
+                return Ok(false); 
             }
             let prepared_round_number = proposal_round_identifier.round_number - 1;
             let prepared_round_id = ConsensusRoundIdentifier {
-                sequence_number: proposal_round_identifier.sequence_number, // Same height
+                sequence_number: proposal_round_identifier.sequence_number, 
                 round_number: prepared_round_number,
             };
 
-            // 5.2. Validate cert_wrapper.block
-            let cert_block = &cert_wrapper.block;
+            // 5.2. Validate block in cert_wrapper
+            let cert_block = &cert_wrapper.proposal_message.payload().proposed_block;
             let cert_block_header = &cert_block.header;
 
             if cert_block_header.number != proposal_round_identifier.sequence_number {
@@ -150,7 +146,6 @@ impl ProposalValidator {
                 log::warn!("Prepared cert block parent hash mismatch.");
                 return Ok(false);
             }
-            // Timestamp of prepared block must be > parent, but also <= current proposal's block timestamp.
             if cert_block_header.timestamp <= self.parent_header.timestamp || cert_block_header.timestamp > block_header.timestamp {
                 log::warn!("Prepared cert block timestamp invalid. Parent: {}, Cert: {}, Proposal: {}", self.parent_header.timestamp, cert_block_header.timestamp, block_header.timestamp);
                 return Ok(false);
@@ -165,12 +160,21 @@ impl ProposalValidator {
                 return Ok(false);
             }
 
-            let original_proposer_of_cert_block = self.final_state.get_proposer_for_round(&prepared_round_id);
-            // The beneficiary field in PoA typically holds the proposer.
-            if cert_block_header.beneficiary != original_proposer_of_cert_block {
+            // Validate proposer of the block in the certificate
+            let original_proposer_of_cert_block_payload = cert_wrapper.proposal_message.author()?;
+            let expected_proposer_for_prepared_round = self.final_state.get_proposer_for_round(&prepared_round_id);
+            if original_proposer_of_cert_block_payload != expected_proposer_for_prepared_round {
                 log::warn!(
-                    "Prepared cert block beneficiary {:?} mismatch expected proposer {:?} for its round {:?}.", 
-                    cert_block_header.beneficiary, original_proposer_of_cert_block, prepared_round_id
+                    "Author {:?} of proposal in cert is not expected proposer {:?} for its round {:?}.",
+                    original_proposer_of_cert_block_payload, expected_proposer_for_prepared_round, prepared_round_id
+                );
+                return Ok(false);
+            }
+            // Also check beneficiary in header of the cert block against this original proposer
+            if cert_block_header.beneficiary != original_proposer_of_cert_block_payload {
+                 log::warn!(
+                    "Prepared cert block beneficiary {:?} mismatch original proposer of cert payload {:?}.", 
+                    cert_block_header.beneficiary, original_proposer_of_cert_block_payload
                 );
                 return Ok(false);
             }
@@ -182,9 +186,9 @@ impl ProposalValidator {
                 return Ok(false);
             }
 
-            for prepare_sd in &cert_wrapper.prepares {
-                let prepare_author = prepare_sd.recover_author()?;
-                let prepare_payload = prepare_sd.payload();
+            for prepare_wrapper in &cert_wrapper.prepares {
+                let prepare_author = prepare_wrapper.author()?;
+                let prepare_payload = prepare_wrapper.payload();
 
                 if !self.final_state.is_validator(prepare_author) {
                     log::warn!("Prepare in cert from non-validator {:?}.", prepare_author);

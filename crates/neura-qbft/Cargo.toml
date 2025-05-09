@@ -6,17 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-alloy-primitives = { version = "0.7", features = ["rlp"] } # For Address, H256, U256, Bytes and RLP support
-alloy-rlp = { version = "0.7", features = ["derive"] }    # For RLP encoding/decoding derive macros
-k256 = { version = "0.13", features = ["ecdsa", "keccak256"] } # For ECDSA and Keccak256
-ecdsa = { version = "0.16", features = ["signing", "verifying"] }
+alloy-primitives = { workspace = true, features = ["rlp", "serde"] } # Removed geth-signer
+alloy-rlp = { version = "0.3.10", features = ["derive"] }    # For RLP encoding/decoding derive macros
+k256 = { workspace = true } # Inherit k256 fully from workspace
+ecdsa = { version = "0.16", features = ["signing", "verifying"] } # Direct, not in workspace.dependencies
 sha3 = "0.10" # Keccak256 is part of this
 chrono = "0.4"
 log = "0.4"
 thiserror = "1.0"
 bytes = "1.5" # If alloy-primitives doesn't cover all Bytes needs directly
+serde = { version = "1.0", features = ["derive"] }
 
 # For development, consider:
 # env_logger = "0.10"
 # tracing = "0.1"
-# tracing-subscriber = "0.3" 
+# tracing-subscriber = "0.3"
+
+[dev-dependencies]
+rand = "0.8" # Added rand for tests 

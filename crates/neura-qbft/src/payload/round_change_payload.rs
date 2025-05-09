@@ -6,6 +6,7 @@ use alloy_rlp::{RlpEncodable, RlpDecodable};
 
 /// Represents the payload of a QBFT RoundChange message.
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[rlp(trailing)]
 pub struct RoundChangePayload {
     // Target round identifier (sequence number should match current height)
     pub target_round_identifier: ConsensusRoundIdentifier,

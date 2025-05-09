@@ -2,16 +2,18 @@ use std::sync::Arc;
 use crate::types::{
     ConsensusRoundIdentifier, QbftBlockHeader, QbftFinalState, 
     BlockTimer, RoundTimer, QbftBlockCreator, QbftBlockImporter, ValidatorMulticaster,
-    BftExtraDataCodec
+    BftExtraDataCodec, QbftBlock
 };
 use crate::statemachine::{
     QbftRound, RoundChangeManager, RoundChangeArtifacts, QbftMinedBlockObserver
 };
-use crate::payload::MessageFactory;
-use crate::validation::{MessageValidator, RoundChangeMessageValidator}; // Assuming these are configured and passed in
+use crate::payload::{MessageFactory, PreparePayload, CommitPayload, RoundChangePayload, PreparedRoundMetadata};
+use crate::validation::{MessageValidator, RoundChangeMessageValidator, MessageValidatorFactory}; // Assuming these are configured and passed in
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
-use alloy_primitives::Address; // For proposer etc.
+use alloy_primitives::Address; // For proposerded import
+
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // TODO: Define QbftEventQueue or similar for handling events like timer expiries, received messages.
 
@@ -34,6 +36,9 @@ pub struct QbftBlockHeightManager {
     current_round: Option<QbftRound>, // The active round manager
     round_change_manager: RoundChangeManager,
     // TODO: state like current_round_identifier, is_committed_locally etc.
+    locked_block: Option<QbftBlock>,
+    finalized_block: Option<QbftBlock>,
+    round_timeout_count: u32
 }
 
 impl QbftBlockHeightManager {
@@ -50,13 +55,13 @@ impl QbftBlockHeightManager {
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
         message_validator: MessageValidator, // Should be pre-configured for this height
         round_change_message_validator: RoundChangeMessageValidator, // Pre-configured
-        mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+        mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>
     ) -> Self {
         let height = parent_header.number + 1;
         let round_change_manager = RoundChangeManager::new(
-            final_state.quorum_size(), // N-F for specific round quorum
-            final_state.Byzantine_fault_tolerance_f() + 1, // F+1 for early change
-            round_change_message_validator.clone(), // Assuming RCMV can be cloned or is Arc'd if stateful
+            final_state.quorum_size(),
+            final_state.get_byzantine_fault_tolerance() + 1,
+            round_change_message_validator.clone(),
         );
         
         Self {
@@ -75,6 +80,9 @@ impl QbftBlockHeightManager {
             mined_block_observers,
             current_round: None,
             round_change_manager,
+            locked_block: None,
+            finalized_block: None,
+            round_timeout_count: 0,
         }
     }
 
@@ -180,7 +188,7 @@ impl QbftBlockHeightManager {
         }
 
         if let Some(current_round) = self.current_round.as_mut() {
-            if *current_round.round_identifier() == proposal.round_identifier() {
+            if *current_round.round_identifier() == *proposal.round_identifier() {
                 log::debug!("Dispatching Proposal to current round: {:?}", proposal.round_identifier());
                 current_round.handle_proposal_message(proposal)
             } else if proposal.round_identifier().round_number > current_round.round_identifier().round_number {
@@ -214,7 +222,7 @@ impl QbftBlockHeightManager {
         }
 
         if let Some(current_round) = self.current_round.as_mut() {
-            if *current_round.round_identifier() == prepare.round_identifier() {
+            if *current_round.round_identifier() == *prepare.round_identifier() {
                 log::debug!("Dispatching Prepare to current round: {:?}", prepare.round_identifier());
                 current_round.handle_prepare_message(prepare)
             } else if prepare.round_identifier().round_number > current_round.round_identifier().round_number {
@@ -247,7 +255,7 @@ impl QbftBlockHeightManager {
         }
 
         if let Some(current_round) = self.current_round.as_mut() {
-            if *current_round.round_identifier() == commit.round_identifier() {
+            if *current_round.round_identifier() == *commit.round_identifier() {
                 log::debug!("Dispatching Commit to current round: {:?}", commit.round_identifier());
                 current_round.handle_commit_message(commit)
             } else if commit.round_identifier().round_number > current_round.round_identifier().round_number {
@@ -270,7 +278,8 @@ impl QbftBlockHeightManager {
     }
 
     pub fn handle_round_change_message(&mut self, round_change: RoundChange) -> Result<(), QbftError> {
-        let target_round_identifier = round_change.round_identifier();
+        let target_round_identifier = round_change.round_identifier().clone();
+
         if target_round_identifier.sequence_number != self.height {
             log::warn!(
                 "Received RoundChange for wrong height. Expected: {}, Got: {}. Ignoring.",
@@ -297,11 +306,11 @@ impl QbftBlockHeightManager {
             Ok(Some(artifacts)) => {
                 log::info!(
                     "RoundChangeManager reported quorum for round change to round {}. Advancing.", 
-                    artifacts.round_changes().first().map_or(target_round_identifier.round_number, |rc| rc.payload().target_round.round_number) // best estimate of target round
+                    artifacts.round_changes().first().map_or(target_round_identifier.round_number, |rc| rc.payload().target_round_identifier.round_number) // Corrected field
                 );
                 let new_round_number = artifacts.round_changes()
                     .first()
-                    .map(|rc| rc.payload().target_round.round_number)
+                    .map(|rc| rc.payload().target_round_identifier.round_number) // Corrected field
                     .ok_or_else(|| QbftError::InternalError("RoundChangeArtifacts empty or invalid".to_string()))?;
                 
                 self.advance_to_new_round(new_round_number, Some(artifacts))
@@ -334,7 +343,7 @@ impl QbftBlockHeightManager {
                         // Try to get prepared cert from current round if any, to piggyback
                         let prepared_certificate = self.current_round.as_ref().and_then(|cr| cr.construct_prepared_certificate());
                         let prepared_round_metadata = prepared_certificate.as_ref().map(|cert| {
-                            PreparedRoundMetadata::new(cert.block.hash(), cert.prepared_round, cert.prepares.clone())
+                            PreparedRoundMetadata::new(cert.prepared_round, cert.block.hash(), cert.prepares.clone())
                         });
                         let prepared_block_for_wrapper = prepared_certificate.as_ref().map(|cert| cert.block.clone());
                         let prepares_for_wrapper = prepared_certificate.map_or(Vec::new(), |cert| cert.prepares.clone());
@@ -398,7 +407,7 @@ impl QbftBlockHeightManager {
         let prepared_certificate = self.current_round.as_ref().and_then(|cr| cr.construct_prepared_certificate());
         
         let prepared_round_metadata = prepared_certificate.as_ref().map(|cert| {
-            PreparedRoundMetadata::new(cert.block.hash(), cert.prepared_round, cert.prepares.clone())
+            PreparedRoundMetadata::new(cert.prepared_round, cert.block.hash(), cert.prepares.clone())
         });
         let prepared_block_for_wrapper = prepared_certificate.as_ref().map(|cert| cert.block.clone());
         let prepares_for_wrapper = prepared_certificate.map_or(Vec::new(), |cert| cert.prepares.clone());
@@ -422,4 +431,36 @@ impl QbftBlockHeightManager {
 
     // TODO: Implement methods for:
     // - handle_block_timer_event()
+
+    fn on_block_finalized(&self, block: &QbftBlock) {
+        for observer in self.mined_block_observers.iter() { // Iter over Vec<Arc<dyn QbftMinedBlockObserver>>
+            observer.block_imported(block); // Assuming QbftMinedBlockObserver has block_imported
+        }
+    }
+
+    fn process_round_state_change(&mut self, round_number: u32, block: QbftBlock) -> Result<(), QbftError> {
+        if self.finalized_block.is_some() {
+            log::debug!("Block at height {} already finalized. Ignoring further state changes.", self.height);
+            return Ok(());
+        }
+
+        // Logic for handling a committed block from a round
+        if self.locked_block.is_none() || block.header.number > self.locked_block.as_ref().unwrap().header.number {
+            self.locked_block = Some(block.clone());
+            // TODO: Further logic if needed when a block is locked
+        }
+
+        // For QBFT, a block is final once committed by a 2F+1 quorum in a round.
+        self.finalized_block = Some(block.clone());
+        log::info!(target: "consensus", "Height {}: Block {:?} finalized in round {}.", self.height, block.hash(), round_number);
+        
+        self.on_block_finalized(&block); // Use the helper method
+
+        // TODO: Stop all activity for this height? Or allow subsequent rounds to proceed if needed by protocol?
+        // For now, assume we stop and wait for controller to move to next height.
+        if let Some(current_round) = self.current_round.as_mut() {
+            current_round.cancel_timers();
+        }
+        Ok(())
+    }
 } 

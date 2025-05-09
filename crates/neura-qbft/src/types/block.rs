@@ -46,21 +46,26 @@ impl QbftBlock {
 // RLP Encoding for QbftBlock: RLP_LIST[Header, Transactions<Vec<Tx>>, Ommers<Vec<Header>>]
 impl Encodable for QbftBlock {
     fn encode(&self, out: &mut dyn BufMut) {
-        RlpHeader { list: true, payload_length: self.rlp_payload_length() }.encode(out);
-        self.header.encode(out);
-        self.body_transactions.encode(out); // Vec<T> is Encodable, produces an RLP list
-        self.body_ommers.encode(out);       // Vec<T> is Encodable, produces an RLP list
-    }
+        let mut header = RlpHeader { list: true, payload_length: 0 };
+        let mut total_payload_length = 0;
+        total_payload_length += self.header.length();
+        total_payload_length += self.body_transactions.length();
+        total_payload_length += self.body_ommers.length();
+        header.payload_length = total_payload_length;
 
-    fn rlp_payload_length(&self) -> usize {
-        self.header.length() +
-        self.body_transactions.length() + // .length() on Vec<T> where T is Encodable gives RLP list length
-        self.body_ommers.length()
+        header.encode(out);
+        self.header.encode(out);
+        self.body_transactions.encode(out); // Encodes as RLP list
+        self.body_ommers.encode(out);     // Encodes as RLP list
     }
 
     fn length(&self) -> usize {
-        let payload_len = self.rlp_payload_length();
-        RlpHeader { list: true, payload_length: payload_len }.length() + payload_len
+        let mut total_payload_length = 0;
+        total_payload_length += self.header.length();
+        total_payload_length += self.body_transactions.length();
+        total_payload_length += self.body_ommers.length();
+        
+        RlpHeader { list: true, payload_length: total_payload_length }.length() + total_payload_length
     }
 }
 

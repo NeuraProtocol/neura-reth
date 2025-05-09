@@ -1,4 +1,5 @@
-use crate::types::{ConsensusRoundIdentifier, SignedData, Address};
+use crate::types::{ConsensusRoundIdentifier, SignedData};
+use alloy_primitives::Address;
 use crate::messagewrappers::RoundChange;
 use crate::payload::RoundChangePayload;
 use crate::statemachine::round_state::PreparedCertificate; // Used by RoundChangeArtifacts
@@ -42,23 +43,20 @@ impl RoundChangeArtifacts {
 
         let best_prepared_cert_candidate = validated_round_changes.iter()
             .filter_map(|rc_wrapper| {
-                rc_wrapper.payload().prepared_round_metadata.as_ref().map(|metadata| {
-                    // We need the block from the RoundChange wrapper for PreparedCertificate
-                    // And the prepares from the metadata within the payload
-                    rc_wrapper.prepared_block.clone().map(|block| {
+                rc_wrapper.prepared_block().as_ref().and_then(|block| { 
+                    rc_wrapper.payload().prepared_round_metadata.as_ref().map(|metadata| {
                         PreparedCertificate::new(
-                            block,
+                            block.clone().clone(),
                             metadata.prepares.clone(),
                             metadata.prepared_round,
                         )
                     })
                 })
             })
-            .flatten() // Remove Nones from the inner Option<QbftBlock>
             .max_by(|a, b| a.prepared_round.cmp(&b.prepared_round));
         
         let signed_payloads = validated_round_changes.iter()
-            .map(|rc_wrapper| rc_wrapper.signed_payload().clone())
+            .map(|rc_wrapper| rc_wrapper.bft_message().signed_payload.clone())
             .collect();
 
         Some(Self::new(signed_payloads, best_prepared_cert_candidate))

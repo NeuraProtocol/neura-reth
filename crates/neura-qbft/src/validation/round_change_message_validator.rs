@@ -4,6 +4,7 @@ use crate::types::{QbftFinalState, QbftBlockHeader, ConsensusRoundIdentifier};
 use crate::payload::{PreparePayload, QbftPayload};
 use crate::error::QbftError;
 use crate::validation::MessageValidatorFactory; // To validate proposals within prepared certs
+use alloy_primitives::Address;
 
 
 #[derive(Clone)]
@@ -37,7 +38,7 @@ impl RoundChangeMessageValidator {
     pub fn validate(&self, round_change: &RoundChange) -> Result<bool, QbftError> {
         let author = round_change.author()?;
         let payload = round_change.payload();
-        let target_round_id = payload.target_round;
+        let target_round_id = payload.target_round_identifier;
 
         // 1. Author is a current validator
         if !self.final_state.is_validator(author) {
@@ -62,7 +63,7 @@ impl RoundChangeMessageValidator {
 
         // 4. Validate PreparedCertificate if present
         if let Some(prepared_metadata) = &payload.prepared_round_metadata {
-            let prepared_block = match &round_change.prepared_block {
+            let prepared_block = match round_change.prepared_block() {
                 Some(block) => block,
                 None => {
                     log::warn!(

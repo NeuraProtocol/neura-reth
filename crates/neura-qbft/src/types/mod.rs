@@ -7,6 +7,8 @@ pub mod qbft_final_state;
 pub mod block_creator;
 pub mod block_importer;
 pub mod extra_data;
+pub mod header;
+pub mod rlp_signature;
 
 // In Java, NodeKey is an interface. Here, we'll assume we get a k256::ecdsa::SigningKey.
 // A more abstract NodeKey trait could be used if different key types are needed.
@@ -24,6 +26,8 @@ pub use signed_data::SignedData;
 pub use qbft_final_state::{
     QbftFinalState, RoundTimer, BlockTimer, QbftBlockCreatorFactory, ValidatorMulticaster
 };
-pub use block_creator::{QbftBlockCreator, QbftBlockHeader}; // Re-exporting placeholder header for now
+pub use block_creator::QbftBlockCreator;
+pub use header::QbftBlockHeader;
 pub use block_importer::QbftBlockImporter;
-pub use extra_data::{BftExtraData, BftExtraDataCodec, AlloyBftExtraDataCodec}; 
+pub use extra_data::{BftExtraData, BftExtraDataCodec, AlloyBftExtraDataCodec};
+pub use rlp_signature::RlpSignature; 
