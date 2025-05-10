@@ -5,6 +5,7 @@ use crate::validation::MessageValidator;
 use crate::error::QbftError;
 use alloy_primitives::{Address, Signature};
 use std::collections::HashMap;
+use log;
  // For MessageValidator if it becomes shared
 
 // Corresponds to PreparedCertificate.java but simplified as a struct within RoundState scope
@@ -69,28 +70,35 @@ impl RoundState {
         if self.proposal.is_some() {
             return Err(QbftError::ProposalAlreadyReceived);
         }
+        // The validator.validate_proposal will internally set its own accepted_proposal_digest
         if !self.validator.validate_proposal(&proposal_message)? {
             return Err(QbftError::ValidationError("Invalid proposal".into()));
         }
 
-        // Get digest from the *incoming* proposal's block for filtering
-        let proposed_digest = proposal_message.block().hash(); 
-
-        // Clear any prepares/commits that might have been for a different (now invalid) proposal
-        self.prepare_messages.retain(|_, prepare| prepare.payload().digest == proposed_digest);
-        self.commit_messages.retain(|_, commit| commit.payload().digest == proposed_digest);
+        // If we reach here, the proposal is valid and is the first for this round.
+        // Prepares and commits should only be for this proposal.
+        // Ensure prepare_messages and commit_messages are clear for this new proposal context.
+        self.prepare_messages.clear();
+        self.commit_messages.clear();
         
-        self.proposal = Some(proposal_message); // Now store it
-        self.update_derived_state();
+        self.proposal = Some(proposal_message); 
+        self.is_prepared = false; // Reset derived state, update_derived_state will re-evaluate
+        self.is_committed = false;
+        self.update_derived_state(); // update_derived_state will correctly set these based on empty prepares/commits initially
         Ok(())
     }
 
     pub fn add_prepare(&mut self, prepare: Prepare) -> Result<(), QbftError> {
         let author = prepare.author()?;
+        // Check if we already have a prepare from this author FOR THE CURRENT PROPOSAL
+        // MessageValidator.validate_prepare ensures it's for the current proposal's digest.
         if self.prepare_messages.contains_key(&author) {
-            // Allow re-submission if content is same, or handle as per specific rules
-            // For now, simple duplicate author check for this round.
-            // return Ok(()); // Or error for duplicate
+            log::warn!(
+                "Duplicate Prepare message received from author {:?} for round {:?} and current proposal. Ignoring.",
+                author,
+                self.round_identifier // Assuming round_identifier is accessible and loggable
+            );
+            return Ok(()); 
         }
 
         if !self.validator.validate_prepare(&prepare, self.proposal.as_ref())? {
@@ -104,8 +112,14 @@ impl RoundState {
 
     pub fn add_commit(&mut self, commit: Commit) -> Result<(), QbftError> {
         let author = commit.author()?;
+        // Check if we already have a commit from this author FOR THE CURRENT PROPOSAL
         if self.commit_messages.contains_key(&author) {
-            // return Ok(()); // Or error for duplicate
+            log::warn!(
+                "Duplicate Commit message received from author {:?} for round {:?} and current proposal. Ignoring.",
+                author,
+                self.round_identifier // Assuming round_identifier is accessible and loggable
+            );
+            return Ok(());
         }
 
         if !self.validator.validate_commit(&commit, self.proposal.as_ref())? {
@@ -163,15 +177,6 @@ impl RoundState {
             Some(self.commit_messages.values()
                 .map(|commit| commit.payload().committed_seal.0.clone())
                 .collect())
-        } else {
-            None
-        }
-    }
-    pub fn get_commit_seals_if_committing(&self) -> Option<Vec<Signature>> {
-        if self.is_committed() { // Should likely be is_prepared_for_commit or similar state if one exists
-            Some(self.commit_messages.values()
-            .map(|commit| commit.payload().committed_seal.0.clone())
-            .collect())
         } else {
             None
         }

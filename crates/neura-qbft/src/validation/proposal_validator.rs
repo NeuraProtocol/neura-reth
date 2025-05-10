@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::collections::HashSet;
 use crate::messagewrappers::Proposal;
-use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraDataCodec, ConsensusRoundIdentifier};
+use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraDataCodec, ConsensusRoundIdentifier, QbftBlock, QbftConfig};
 use crate::error::QbftError;
 use crate::validation::RoundChangeMessageValidatorFactory;
+use alloy_primitives::Address;
+use std::time::{SystemTime, UNIX_EPOCH};
 // Placeholder for block header validation logic
 // use crate::validation::block_header_validator::BlockHeaderValidator;
 
@@ -13,6 +15,7 @@ pub struct ProposalValidator {
     parent_header: Arc<QbftBlockHeader>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
     round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+    config: Arc<QbftConfig>,
     // block_header_validator: Arc<BlockHeaderValidator>, // For detailed header checks
     // round_change_validator: Arc<RoundChangeMessageValidator>, // For piggybacked messages
 }
@@ -23,6 +26,7 @@ impl ProposalValidator {
         parent_header: Arc<QbftBlockHeader>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
         round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+        config: Arc<QbftConfig>,
         // block_header_validator: Arc<BlockHeaderValidator>,
         // round_change_validator: Arc<RoundChangeMessageValidator>,
     ) -> Self {
@@ -31,6 +35,7 @@ impl ProposalValidator {
             parent_header,
             extra_data_codec,
             round_change_message_validator_factory,
+            config,
             // block_header_validator,
             // round_change_validator,
         }
@@ -85,7 +90,24 @@ impl ProposalValidator {
             );
             return Ok(false);
         }
-        // TODO: Add future bound check for timestamp (e.g., not too far in the future).
+        
+        // Timestamp future bound check
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(now_duration) => {
+                let current_time_seconds = now_duration.as_secs();
+                if block_header.timestamp > current_time_seconds + self.config.max_future_block_time_seconds {
+                    log::warn!(
+                        "Proposal timestamp {} is too far in the future (current: {}, max_future: {}). Author: {:?}",
+                        block_header.timestamp, current_time_seconds, self.config.max_future_block_time_seconds, author
+                    );
+                    return Ok(false); // Invalid: timestamp too far in the future
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to get current system time for timestamp validation: {}. Allowing proposal by {:?}.", e, author);
+                // Depending on policy, might choose to fail here, but system clock errors are tricky.
+            }
+        }
 
         // 3.4. Round number in extra data matches proposal's round
         let bft_extra_data = match self.extra_data_codec.decode(&block_header.extra_data) {
@@ -108,7 +130,13 @@ impl ProposalValidator {
         // The Proposal struct directly contains Vec<RoundChange> (parsed from RLP list)
         for piggybacked_rc in proposal.round_change_proofs() {
             let rc_validator = self.round_change_message_validator_factory
-                .create_round_change_message_validator(&self.parent_header, self.final_state.clone())?;
+                .create_round_change_message_validator(
+                    &self.parent_header, 
+                    self.final_state.clone(),
+                    self.extra_data_codec.clone(), // Pass through existing codec
+                    self.round_change_message_validator_factory.clone(), // Pass self (factory) recursively
+                    self.config.clone(), // Pass through existing config
+                )?;
             
             if !rc_validator.validate(piggybacked_rc)? {
                 log::warn!(
@@ -219,5 +247,93 @@ impl ProposalValidator {
 
         log::debug!("Proposal from {:?} for round {:?} passed all validation including piggybacked data.", author, proposal_round_identifier);
         Ok(true)
+    }
+
+    pub fn validate_prepared_block_in_round_change(
+        &self,
+        block: &QbftBlock,
+        original_round_identifier: &ConsensusRoundIdentifier,
+        original_proposer: &Address,
+    ) -> Result<(), QbftError> {
+        let expected_height = self.parent_header.number + 1;
+        let block_header = &block.header;
+
+        // 1. Decode BftExtraData
+        let bft_extra_data = self.extra_data_codec.decode(&block_header.extra_data).map_err(|e| {
+            log::warn!(
+                "Prepared block in RC: Failed to decode BftExtraData for block {:?}: {}",
+                block.hash(), e
+            );
+            QbftError::ValidationError(format!("Invalid BftExtraData in prepared block: {}", e))
+        })?;
+
+        // 2. Block number check
+        if block_header.number != expected_height {
+            log::warn!(
+                "Prepared block in RC: Number {} does not match expected height {}. Block hash: {:?}",
+                block_header.number, expected_height, block.hash()
+            );
+            return Err(QbftError::ValidationError("Prepared block number mismatch".to_string()));
+        }
+
+        // 3. Parent hash check
+        if block_header.parent_hash != self.parent_header.hash() {
+            log::warn!(
+                "Prepared block in RC: Parent hash {:?} does not match expected parent hash {:?}. Block hash: {:?}",
+                block_header.parent_hash, self.parent_header.hash(), block.hash()
+            );
+            return Err(QbftError::ValidationError("Prepared block parent hash mismatch".to_string()));
+        }
+
+        // 4. Timestamp validation (must be greater than parent)
+        if block_header.timestamp <= self.parent_header.timestamp {
+            log::warn!(
+                "Prepared block in RC: Timestamp {} not greater than parent timestamp {}. Block hash: {:?}",
+                block_header.timestamp, self.parent_header.timestamp, block.hash()
+            );
+            return Err(QbftError::ValidationError("Prepared block timestamp not greater than parent".to_string()));
+        }
+
+        // Timestamp future bound check
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(now_duration) => {
+                let current_time_seconds = now_duration.as_secs();
+                if block_header.timestamp > current_time_seconds + self.config.max_future_block_time_seconds {
+                    log::warn!(
+                        "Prepared block in RC: Timestamp {} is too far in the future (current: {}, max_future: {}). Block hash: {:?}",
+                        block_header.timestamp, current_time_seconds, self.config.max_future_block_time_seconds, block.hash()
+                    );
+                    return Err(QbftError::ValidationError("Prepared block timestamp too far in future".to_string()));
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to get current system time for timestamp validation: {}. Allowing block.", e);
+                // Depending on policy, might choose to fail here, but system clock errors are tricky.
+            }
+        }
+
+        // 5. Round number in extra data matches original_round_identifier's round
+        if bft_extra_data.round_number != original_round_identifier.round_number {
+            log::warn!(
+                "Prepared block in RC: ExtraData round {} does not match original round {}. Block hash: {:?}", 
+                bft_extra_data.round_number, original_round_identifier.round_number, block.hash()
+            );
+            return Err(QbftError::ValidationError("Prepared block extra_data round mismatch".to_string()));
+        }
+
+        // 6. Beneficiary check (assuming beneficiary stores the original proposer)
+        if block_header.beneficiary != *original_proposer {
+            log::warn!(
+                "Prepared block in RC: Beneficiary {:?} does not match original proposer {:?}. Block hash: {:?}",
+                block_header.beneficiary, original_proposer, block.hash()
+            );
+            return Err(QbftError::ValidationError("Prepared block beneficiary mismatch".to_string()));
+        }
+
+        log::debug!(
+            "Prepared block {:?} in RC for original round {:?} by {:?} passed validation.", 
+            block.hash(), original_round_identifier, original_proposer
+        );
+        Ok(())
     }
 } 

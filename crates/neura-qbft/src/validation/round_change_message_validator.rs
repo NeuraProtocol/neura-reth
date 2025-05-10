@@ -2,6 +2,7 @@ use std::sync::Arc;
 use crate::messagewrappers::RoundChange;
 use crate::types::{QbftFinalState, QbftBlockHeader};
 use crate::error::QbftError;
+use crate::validation::ProposalValidator;
  // To validate proposals within prepared certs
 use alloy_primitives::Address;
 
@@ -10,6 +11,9 @@ use alloy_primitives::Address;
 pub struct RoundChangeMessageValidator {
     final_state: Arc<dyn QbftFinalState>,
     parent_header: Arc<QbftBlockHeader>, // Parent of the block for the height these RCs are for
+    local_committed_round: Option<u32>, // Highest round committed by local node for this height
+    local_prepared_round: Option<u32>,  // Highest round prepared by local node for this height
+    proposal_validator: Arc<ProposalValidator>, // For validating prepared blocks
     // To validate a proposal within a PreparedCertificate, we need a MessageValidator or its factory.
     // This creates a potential circular dependency if MessageValidator needs RCMV for piggybacked RCs.
     // Let's assume for now that RCMV can create a temporary ProposalValidator for this purpose.
@@ -25,11 +29,17 @@ impl RoundChangeMessageValidator {
     pub fn new(
         final_state: Arc<dyn QbftFinalState>,
         parent_header: Arc<QbftBlockHeader>,
+        local_committed_round: Option<u32>,
+        local_prepared_round: Option<u32>,
+        proposal_validator: Arc<ProposalValidator>,
         // message_validator_factory: Arc<dyn MessageValidatorFactory> // If needed for deep cert validation
     ) -> Self {
         Self {
             final_state,
             parent_header,
+            local_committed_round,
+            local_prepared_round,
+            proposal_validator,
             // message_validator_factory,
         }
     }
@@ -57,8 +67,28 @@ impl RoundChangeMessageValidator {
             );
             return Ok(false);
         }
-        // TODO: Add check: target_round > local_node_committed_round_for_this_height
-        // TODO: Add check: target_round > local_node_prepared_round_for_this_height (if any proposal prepared by local node)
+
+        // Check target_round > local_node_committed_round_for_this_height
+        if let Some(committed_round) = self.local_committed_round {
+            if target_round_id.round_number <= committed_round {
+                log::warn!(
+                    "RoundChange from {:?} for target round {} is not greater than local committed round {}.",
+                    author, target_round_id.round_number, committed_round
+                );
+                return Ok(false);
+            }
+        }
+
+        // Check target_round > local_node_prepared_round_for_this_height
+        if let Some(prepared_round) = self.local_prepared_round {
+            if target_round_id.round_number <= prepared_round {
+                log::warn!(
+                    "RoundChange from {:?} for target round {} is not greater than local prepared round {}.",
+                    author, target_round_id.round_number, prepared_round
+                );
+                return Ok(false);
+            }
+        }
 
         // 4. Validate PreparedCertificate if present
         if let Some(prepared_metadata) = &payload.prepared_round_metadata {
@@ -94,7 +124,26 @@ impl RoundChangeMessageValidator {
                 log::warn!("RC from {:?}: Prepared block parent_hash incorrect.", author);
                 return Ok(false);
             }
-            // TODO: More rigorous validation of the prepared_block, potentially using a temporary ProposalValidator.
+
+            // Validate the prepared block using the provided ProposalValidator.
+            // Note: This assumes ProposalValidator will have a method like `validate_block_for_round_change` 
+            // or that its existing `validate` or a similar method can be adapted/used carefully here.
+            // The key is to validate the block's content, ancestry, and consistency for its claimed prepared_round.
+            // The `original_signed_proposal` from `prepared_metadata` is crucial here.
+            // We pass the block itself and its original round identifier.
+            // The ProposalValidator should check: block.header.number, block.header.parent_hash, block.header.timestamp (against parent and future limits),
+            // block.header.round, and potentially block body integrity if possible without full transaction execution.
+            if let Err(e) = self.proposal_validator.validate_prepared_block_in_round_change(
+                prepared_block, 
+                &prepared_metadata.signed_proposal_payload.payload().round_identifier,
+                &prepared_metadata.signed_proposal_payload.author()? // Pass proposer for context
+            ) {
+                log::warn!(
+                    "RoundChange from {:?}: Prepared block failed validation: {:?}. Author: {:?}",
+                    author, e, prepared_metadata.signed_proposal_payload.author().unwrap_or_default()
+                );
+                return Ok(false);
+            }
 
             // 4.3. Validate prepares in the certificate form a quorum for the prepared_block
             let mut unique_prepare_senders = std::collections::HashSet::<Address>::new();

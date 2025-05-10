@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crate::messagewrappers::{Proposal, Prepare, Commit};
-use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraDataCodec};
+use crate::types::{QbftFinalState, QbftBlockHeader, BftExtraDataCodec, QbftConfig};
 use crate::error::QbftError;
 use crate::validation::{
     ProposalValidator, PrepareValidator, CommitValidator, RoundChangeMessageValidatorFactory
@@ -16,6 +16,7 @@ pub struct MessageValidator {
     parent_header: Arc<QbftBlockHeader>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
     round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+    config: Arc<QbftConfig>,
 
     // State for subsequent message validation (after a proposal is accepted)
     // These are set once a proposal for the round is validated and accepted.
@@ -39,12 +40,14 @@ impl MessageValidator {
         parent_header: Arc<QbftBlockHeader>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
         round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+        config: Arc<QbftConfig>,
     ) -> Self {
         Self {
             final_state,
             parent_header,
             extra_data_codec,
             round_change_message_validator_factory,
+            config,
             accepted_proposal_digest: None,
             prepare_validator: None,
             commit_validator: None,
@@ -62,6 +65,7 @@ impl MessageValidator {
             self.parent_header.clone(),
             self.extra_data_codec.clone(),
             self.round_change_message_validator_factory.clone(),
+            self.config.clone(),
         );
         let is_valid = proposal_validator.validate_proposal(proposal)?;
 

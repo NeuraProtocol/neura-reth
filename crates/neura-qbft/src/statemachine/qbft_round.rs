@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::types::{
     ConsensusRoundIdentifier, QbftBlock, QbftBlockHeader, SignedData, /* BftExtraData, */ BftExtraDataCodec, QbftFinalState, QbftBlockCreator, 
-    QbftBlockImporter, RoundTimer, ValidatorMulticaster, RlpSignature,
+    QbftBlockImporter, RoundTimer, ValidatorMulticaster, RlpSignature, QbftConfig,
     // PreparedCertificate // Removed this line
 };
 use crate::statemachine::round_state::{RoundState, PreparedCertificate as RoundStatePreparedCertificate};
@@ -26,6 +26,7 @@ pub trait QbftMinedBlockObserver: Send + Sync {
 pub struct QbftRound {
     round_state: RoundState,
     parent_header: QbftBlockHeader,
+    #[allow(dead_code)] // Used by RoundState, which is owned by QbftRound
     final_state: Arc<dyn QbftFinalState>,
     block_creator: Arc<dyn QbftBlockCreator>,
     block_importer: Arc<dyn QbftBlockImporter>,
@@ -34,9 +35,10 @@ pub struct QbftRound {
     round_timer: Arc<dyn RoundTimer>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
     mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
-    locked_block: Option<QbftBlock>,
+    locked_block: Option<CertifiedPrepareInfo>,
+    #[allow(dead_code)] // Tied to send_proposal_if_new_block_available
     proposal_sent: bool,
-    prepare_sent: bool,
+    commit_sent: bool, // Tracks if this node has sent a commit for the current proposal
     finalized_block_hash_in_round: Option<Hash>,
 }
 
@@ -53,14 +55,16 @@ impl QbftRound {
         round_timer: Arc<dyn RoundTimer>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
         message_validator: crate::validation::MessageValidator, 
+        config: Arc<QbftConfig>,
         mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+        initial_locked_info: Option<CertifiedPrepareInfo>,
     ) -> Self {
         let round_state = RoundState::new(
             round_identifier,
             message_validator, 
             final_state.quorum_size(),
         );
-        round_timer.start_timer(round_identifier);
+        round_timer.start_timer(round_identifier, config.message_round_timeout_ms);
         Self {
             round_state,
             parent_header,
@@ -72,9 +76,9 @@ impl QbftRound {
             round_timer,
             extra_data_codec,
             mined_block_observers,
-            locked_block: None,
+            locked_block: initial_locked_info,
             proposal_sent: false,
-            prepare_sent: false,
+            commit_sent: false, // Initialize commit_sent to false
             finalized_block_hash_in_round: None,
         }
     }
@@ -88,14 +92,36 @@ impl QbftRound {
     }
 
     pub fn create_and_propose_block(&mut self, timestamp_seconds: u64) -> Result<(), QbftError> {
-        log::debug!("Creating proposed block for round {:?}", self.round_identifier());
-        let block = self.block_creator.create_block(
-            &self.parent_header,
-            self.round_identifier(),
-            timestamp_seconds,
-        )?;
-        let block_hash_for_log = block.hash(); 
-        self.propose_block(block, Vec::new(), None, block_hash_for_log)
+        log::debug!("Attempting to create/retrieve block for proposal in round {:?}", self.round_identifier());
+
+        let block_to_propose: QbftBlock;
+        let prepared_certificate_artifact_for_proposal: Option<(BftMessage<ProposalPayload>, Vec<SignedData<PreparePayload>>)>;
+
+        if let Some(locked_info) = &self.locked_block {
+            log::info!(
+                "CAPB: Found locked block from round {}. Re-proposing block {:?} for current round {:?}.", 
+                locked_info.prepared_round, locked_info.block.hash(), self.round_identifier()
+            );
+            block_to_propose = locked_info.block.clone();
+            prepared_certificate_artifact_for_proposal = Some((
+                locked_info.original_signed_proposal.clone(),
+                locked_info.prepares.clone(),
+            ));
+        } else {
+            log::debug!(
+                "CAPB: No locked block. Creating new block for round {:?}, timestamp {}.", 
+                self.round_identifier(), timestamp_seconds
+            );
+            block_to_propose = self.block_creator.create_block(
+                &self.parent_header,
+                self.round_identifier(),
+                timestamp_seconds,
+            )?;
+            prepared_certificate_artifact_for_proposal = None;
+        }
+        
+        let block_hash_for_log = block_to_propose.hash(); 
+        self.propose_block(block_to_propose, Vec::new(), prepared_certificate_artifact_for_proposal, block_hash_for_log)
     }
     
     pub fn start_round_with_prepared_artifacts(
@@ -103,21 +129,67 @@ impl QbftRound {
         round_change_artifacts: &RoundChangeArtifacts, 
         header_timestamp: u64,
     ) -> Result<(), QbftError> {
-        let best_cert_option: Option<&CertifiedPrepareInfo> = round_change_artifacts.best_prepared_certificate();
+        let rc_cert_info_opt: Option<&CertifiedPrepareInfo> = round_change_artifacts.best_prepared_certificate();
+        let locked_info_opt: Option<&CertifiedPrepareInfo> = self.locked_block.as_ref();
+
+        let chosen_candidate: Option<&CertifiedPrepareInfo> = 
+            match (rc_cert_info_opt, locked_info_opt) {
+                (Some(rc_cert), Some(locked_cert)) => {
+                    if rc_cert.prepared_round > locked_cert.prepared_round {
+                        log::debug!(
+                            "SRWPA: Preferring RoundChange Cert (round {}) over locked block (round {}).", 
+                            rc_cert.prepared_round, locked_cert.prepared_round
+                        );
+                        Some(rc_cert)
+                    } else if locked_cert.prepared_round > rc_cert.prepared_round {
+                        log::debug!(
+                            "SRWPA: Preferring locked block (round {}) over RoundChange Cert block (round {}).",
+                            locked_cert.prepared_round, rc_cert.prepared_round
+                        );
+                        Some(locked_cert)
+                    } else { // prepared_rounds are equal, use block hash tie-breaking (lower hash is better)
+                        if rc_cert.block.hash() <= locked_cert.block.hash() { // Prefer RC cert on exact hash match too
+                            log::debug!(
+                                "SRWPA: Prepared rounds equal, preferring RoundChange Cert block by hash: RC hash {:?}, Locked hash {:?}", 
+                                rc_cert.block.hash(), locked_cert.block.hash()
+                            );
+                            Some(rc_cert)
+                        } else {
+                            log::debug!(
+                                "SRWPA: Prepared rounds equal, preferring Locked block by hash: Locked hash {:?}, RC hash {:?}", 
+                                locked_cert.block.hash(), rc_cert.block.hash()
+                            );
+                            Some(locked_cert)
+                        }
+                    }
+                }
+                (Some(rc_cert), None) => {
+                    log::debug!("SRWPA: Using block from RoundChange Cert as no locked block present.");
+                    Some(rc_cert)
+                }
+                (None, Some(locked_cert)) => {
+                    log::debug!("SRWPA: Using locked block as no RoundChange Cert present.");
+                    Some(locked_cert)
+                }
+                (None, None) => {
+                    log::debug!("SRWPA: No RoundChange Cert or locked block.");
+                    None
+                }
+            };
 
         let (block_to_propose, block_hash_for_log, prepared_artifact_for_proposal) = 
-            if let Some(cert_info) = best_cert_option {
+            if let Some(candidate_info) = chosen_candidate {
                 log::debug!(
-                    "Re-proposing block from CertifiedPrepareInfo for round {:?}: Hash={:?}, Original Round={:?}", 
-                    self.round_identifier(), cert_info.block.hash(), cert_info.prepared_round
+                    "SRWPA: Re-proposing block from chosen candidate for round {:?}: Hash={:?}, Original Round={:?}", 
+                    self.round_identifier(), candidate_info.block.hash(), candidate_info.prepared_round
                 );
                 (
-                    cert_info.block.clone(), 
-                    cert_info.block.hash(), 
-                    Some((cert_info.original_signed_proposal.clone(), cert_info.prepares.clone()))
+                    candidate_info.block.clone(), 
+                    candidate_info.block.hash(), 
+                    Some((candidate_info.original_signed_proposal.clone(), candidate_info.prepares.clone()))
                 )
             } else {
-                log::debug!("Creating new block for round {:?} as no certified prepare info found.", self.round_identifier());
+                log::debug!("SRWPA: Creating new block for round {:?} as no suitable candidate found.", self.round_identifier());
                 let new_block = self.block_creator.create_block(
                     &self.parent_header, 
                     self.round_identifier(), 
@@ -215,7 +287,7 @@ impl QbftRound {
         }
     }
 
-    pub fn handle_prepare_message(&mut self, prepare: Prepare) -> Result<(), QbftError> {
+    pub fn handle_prepare_message(&mut self, prepare: Prepare) -> Result<Option<QbftBlock>, QbftError> {
         let author = prepare.author()?;
         log::debug!(
             "Handling Prepare message for round {:?} from {:?}, digest: {:?}",
@@ -226,35 +298,72 @@ impl QbftRound {
 
         match self.round_state.add_prepare(prepare.clone()) {
             Ok(_) => {
-                if self.round_state.is_prepared() && !self.round_state.is_committed() {
-                    log::trace!("Round {:?} is PREPARED. Sending Commit.", self.round_identifier());
-                    if let Some(proposed_block) = self.round_state.proposed_block() {
-                        let block_digest = proposed_block.hash();
-                        let commit_seal = self.message_factory.create_commit_seal(block_digest)?;
-                        let commit = self.message_factory.create_commit(*self.round_identifier(), block_digest, commit_seal)?;
-                        self.round_state.add_commit(commit.clone())?;
-                        log::info!("[TODO] Transmit Commit: {:?}", commit);
-                        self.multicaster.multicast_commit(&commit);
+                if self.round_state.is_prepared() {
+                    // Block is now prepared. Update locked_block.
+                    if let (Some(proposed_block_ref), Some(proposal_message_wrapper)) = 
+                        (self.round_state.proposed_block(), self.round_state.proposal_message()) {
+                        
+                        let block_clone = proposed_block_ref.clone();
+                        let original_signed_proposal_clone = proposal_message_wrapper.bft_message().clone();
+                        // TODO: For CertifiedPrepareInfo to be shared (e.g. in RoundChange),
+                        // prepares_clone should ideally contain only the quorum of prepares, not all.
+                        // For local locked_block, containing all is currently acceptable.
+                        let prepares_clone: Vec<SignedData<PreparePayload>> = self.round_state.get_prepare_messages().into_iter().cloned().collect();
+                        let current_round_number = self.round_identifier().round_number;
 
-                        if self.round_state.is_committed() {
-                            log::trace!("Round {:?} is COMMITTED after sending local commit. Importing block.", self.round_identifier());
-                            return self.import_block_to_chain();
-                        }
+                        let new_locked_info = CertifiedPrepareInfo {
+                            block: block_clone,
+                            original_signed_proposal: original_signed_proposal_clone,
+                            prepares: prepares_clone,
+                            prepared_round: current_round_number, 
+                        };
+                        log::info!(
+                            "Round {:?} is PREPARED. Updating locked_block with block {:?} prepared in round {}.", 
+                            self.round_identifier(), new_locked_info.block.hash(), new_locked_info.prepared_round
+                        );
+                        self.locked_block = Some(new_locked_info);
                     } else {
-                        log::warn!("Round {:?} is prepared, but no proposed block found. Cannot send Commit.", self.round_identifier());
+                        log::warn!(
+                            "Round {:?} is_prepared, but failed to retrieve proposed_block or proposal_message from RoundState. Cannot update locked_block.", 
+                            self.round_identifier()
+                        );
+                    }
+                    
+                    // Continue to check if we can also commit
+                    if !self.round_state.is_committed() && !self.commit_sent {
+                        log::trace!("Round {:?} is PREPARED and commit not yet sent. Sending Commit.", self.round_identifier());
+                        if let Some(proposed_block) = self.round_state.proposed_block() { 
+                            let block_digest = proposed_block.hash();
+                            let commit_seal = self.message_factory.create_commit_seal(block_digest)?;
+                            let commit = self.message_factory.create_commit(*self.round_identifier(), block_digest, commit_seal)?;
+                            
+                            self.round_state.add_commit(commit.clone())?; 
+                            self.multicaster.multicast_commit(&commit);
+                            self.commit_sent = true; // Mark that we've sent a commit for this proposal
+    
+                            if self.round_state.is_committed() {
+                                log::trace!("Round {:?} is COMMITTED after sending local commit. Importing block.", self.round_identifier());
+                                match self.import_block_to_chain() {
+                                    Ok(imported_block) => return Ok(Some(imported_block)),
+                                    Err(e) => return Err(e),
+                                }
+                            }
+                        } else {
+                            log::warn!("Round {:?} is prepared, but no proposed block found when attempting to send Commit.", self.round_identifier());
+                        }
                     }
                 }
-                Ok(())
+                Ok(None) 
             }
             Err(QbftError::ValidationError(_)) => {
                  log::warn!("Invalid Prepare message for round {:?}. Ignoring.", self.round_identifier());
-                 Ok(())
+                 Ok(None)
             }
             Err(e) => Err(e),
         }
     }
 
-    pub fn handle_commit_message(&mut self, commit: Commit) -> Result<(), QbftError> {
+    pub fn handle_commit_message(&mut self, commit: Commit) -> Result<Option<QbftBlock>, QbftError> {
         let author = commit.author()?;
         log::debug!(
             "Handling Commit message for round {:?} from {:?}, digest: {:?}" ,
@@ -270,11 +379,12 @@ impl QbftRound {
                         "Round {:?} is COMMITTED after receiving remote commit. Importing block.",
                         self.round_identifier()
                     );
-                    // Attempt to import the block. If this fails, the round continues,
-                    // but we might have a problem. If it succeeds, the round ends.
-                    return self.import_block_to_chain();
+                    match self.import_block_to_chain() {
+                        Ok(imported_block) => return Ok(Some(imported_block)),
+                        Err(e) => return Err(e),
+                    }
                 }
-                Ok(())
+                Ok(None)
             }
             Err(QbftError::ValidationError(reason)) => {
                  log::warn!(
@@ -282,8 +392,7 @@ impl QbftRound {
                     self.round_identifier(),
                     reason
                 );
-                 // Still return Ok(()) as per Besu logic for invalid messages unless they are fatal
-                 Ok(())
+                 Ok(None)
             }
             Err(e) => {
                 log::error!(
@@ -302,13 +411,24 @@ impl QbftRound {
         }
     }
 
-    fn import_block_to_chain(&mut self) -> Result<(), QbftError> {
+    fn import_block_to_chain(&mut self) -> Result<QbftBlock, QbftError> {
         if self.finalized_block_hash_in_round.is_some() {
             log::debug!(
                 "Block for round {:?} already finalized and imported. Skipping.",
                 self.round_identifier()
             );
-            return Ok(());
+            // If already finalized, we need to return a QbftBlock. 
+            // This implies we should perhaps store the finalized block itself or re-fetch it.
+            // For now, if this case is hit, it means it was finalized *in this round instance* before.
+            // We should have the proposed_block which became that finalized block.
+            // This path indicates an issue if called again after finalization as we don't store the *exact* instance
+            // that was successfully imported if it was modified with seals.
+            // However, the guard `finalized_block_hash_in_round.is_some()` should mean `proposed_block` is the one.
+            // Let's return the current proposed block, assuming it's what was finalized.
+            // A more robust solution might involve storing the successfully imported `QbftBlock` instance.
+            return self.round_state.proposed_block().cloned().ok_or_else(|| {
+                QbftError::InvalidState("Block already finalized but no proposed block found in round state".to_string())
+            });
         }
 
         let proposed_block = self.round_state.proposed_block().ok_or_else(|| {
@@ -354,7 +474,7 @@ impl QbftRound {
                 self.notify_new_block_listeners(&block_to_import);
                 self.cancel_timers(); // Stop round timer as round is complete
                 // Potentially notify QbftBlockHeightManager that a block for this height is done.
-                Ok(())
+                Ok(block_to_import)
             }
             Err(e) => {
                 log::error!(
@@ -375,10 +495,11 @@ impl QbftRound {
     }
 
     // Method to get a block to propose, creating one if necessary
+    #[allow(dead_code)] // Part of an alternative proposal flow, to be integrated or removed
     fn get_block_to_propose(&mut self, target_round_identifier: ConsensusRoundIdentifier) -> Result<QbftBlock, QbftError> {
         if let Some(ref block) = self.locked_block {
-            log::debug!(target: "consensus", "Proposing locked block {:?} for round {:?}", block.hash(), target_round_identifier);
-            return Ok(block.clone());
+            log::debug!(target: "consensus", "Proposing locked block {:?} for round {:?}", block.block.hash(), target_round_identifier);
+            return Ok(block.block.clone());
         }
         log::debug!(target: "consensus", "Creating new block for round {:?}", target_round_identifier);
         self.block_creator.create_block(&self.parent_header, &target_round_identifier, /* TODO: timestamp */ SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs())
@@ -386,6 +507,7 @@ impl QbftRound {
 
     // If a new block is available (either newly created or a new best target from round changes),
     // and proposal not yet sent for this round, create and send a proposal.
+    #[allow(dead_code)] // Part of an alternative proposal flow, to be integrated or removed
     fn send_proposal_if_new_block_available(
         &mut self,
         block: &QbftBlock,
@@ -421,49 +543,15 @@ impl QbftRound {
         Ok(())
     }
 
-    // If a proposal is accepted, send a PREPARE message.
-    fn send_prepare_if_proposal_accepted(&mut self) -> Result<(), QbftError> {
-        if self.prepare_sent {
-            return Ok(());
-        }
-        if let Some(proposed_block) = self.round_state.proposed_block() {
-            let digest = proposed_block.hash();
-            log::debug!(target: "consensus", "Sending prepare for block digest {:?} in round {:?}", digest, self.round_identifier());
-            let prepare_msg = self.message_factory.create_prepare(*self.round_identifier(), digest)?;
-            self.multicaster.multicast_prepare(&prepare_msg);
-            self.prepare_sent = true;
-            self.add_prepare_if_valid(prepare_msg)?;
-        }
-        Ok(())
-    }
-
     // Placeholder for cancel_timers method
     pub fn cancel_timers(&self) {
         log::debug!("QbftRound: Cancelling timers for round {:?}", self.round_identifier());
         self.round_timer.cancel_timer(*self.round_identifier());
     }
 
-    // Placeholder for add_prepare_if_valid
-    fn add_prepare_if_valid(&mut self, prepare: Prepare) -> Result<bool, QbftError> {
-        // Minimal implementation for now, actual validation is in RoundState
-        // This method might be more about whether this specific QbftRound instance should process it locally
-        log::trace!("QbftRound::add_prepare_if_valid called for prepare from {:?}", prepare.author()?);
-        // The main logic is in round_state.add_prepare()
-        // This function in Besu seems to be about local prepare handling after sending.
-        // For now, let's assume it just tries to add to state, and if it was already there or invalid, RoundState handles it.
-        // Return value could indicate if it was newly added and valid.
-        // self.round_state.add_prepare(prepare).map(|_| true) // Assuming add_prepare returns Result<(), Error>
-        // Let's return based on whether it changed state, or defer to round_state's detailed handling.
-        // For now, make it a simple pass-through or a no-op if local prepare is handled by add_prepare itself.
-        // Besu: `boolean localPrepareMessageAdded = roundState.addPrepare(prepare);`
-        // And then: `if (localPrepareMessageAdded && roundState.isPrepared()) { prepare LocallyCommitted(); }`
-        // So RoundState.addPrepare should return a bool.
-        // Our RoundState.add_prepare returns Result<(), QbftError>. We can adapt.
-        match self.round_state.add_prepare(prepare) {
-            Ok(_) => Ok(true), // Assume it was added or was valid and already there.
-            Err(QbftError::ValidationError(_)) => Ok(false), // Invalid prepare, not added.
-            Err(e) => Err(e), // Other error.
-        }
+    // Getter for the current locked information held by the round
+    pub fn locked_info(&self) -> Option<CertifiedPrepareInfo> {
+        self.locked_block.clone()
     }
 
     pub fn get_prepared_round_metadata_for_round_change(&self) -> Option<PreparedRoundMetadata> {

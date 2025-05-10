@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec};
+use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig};
 use crate::validation::{MessageValidator, RoundChangeMessageValidatorFactory};
 use crate::error::QbftError;
 
@@ -13,7 +13,8 @@ pub trait MessageValidatorFactory: Send + Sync {
         parent_header: &QbftBlockHeader,
         final_state_view: Arc<dyn QbftFinalState>, // Provides access to validator set, proposer logic, etc.
         extra_data_codec: Arc<dyn BftExtraDataCodec>, // Added codec
-        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory> // Added factory
+        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>, // Added factory
+        config: Arc<QbftConfig>, // Added config
     ) -> Result<MessageValidator, QbftError>;
 }
 
@@ -27,7 +28,8 @@ impl MessageValidatorFactory for MessageValidatorFactoryImpl {
         parent_header: &QbftBlockHeader,
         final_state_view: Arc<dyn QbftFinalState>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
-        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory> 
+        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+        config: Arc<QbftConfig>, // Added config
     ) -> Result<MessageValidator, QbftError> {
         // Note: MessageValidator::new now takes the factory and creates validators internally or on demand.
         // The old way of creating sub-validators here is removed.
@@ -36,6 +38,7 @@ impl MessageValidatorFactory for MessageValidatorFactoryImpl {
             Arc::new(parent_header.clone()), // MessageValidator expects Arc<QbftBlockHeader>
             extra_data_codec.clone(),
             round_change_message_validator_factory.clone(),
+            config, // Pass config
         ))
     }
 } 

@@ -10,7 +10,7 @@ use std::sync::Arc;
 // Timers - placeholders for now. These would likely involve some async runtime interaction
 // or a mockable timer interface in a real implementation.
 pub trait RoundTimer: Send + Sync {
-    fn start_timer(&self, round: ConsensusRoundIdentifier);
+    fn start_timer(&self, round: ConsensusRoundIdentifier, timeout_ms: u64);
     fn cancel_timer(&self, round: ConsensusRoundIdentifier);
     // fn schedule_expiry_event(round, duration) -> event_tx.send(RoundExpiry(round))
 }

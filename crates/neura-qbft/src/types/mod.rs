@@ -30,4 +30,26 @@ pub use block_creator::QbftBlockCreator;
 pub use header::QbftBlockHeader;
 pub use block_importer::QbftBlockImporter;
 pub use extra_data::{BftExtraData, BftExtraDataCodec, AlloyBftExtraDataCodec};
-pub use rlp_signature::RlpSignature; 
+pub use rlp_signature::RlpSignature;
+
+/// Configuration for the QBFT consensus engine.
+#[derive(Clone, Debug)]
+pub struct QbftConfig {
+    /// Timeout for a consensus round in milliseconds.
+    pub message_round_timeout_ms: u64,
+    /// Maximum allowable time in the future for a block's timestamp, in seconds.
+    pub max_future_block_time_seconds: u64,
+    // TODO: Add other configuration parameters as needed, e.g.:
+    // pub block_period_seconds: u64, // If QBFT variant supports fixed block period
+    // pub empty_block_period_seconds: u64, // For creating empty blocks if no transactions
+    // pub request_timeout_ms: u64, // Timeout for other kinds of requests if any
+}
+
+impl Default for QbftConfig {
+    fn default() -> Self {
+        Self {
+            message_round_timeout_ms: 10000, // Default to 10 seconds
+            max_future_block_time_seconds: 15, // Default to 15 seconds
+        }
+    }
+} 

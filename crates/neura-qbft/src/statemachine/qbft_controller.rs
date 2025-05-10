@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use crate::types::{
     QbftBlockHeader, QbftFinalState, BlockTimer, RoundTimer, QbftBlockImporter, ValidatorMulticaster, BftExtraDataCodec, 
-    ConsensusRoundIdentifier, QbftBlockCreatorFactory
+    ConsensusRoundIdentifier, QbftBlockCreatorFactory, QbftConfig
 };
 use crate::statemachine::{QbftBlockHeightManager, QbftMinedBlockObserver};
 use crate::payload::MessageFactory;
@@ -24,6 +24,7 @@ pub struct QbftController {
     message_validator_factory: Arc<dyn MessageValidatorFactory>,
     round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
     mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+    config: Arc<QbftConfig>,
 
     current_height_manager: Option<QbftBlockHeightManager>,
     // In Besu, there's also a concept of a "future_height_manager" for working ahead.
@@ -44,6 +45,7 @@ impl QbftController {
         message_validator_factory: Arc<dyn MessageValidatorFactory>,
         round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
         mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+        config: Arc<QbftConfig>,
     ) -> Self {
         Self {
             final_state_provider,
@@ -57,6 +59,7 @@ impl QbftController {
             message_validator_factory,
             round_change_message_validator_factory,
             mined_block_observers,
+            config,
             current_height_manager: None,
         }
     }
@@ -83,11 +86,8 @@ impl QbftController {
             &parent_header, 
             self.final_state_provider.clone(),
             self.extra_data_codec.clone(),
-            self.round_change_message_validator_factory.clone()
-        )?;
-        let round_change_message_validator = self.round_change_message_validator_factory.create_round_change_message_validator(
-            &parent_header, 
-            self.final_state_provider.clone()
+            self.round_change_message_validator_factory.clone(),
+            self.config.clone(),
         )?;
         let block_creator = self.block_creator_factory.create_block_creator(
             &parent_header, 
@@ -95,7 +95,7 @@ impl QbftController {
         )?;
 
         let mut height_manager = QbftBlockHeightManager::new(
-            parent_header.clone().into(),
+            Arc::new(parent_header),
             self.final_state_provider.clone(),
             block_creator,
             self.block_importer.clone(),
@@ -104,8 +104,9 @@ impl QbftController {
             self.block_timer.clone(),
             self.round_timer.clone(),
             self.extra_data_codec.clone(),
+            self.config.clone(),
             message_validator,
-            round_change_message_validator,
+            self.round_change_message_validator_factory.clone(),
             self.mined_block_observers.clone(),
         );
 
@@ -168,58 +169,6 @@ impl QbftController {
 
     // TODO: handle_block_timer_event if the BlockTimer itself emits events.
     // Current design uses BlockTimer more as a utility for timestamp calculation.
-
-    fn create_height_manager(&self, parent_header: &QbftBlockHeader) -> Result<QbftBlockHeightManager, QbftError> {
-        let block_number = parent_header.number + 1;
-
-        // Determine the proposer for the first round (round 0) at this new height.
-        let validators = self.final_state_provider.get_validators_for_block(block_number)?;
-        if validators.is_empty() {
-            return Err(QbftError::NoValidators);
-        }
-        let proposer_index = (block_number as usize) % validators.len();
-        let _proposer_address = validators[proposer_index]; // Prefixed with _ // This is for MessageValidator config if it needs initial proposer
-
-        // Create a MessageValidator instance for this height.
-        // Note: MessageValidator constructor might not need proposer_address directly if it's derived from final_state + round_id.
-        // The trait for MessageValidatorFactory::create_message_validator expects parent_header, final_state, codec, and rc_validator_factory.
-        // It does not take block_number or proposer_address directly in its trait signature.
-        // The `MessageValidator` itself might use these via the `final_state_provider`.
-        let message_validator = self.message_validator_factory.create_message_validator(
-            parent_header, // Correct: parent_header
-            self.final_state_provider.clone(), // Correct: final_state_view
-            self.extra_data_codec.clone(),     // Correct: extra_data_codec
-            self.round_change_message_validator_factory.clone() // Correct: round_change_message_validator_factory
-        )?;
-
-        // Create RoundChangeMessageValidator for this height
-        let round_change_message_validator = self.round_change_message_validator_factory.create_round_change_message_validator(
-            parent_header,
-            self.final_state_provider.clone()
-        )?;
-
-        // Create BlockCreator for this height
-        let block_creator = self.block_creator_factory.create_block_creator(
-            parent_header, 
-            self.final_state_provider.clone()
-        )?;
-
-        let height_manager = QbftBlockHeightManager::new(
-            parent_header.clone().into(),
-            self.final_state_provider.clone(),
-            block_creator,
-            self.block_importer.clone(),
-            self.message_factory.clone(), 
-            self.validator_multicaster.clone(),
-            self.block_timer.clone(), 
-            self.round_timer.clone(),
-            self.extra_data_codec.clone(),
-            message_validator,
-            round_change_message_validator,
-            self.mined_block_observers.clone(),
-        );
-        Ok(height_manager)
-    }
 
     pub fn on_new_block_header(&mut self, header: &QbftBlockHeader) -> Result<(), QbftError> {
         // This would be called when a new block is externally observed (e.g., from network sync)

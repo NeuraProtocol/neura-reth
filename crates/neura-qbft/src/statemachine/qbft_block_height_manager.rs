@@ -2,15 +2,17 @@ use std::sync::Arc;
 use crate::types::{
     ConsensusRoundIdentifier, QbftBlockHeader, QbftFinalState, 
     BlockTimer, RoundTimer, QbftBlockCreator, QbftBlockImporter, ValidatorMulticaster,
-    BftExtraDataCodec, QbftBlock
+    BftExtraDataCodec, QbftBlock, QbftConfig
 };
+use crate::statemachine::round_change_manager::CertifiedPrepareInfo;
 use crate::statemachine::{
     QbftRound, RoundChangeManager, RoundChangeArtifacts, QbftMinedBlockObserver
 };
 use crate::payload::{MessageFactory, PreparedRoundMetadata};
-use crate::validation::{MessageValidator, RoundChangeMessageValidator}; // Assuming these are configured and passed in
+use crate::validation::{MessageValidator, RoundChangeMessageValidator, ProposalValidator, RoundChangeMessageValidatorFactory};
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
+use std::collections::HashMap; // Added for message buffers
  // For proposerded import
 
 
@@ -28,16 +30,20 @@ pub struct QbftBlockHeightManager {
     block_timer: Arc<dyn BlockTimer>,
     round_timer: Arc<dyn RoundTimer>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
+    config: Arc<QbftConfig>,
     message_validator: MessageValidator, // Configured for this height/validators
-    round_change_message_validator: RoundChangeMessageValidator, // Configured
     mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
 
     current_round: Option<QbftRound>, // The active round manager
     round_change_manager: RoundChangeManager,
-    // TODO: state like current_round_identifier, is_committed_locally etc.
-    locked_block: Option<QbftBlock>,
+    locked_block: Option<CertifiedPrepareInfo>,
+    #[allow(dead_code)] // Set by process_round_state_change, which needs to be properly called
     finalized_block: Option<QbftBlock>,
-    round_timeout_count: u32
+
+    // Buffers for messages for future rounds at this height
+    future_proposals: HashMap<u32, Vec<Proposal>>,
+    future_prepares: HashMap<u32, Vec<Prepare>>,
+    future_commits: HashMap<u32, Vec<Commit>>,
 }
 
 impl QbftBlockHeightManager {
@@ -52,12 +58,29 @@ impl QbftBlockHeightManager {
         block_timer: Arc<dyn BlockTimer>,
         round_timer: Arc<dyn RoundTimer>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
+        config: Arc<QbftConfig>,
         message_validator: MessageValidator, // Should be pre-configured for this height
-        round_change_message_validator: RoundChangeMessageValidator, // Pre-configured
+        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
         mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>
     ) -> Self {
         let height = parent_header.number + 1;
-        let round_change_validator = RoundChangeMessageValidator::new(final_state.clone(), parent_header.clone());
+
+        // Create ProposalValidator needed by RoundChangeMessageValidator
+        let proposal_validator_for_rc = Arc::new(ProposalValidator::new(
+            final_state.clone(),
+            parent_header.clone(),
+            extra_data_codec.clone(),
+            round_change_message_validator_factory, 
+            config.clone(),
+        ));
+
+        let round_change_validator = RoundChangeMessageValidator::new(
+            final_state.clone(), 
+            parent_header.clone(),
+            None, // local_committed_round for a new height manager
+            None, // local_prepared_round for a new height manager
+            proposal_validator_for_rc,
+        );
         let round_change_manager = RoundChangeManager::new(
             final_state.get_byzantine_fault_tolerance() + 1, // f+1 for round_change_quorum_size
             round_change_validator
@@ -74,14 +97,16 @@ impl QbftBlockHeightManager {
             block_timer,
             round_timer,
             extra_data_codec,
+            config,
             message_validator, 
-            round_change_message_validator, // Stored for re-config if needed, or passed to RCM
             mined_block_observers,
             current_round: None,
             round_change_manager,
             locked_block: None,
             finalized_block: None,
-            round_timeout_count: 0,
+            future_proposals: HashMap::new(),
+            future_prepares: HashMap::new(),
+            future_commits: HashMap::new(),
         }
     }
 
@@ -104,14 +129,32 @@ impl QbftBlockHeightManager {
         log::debug!("Advancing to new round: {:?}", round_identifier);
 
         // Cancel timer for the previous round, if one existed and its timer was running.
+        // Also, capture its locked_info to potentially pass to the new round.
+        let mut initial_locked_info_for_new_round = self.locked_block.clone(); // Start with BHM's current lock
+
         if let Some(existing_round) = self.current_round.as_ref() {
             log::trace!("Cancelling timer for previous round: {:?}", existing_round.round_identifier());
             self.round_timer.cancel_timer(*existing_round.round_identifier());
+            
+            // Get locked info from the outgoing round. This might be more up-to-date.
+            if let Some(outgoing_round_lock) = existing_round.locked_info() {
+                // Decide if the outgoing round's lock is "better" or should supersede BHM's current lock.
+                // For now, let's assume the outgoing round's lock is the most current for this height.
+                log::debug!(
+                    "Retrieved locked_info (block: {:?}, round: {}) from outgoing round {:?}. Updating BHM lock.", 
+                    outgoing_round_lock.block.hash(), 
+                    outgoing_round_lock.prepared_round, 
+                    existing_round.round_identifier()
+                );
+                initial_locked_info_for_new_round = Some(outgoing_round_lock);
+            }
         }
+        // Update BHM's own locked_block with what we are about to pass to the new round.
+        self.locked_block = initial_locked_info_for_new_round.clone();
 
         let new_qbft_round = QbftRound::new(
             round_identifier,
-            (*self.parent_header).clone(), // Deref and clone Arc<QbftBlockHeader>
+            (*self.parent_header).clone(),
             self.final_state.clone(),
             self.block_creator.clone(),
             self.block_importer.clone(),
@@ -119,8 +162,10 @@ impl QbftBlockHeightManager {
             self.validator_multicaster.clone(),
             self.round_timer.clone(),
             self.extra_data_codec.clone(),
-            self.message_validator.clone(), // Assuming MessageValidator is configured for this height and can be cloned or is Arc'd
+            self.message_validator.clone(),
+            self.config.clone(),
             self.mined_block_observers.clone(),
+            initial_locked_info_for_new_round,
         );
         self.current_round = Some(new_qbft_round);
 
@@ -173,6 +218,106 @@ impl QbftBlockHeightManager {
             }
             // Otherwise, just wait for messages.
         }
+
+        // After the main logic for starting the new round (proposing or setting up from artifacts)
+        // process any messages that were buffered for this newly started round.
+        if let Err(e) = self.process_buffered_messages(round_number) {
+            log::error!("Error processing buffered messages for round {:?}: {:?}", round_identifier, e);
+            // Decide if this error should propagate or just be logged.
+            // For now, logging, as advance_to_new_round itself might have succeeded in starting the round.
+        }
+
+        Ok(())
+    }
+
+    fn process_buffered_messages(&mut self, round_number: u32) -> Result<(), QbftError> {
+        if self.finalized_block.is_some() {
+            log::debug!(
+                "Block for height {} already finalized. Skipping processing of buffered messages for round {}.", 
+                self.height, round_number
+            );
+            // Clear any buffered messages for this round as they are no longer needed.
+            self.future_proposals.remove(&round_number);
+            self.future_prepares.remove(&round_number);
+            self.future_commits.remove(&round_number);
+            return Ok(());
+        }
+
+        // Process Proposals
+        if let Some(proposals) = self.future_proposals.remove(&round_number) {
+            log::debug!("Processing {} buffered Proposals for round {}", proposals.len(), round_number);
+            for proposal in proposals {
+                if self.finalized_block.is_some() { break; } // Stop if block got finalized mid-processing
+                // Ensure the message is still relevant for the *current state* of current_round
+                if let Some(cr) = self.current_round.as_mut() {
+                    if cr.round_identifier().round_number == round_number { // Double check round
+                        if let Err(e) = cr.handle_proposal_message(proposal) {
+                            log::error!("Error processing buffered Proposal for round {}: {:?}", round_number, e);
+                            // Depending on error, may need to return e
+                        }
+                    } else {
+                        log::warn!("Buffered proposal for round {} is no longer for current round {:?}. Re-queuing or dropping? For now, dropping.", round_number, cr.round_identifier());
+                    }
+                } else {
+                    log::warn!("No current round to process buffered Proposal for round {}. This should not happen here.", round_number);
+                    break; // Should not happen if called correctly from advance_to_new_round
+                }
+            }
+        }
+        if self.finalized_block.is_some() { return Ok(()); } // Check after proposals
+
+        // Process Prepares
+        if let Some(prepares) = self.future_prepares.remove(&round_number) {
+            log::debug!("Processing {} buffered Prepares for round {}", prepares.len(), round_number);
+            for prepare in prepares {
+                if self.finalized_block.is_some() { break; }
+                if let Some(cr) = self.current_round.as_mut() {
+                    if cr.round_identifier().round_number == round_number {
+                        match cr.handle_prepare_message(prepare) {
+                            Ok(Some(block)) => {
+                                log::info!("Block finalized from buffered Prepare in round {}.", round_number);
+                                self.process_round_state_change(round_number, block)?;
+                                break; // Stop processing further buffered messages for this round
+                            }
+                            Ok(None) => {}
+                            Err(e) => log::error!("Error processing buffered Prepare for round {}: {:?}", round_number, e),
+                        }
+                    } else {
+                        log::warn!("Buffered prepare for round {} is no longer for current round {:?}. Re-queuing or dropping? For now, dropping.", round_number, cr.round_identifier());
+                    }
+                } else {
+                    log::warn!("No current round to process buffered Prepare for round {}.", round_number);
+                    break;
+                }
+            }
+        }
+        if self.finalized_block.is_some() { return Ok(()); } // Check after prepares
+
+        // Process Commits
+        if let Some(commits) = self.future_commits.remove(&round_number) {
+            log::debug!("Processing {} buffered Commits for round {}", commits.len(), round_number);
+            for commit in commits {
+                if self.finalized_block.is_some() { break; }
+                if let Some(cr) = self.current_round.as_mut() {
+                    if cr.round_identifier().round_number == round_number {
+                        match cr.handle_commit_message(commit) {
+                            Ok(Some(block)) => {
+                                log::info!("Block finalized from buffered Commit in round {}.", round_number);
+                                self.process_round_state_change(round_number, block)?;
+                                break; // Stop processing further buffered messages for this round
+                            }
+                            Ok(None) => {}
+                            Err(e) => log::error!("Error processing buffered Commit for round {}: {:?}", round_number, e),
+                        }
+                    } else {
+                         log::warn!("Buffered commit for round {} is no longer for current round {:?}. Re-queuing or dropping? For now, dropping.", round_number, cr.round_identifier());
+                    }
+                } else {
+                    log::warn!("No current round to process buffered Commit for round {}.", round_number);
+                    break;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -189,23 +334,39 @@ impl QbftBlockHeightManager {
         if let Some(current_round) = self.current_round.as_mut() {
             if *current_round.round_identifier() == *proposal.round_identifier() {
                 log::debug!("Dispatching Proposal to current round: {:?}", proposal.round_identifier());
-                current_round.handle_proposal_message(proposal)
+                return current_round.handle_proposal_message(proposal); // Return the result directly
             } else if proposal.round_identifier().round_number > current_round.round_identifier().round_number {
                 log::debug!(
-                    "Received Proposal for future round {:?} at current height {}. Current round is {:?}. Ignoring for now.",
-                    proposal.round_identifier(), self.height, current_round.round_identifier()
+                    "Received Proposal for future round {:?} at current height {}. Buffering.",
+                    proposal.round_identifier(), self.height
                 );
-                // TODO: Potentially buffer future messages if a robust buffering strategy is implemented.
-                Ok(())
+                self.future_proposals
+                    .entry(proposal.round_identifier().round_number)
+                    .or_default()
+                    .push(proposal);
+                return Ok(());
             } else {
                 log::debug!(
                     "Received Proposal for past round {:?} at current height {}. Current round is {:?}. Ignoring.",
                     proposal.round_identifier(), self.height, current_round.round_identifier()
                 );
-                Ok(())
+                return Ok(());
             }
         } else {
-            log::warn!("Received Proposal but no current round for height {}. Ignoring.", self.height);
+            // No current round, buffer if it's for this height and round 0 or greater.
+            // This could happen if BHM is initialized but start_consensus not yet called, or between rounds.
+            if proposal.round_identifier().sequence_number == self.height {
+                 log::debug!(
+                    "Received Proposal for round {:?} at height {} with no current round. Buffering.",
+                    proposal.round_identifier(), self.height
+                );
+                self.future_proposals
+                    .entry(proposal.round_identifier().round_number)
+                    .or_default()
+                    .push(proposal);
+            } else {
+                log::warn!("Received Proposal for different height {} while no current round for height {}. Ignoring.", proposal.round_identifier().sequence_number, self.height);
+            }
             Ok(())
         }
     }
@@ -223,22 +384,50 @@ impl QbftBlockHeightManager {
         if let Some(current_round) = self.current_round.as_mut() {
             if *current_round.round_identifier() == *prepare.round_identifier() {
                 log::debug!("Dispatching Prepare to current round: {:?}", prepare.round_identifier());
-                current_round.handle_prepare_message(prepare)
+                let round_number = current_round.round_identifier().round_number;
+                let block_finalized_in_round = match current_round.handle_prepare_message(prepare) {
+                    Ok(Some(imported_block)) => {
+                        log::info!("Block {:?} will be processed for finalization (from Prepare) in round {:?}.", imported_block.hash(), round_number);
+                        Some(imported_block)
+                    }
+                    Ok(None) => None, // Processed, no block finalized yet
+                    Err(e) => return Err(e),
+                };
+
+                if let Some(imported_block) = block_finalized_in_round {
+                    return self.process_round_state_change(round_number, imported_block);
+                }
+                return Ok(()); 
             } else if prepare.round_identifier().round_number > current_round.round_identifier().round_number {
                 log::debug!(
-                    "Received Prepare for future round {:?} at current height {}. Current round is {:?}. Ignoring for now.",
-                    prepare.round_identifier(), self.height, current_round.round_identifier()
+                    "Received Prepare for future round {:?} at current height {}. Buffering.",
+                    prepare.round_identifier(), self.height
                 );
-                Ok(())
+                self.future_prepares
+                    .entry(prepare.round_identifier().round_number)
+                    .or_default()
+                    .push(prepare);
+                return Ok(());
             } else {
                 log::debug!(
                     "Received Prepare for past round {:?} at current height {}. Current round is {:?}. Ignoring.",
                     prepare.round_identifier(), self.height, current_round.round_identifier()
                 );
-                Ok(())
+                return Ok(());
             }
         } else {
-            log::warn!("Received Prepare but no current round for height {}. Ignoring.", self.height);
+            if prepare.round_identifier().sequence_number == self.height {
+                log::debug!(
+                    "Received Prepare for round {:?} at height {} with no current round. Buffering.",
+                    prepare.round_identifier(), self.height
+                );
+                self.future_prepares
+                    .entry(prepare.round_identifier().round_number)
+                    .or_default()
+                    .push(prepare);
+            } else {
+                 log::warn!("Received Prepare for different height {} while no current round for height {}. Ignoring.", prepare.round_identifier().sequence_number, self.height);
+            }
             Ok(())
         }
     }
@@ -256,22 +445,50 @@ impl QbftBlockHeightManager {
         if let Some(current_round) = self.current_round.as_mut() {
             if *current_round.round_identifier() == *commit.round_identifier() {
                 log::debug!("Dispatching Commit to current round: {:?}", commit.round_identifier());
-                current_round.handle_commit_message(commit)
+                let round_number = current_round.round_identifier().round_number;
+                let block_finalized_in_round = match current_round.handle_commit_message(commit) {
+                    Ok(Some(imported_block)) => {
+                        log::info!("Block {:?} will be processed for finalization (from Commit) in round {:?}.", imported_block.hash(), round_number);
+                        Some(imported_block)
+                    }
+                    Ok(None) => None, // Processed, no block finalized yet
+                    Err(e) => return Err(e),
+                };
+
+                if let Some(imported_block) = block_finalized_in_round {
+                    return self.process_round_state_change(round_number, imported_block);
+                }
+                return Ok(());
             } else if commit.round_identifier().round_number > current_round.round_identifier().round_number {
                 log::debug!(
-                    "Received Commit for future round {:?} at current height {}. Current round is {:?}. Ignoring for now.",
-                    commit.round_identifier(), self.height, current_round.round_identifier()
+                    "Received Commit for future round {:?} at current height {}. Buffering.",
+                    commit.round_identifier(), self.height
                 );
-                Ok(())
+                self.future_commits
+                    .entry(commit.round_identifier().round_number)
+                    .or_default()
+                    .push(commit);
+                return Ok(());
             } else {
                 log::debug!(
                     "Received Commit for past round {:?} at current height {}. Current round is {:?}. Ignoring.",
                     commit.round_identifier(), self.height, current_round.round_identifier()
                 );
-                Ok(())
+                return Ok(());
             }
         } else {
-            log::warn!("Received Commit but no current round for height {}. Ignoring.", self.height);
+            if commit.round_identifier().sequence_number == self.height {
+                log::debug!(
+                    "Received Commit for round {:?} at height {} with no current round. Buffering.",
+                    commit.round_identifier(), self.height
+                );
+                self.future_commits
+                    .entry(commit.round_identifier().round_number)
+                    .or_default()
+                    .push(commit);
+            } else {
+                log::warn!("Received Commit for different height {} while no current round for height {}. Ignoring.", commit.round_identifier().sequence_number, self.height);
+            }
             Ok(())
         }
     }
@@ -323,7 +540,7 @@ impl QbftBlockHeightManager {
                 }
                 /* // TODO: Re-evaluate if early round change detection is needed for QBFT basic operation.
                    // This logic was for a more proactive round change based on f+1 messages for *any* future round.
-                let current_round_num = self.current_round.as_ref().map_or(0, |r| r.round_identifier().round_number);
+                let current_round_num = self.current_round.as_ref().map(|cr| cr.round_identifier().round_number).unwrap_or(0);
                 if let Some(future_round_num) = self.round_change_manager.lowest_future_round_with_early_quorum(current_round_num, self.height) {
                     log::info!(
                         "Early RoundChange quorum detected for future round {}. Initiating round change.", 
@@ -378,20 +595,43 @@ impl QbftBlockHeightManager {
             round_number: next_round_number,
         };
 
-        // Construct PreparedCertificate if current timed-out round was prepared.
-        let prepared_certificate = self.current_round.as_ref().and_then(|cr| cr.construct_prepared_certificate());
+        // Get PreparedRoundMetadata and corresponding QbftBlock if current round was prepared.
+        let prepared_round_metadata_opt: Option<PreparedRoundMetadata> = self.current_round.as_ref()
+            .and_then(|cr| cr.get_prepared_round_metadata_for_round_change());
+
+        let prepared_block_opt: Option<QbftBlock> = if let Some(ref metadata) = prepared_round_metadata_opt {
+            self.current_round.as_ref().and_then(|cr| {
+                cr.round_state().proposed_block().and_then(|block| {
+                    if block.hash() == metadata.prepared_block_hash {
+                        Some(block.clone())
+                    } else {
+                        log::warn!(
+                            "Block hash mismatch for prepared round. Metadata hash: {:?}, Current round block hash: {:?}. Proceeding without prepared block for RoundChange.",
+                            metadata.prepared_block_hash,
+                            block.hash()
+                        );
+                        None
+                    }
+                })
+            })
+        } else {
+            None
+        };
         
-        let prepared_round_metadata = prepared_certificate.as_ref().map(|cert| {
-            PreparedRoundMetadata::new(cert.prepared_round, cert.block.hash(), cert.prepares.clone())
-        });
-        let prepared_block_for_wrapper = prepared_certificate.as_ref().map(|cert| cert.block.clone());
-        let prepares_for_wrapper = prepared_certificate.map_or(Vec::new(), |cert| cert.prepares.clone());
+        // If metadata was present but block could not be consistently retrieved, log and send RC without prepared info.
+        if prepared_round_metadata_opt.is_some() && prepared_block_opt.is_none() {
+            log::warn!(
+                "PreparedRoundMetadata was available for timed-out round {:?}, but corresponding QbftBlock could not be retrieved or was inconsistent. Sending RoundChange without prepared certificate.",
+                timed_out_round_id
+            );
+        }
+
 
         let round_change_message = self.message_factory.create_round_change(
             new_target_round_id,
-            prepared_round_metadata,
-            prepared_block_for_wrapper,
-            prepares_for_wrapper,
+            // If block is None, metadata should also be None for create_round_change logic
+            if prepared_block_opt.is_some() { prepared_round_metadata_opt } else { None },
+            prepared_block_opt,
         )?;
 
         log::debug!("Created RoundChange message for target {:?}: {:?}", new_target_round_id, round_change_message);
@@ -420,14 +660,18 @@ impl QbftBlockHeightManager {
         }
 
         // Logic for handling a committed block from a round
-        if self.locked_block.is_none() || block.header.number > self.locked_block.as_ref().unwrap().header.number {
-            self.locked_block = Some(block.clone());
-            // TODO: Further logic if needed when a block is locked
+        if self.locked_block.is_none() || block.header.number > self.locked_block.as_ref().unwrap().block.header.number {
+            // self.locked_block = Some(block.clone()); // This needs to be CertifiedPrepareInfo
+            // TODO: If a block is finalized, how does it affect the BHM's locked_block (CertifiedPrepareInfo)?
+            // For now, process_round_state_change sets self.finalized_block. 
+            // The BHM's locked_block should be cleared upon finalization (see Step 4 of the plan).
         }
 
         // For QBFT, a block is final once committed by a 2F+1 quorum in a round.
         self.finalized_block = Some(block.clone());
-        log::info!(target: "consensus", "Height {}: Block {:?} finalized in round {}.", self.height, block.hash(), round_number);
+        // Since a block is finalized for this height, any previous lock is no longer relevant.
+        self.locked_block = None;
+        log::info!(target: "consensus", "Height {}: Block {:?} finalized in round {}. Locked block for height cleared.", self.height, block.hash(), round_number);
         
         self.on_block_finalized(&block); // Use the helper method
 
@@ -442,57 +686,14 @@ impl QbftBlockHeightManager {
     pub fn lowest_future_round_with_early_quorum(&self) -> Option<u32> {
         // Assuming current_round_identifier is correctly maintained and accessible
         // The sequence number must match the current block height being processed.
-        let _current_round_number = self.current_round.as_ref().map(|cr| cr.round_identifier().round_number).unwrap_or(0); // Prefixed with _
-        self.round_change_manager.lowest_future_round_with_early_quorum(
-            _current_round_number, 
-            self.height
-        )
-    }
-
-    fn send_round_change_message(&mut self, target_round_num: u32, is_timeout: bool) -> Result<(), QbftError> {
-        let new_target_round_id = ConsensusRoundIdentifier {
-            sequence_number: self.height,
-            round_number: target_round_num,
-        };
-
-        // Get PreparedRoundMetadata if current round is prepared
-        let prepared_round_metadata_opt: Option<PreparedRoundMetadata> = self.current_round.as_ref()
-            .and_then(|cr| cr.get_prepared_round_metadata_for_round_change());
-
-        let prepared_block_opt: Option<QbftBlock> = if prepared_round_metadata_opt.is_some() {
-            self.current_round.as_ref().and_then(|cr| cr.round_state().proposed_block().cloned())
-        } else {
-            None
-        };
-        
-        if prepared_round_metadata_opt.is_some() && 
-           (prepared_block_opt.is_none() || prepared_block_opt.as_ref().unwrap().hash() != prepared_round_metadata_opt.as_ref().unwrap().prepared_block_hash) {
-            log::error!(
-                "Inconsistency when creating RoundChange: Prepared metadata present but block is missing or hash mismatch. Metadata: {:?}, Block: {:?}",
-                prepared_round_metadata_opt, prepared_block_opt.as_ref().map(|b| b.hash())
-            );
-            // Fallback to sending without prepared info
-            
-            let own_round_change = self.message_factory.create_round_change(
-                new_target_round_id, 
-                None, // Send without cert
-                None  // Send without cert block
-            )?;
-            self.validator_multicaster.multicast_round_change(&own_round_change);
-            return Ok(());
-        }
-
-        log::debug!(
-            "Sending RoundChange for target round {:?}. Timeout: {}. Prepared metadata: {:?}, Prepared block: {:?}",
-            new_target_round_id, is_timeout, prepared_round_metadata_opt.is_some(), prepared_block_opt.is_some()
-        );
-
-        let own_round_change = self.message_factory.create_round_change(
-            new_target_round_id, 
-            prepared_round_metadata_opt, 
-            prepared_block_opt
-        )?;
-        self.validator_multicaster.multicast_round_change(&own_round_change);
-        self.handle_round_change_message(own_round_change)
+        // let _current_round_number = self.current_round.as_ref().map(|cr| cr.round_identifier().round_number).unwrap_or(0); // Prefixed with _
+        // self.round_change_manager.lowest_future_round_with_early_quorum(
+        // _current_round_number, 
+        // self.height
+        // )
+        // The method `lowest_future_round_with_early_quorum` was removed from `RoundChangeManager`.
+        // This functionality is currently not active.
+        log::trace!("lowest_future_round_with_early_quorum called, but underlying functionality in RoundChangeManager is removed.");
+        None
     }
 } 
