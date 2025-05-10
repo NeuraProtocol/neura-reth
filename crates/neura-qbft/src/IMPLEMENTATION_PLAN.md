@@ -8,8 +8,6 @@ The purpose of this application is to make reference to the Java application in 
 
 Once the implementation is complete, the QBFT consensus module will be integrated with Reth's node builder architecture to allow easy switching between consensus mechanisms (PoW, PoA, QBFT) through configuration.
 
-
-
 ## Agent Personality
 Your personality is that you are a top level Rust developer you are methodical when you Know that the answer is clear and easy you move forward with implementation.That there are sometimes issues with the IDE You are part of, any time there seems to be a deviation between the changes you have proposed and the code that is written then you will pause and wait for further input. It should not be expected that the user manually will change code to fix problems however it is acceptable to template the Implementation with todos To get the basic structure down first and then come back to it in subsequent rounds.
 
@@ -21,76 +19,81 @@ These instructions for your personality are not complete and may may be modified
 
 The below sections of this implementation plan which consists of completed work current status, integration plan and summary should be updated as necessary during the development process.
 
+## Current Status & Completed Work
 
-## Completed Work
+**Phase 0: Planning and Initial Setup - COMPLETED**
+- Detailed implementation plan drafted and reviewed.
+- Workspace and dependencies understood.
 
-- Initial project setup and understanding of requirements.
+**Phase 1: Research and Foundation (Understanding Besu's QBFT) - COMPLETED**
+- **Deep Dive into Besu's QBFT:**
+    - Analyzed QBFT implementation in `neura-chain` (Besu fork) Java codebase.
+    - Focused on core logic in `neura-chain/consensus/qbft-core/` and adaptor classes in `neura-chain/consensus/qbft/adaptor/`.
+    - Key Java classes and their roles identified across `statemachine/`, `validation/`, `types/`, `messagedata/`, `messagewrappers/`, `payload/` directories.
+    - Studied the official QBFT specification (entethalliance.github.io) and EIP-650.
+- **Library/Crate Review:**
+    - Relevant dependencies from `neura-reth` root `Cargo.toml` (e.g., `alloy-primitives`, `k256`) incorporated into `neura_qbft_core`.
 
-## Current Status
+**Phase 2: Crate Scaffolding and Core Logic (`neura_qbft_core` crate) - IN PROGRESS (Core Structures Implemented, Logic Implementation Next)**
 
-- **Phase 0: Planning and Initial Setup.**
-- Detailed implementation plan drafted.
-- Awaiting user review and confirmation before proceeding to Phase 1.
+1.  **Create `neura_qbft_core` Crate: - COMPLETED**
+    *   Set up the new crate at `crates/neura-qbft` (package name `neura_qbft_core`).
+    *   Defined initial module structure (e.g., `error.rs`, `lib.rs`, and submodules for `types`, `payload`, `messagewrappers`, `statemachine`, `validation`).
+    *   Managed dependencies in `crates/neura-qbft/Cargo.toml` and resolved workspace dependency issues.
 
-## Integration Plan
+2.  **Define Core Data Structures & Translate Java Logic: - LARGELY COMPLETED (Compiles with Warnings)**
+    *   Implemented Rust structs and enums for QBFT messages, payloads, types, and state machine components, translating logic from Besu's Java implementation.
+        *   `error.rs`: `QbftError` enum.
+        *   `types/`: `ConsensusRoundIdentifier`, `QbftBlockHeader`, `QbftBlock`, `SignedData<T>`, `BftExtraData`, `BftExtraDataCodec`, `NodeKey`, `RlpSignature`, placeholder traits (`QbftFinalState`, `RoundTimer`, etc.).
+        *   `messagedata/`: Message type codes.
+        *   `payload/`: `QbftPayload` trait, payload structs (`ProposalPayload`, `PreparePayload`, `CommitPayload`, `RoundChangePayload`, `PreparedRoundMetadata`), `MessageFactory`.
+        *   `messagewrappers/`: `BftMessage<P>`, message wrapper structs (`Proposal`, `Prepare`, `Commit`, `RoundChange`), `PreparedCertificateWrapper`.
+        *   `statemachine/`: `PreparedCertificate` (struct), `RoundState`, `QbftRound`, `RoundChangeManager`, `QbftBlockHeightManager`, `QbftController`, `QbftMinedBlockObserver` trait.
+        *   `validation/`: Placeholder validator traits and factory traits, concrete validator structs (`ProposalValidator`, etc.) and factory implementations.
+    *   Addressed RLP encoding/decoding using `alloy-rlp` derives and manual implementations where necessary.
+    *   Implemented ECDSA signature creation and recovery logic.
+    *   **Current State:** The `neura_qbft_core` crate compiles successfully. Remaining warnings are primarily for unused code (placeholders for logic to be implemented) and some test-only unused imports.
 
-The implementation will be broken down into the following phases:
+## Next Steps
 
-**Phase 1: Research and Foundation (Understanding Besu's QBFT)**
+**Continue Phase 2: Crate Scaffolding and Core Logic (`neura_qbft_core` crate)**
 
-1.  **Deep Dive into Besu's QBFT:**
-    *   Analyze the QBFT implementation in the `neura-chain` (Besu fork) Java codebase.
-    *   Focus on:
-        *   Core state machine logic.
-        *   Message types and their handling (Prepare, Commit, Round Change).
-        *   Validator management and voting mechanisms.
-        *   Block proposal and finalization.
-        *   Error handling and recovery.
-    *   Study the QBFT specification and EIP-650.
-2.  **Identify Key Reth Integration Points:**
-    *   Examine Reth's existing consensus interfaces and abstractions.
-    *   Determine how QBFT will fit into the `NodeBuilder` architecture.
-    *   Understand Reth's block processing pipeline and how QBFT-validated blocks will be incorporated.
-    *   Identify necessary traits or interfaces that `neura-qbft` will need to implement or interact with.
-3.  **Library/Crate Review:**
-    *   Review dependencies in the root `Cargo.toml` of `neura-reth` to understand available tools and patterns.
-    *   Identify any external Rust crates that might be beneficial for implementing QBFT (e.g., for cryptography, networking, state management).
+3.  **Implement QBFT State Machine Logic:**
+    *   Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`. This involves:
+        *   Handling incoming messages (Proposals, Prepares, Commits, RoundChanges) by dispatching them to the appropriate round and state.
+        *   Implementing the state transition logic within `RoundState` and `QbftRound` based on message validation and quorum achievement.
+        *   Managing round timeouts and initiating round changes.
+        *   Handling block proposal creation and re-proposal logic (including use of `PreparedCertificateWrapper`).
+        *   Interacting with placeholder traits for block creation, validation, and networking (`QbftBlockCreator`, `QbftBlockImporter`, `ValidatorMulticaster`, `RoundTimer`, `BlockTimer`).
+    *   Address `// TODO:` comments within the `neura_qbft_core` codebase.
+4.  **Refine Validator Logic:**
+    *   Ensure `ProposalValidator`, `PrepareValidator`, `CommitValidator`, `RoundChangeMessageValidator` have complete validation rules as per the QBFT specification and Besu's implementation.
+    *   Complete the implementation of `MessageValidatorFactory` and `RoundChangeMessageValidatorFactory`.
+5.  **Complete Placeholder Trait Definitions:**
+    *   Solidify the definitions of traits in `types/qbft_final_state.rs` and elsewhere (e.g., `QbftFinalState`, `RoundTimer`, `BlockTimer`, `QbftBlockCreatorFactory`, `ValidatorMulticaster`, `QbftBlockImporter`, `QbftMinedBlockObserver`). Ensure they accurately represent the interactions needed with the external Reth environment.
+6.  **Comprehensive Unit & Integration Testing for `neura_qbft_core`:**
+    *   Write unit tests for all critical components:
+        *   RLP serialization/deserialization of all message types and payloads.
+        *   `MessageFactory` operations.
+        *   Signature creation and verification in `SignedData`.
+        *   Individual validator logic.
+        *   `RoundState` transitions.
+        *   `QbftRound` message handling and state changes.
+        *   `RoundChangeManager` logic.
+    *   Develop integration tests within the crate to test interactions between these components (e.g., a sequence of messages leading to a prepared or committed state).
 
-**Phase 2: Crate Scaffolding and Core Logic (`neura-qbft` crate)**
+**Phase 3: Adapter Layer (`neura_qbft_adapter` or similar crate - New Crate)**
 
-1.  **Create `neura-qbft` Crate:**
-    *   Set up the new crate within the `crates/` directory.
-    *   Define basic module structure (e.g., `state`, `message`, `validator`, `consensus_engine`).
-2.  **Define Core Data Structures:**
-    *   Implement Rust structs for QBFT messages (e.g., `PrepareMessage`, `CommitMessage`, `RoundChangeMessage`).
-    *   Define the QBFT state (e.g., current round, sequence number, prepared block, commit seals).
-    *   Represent validator information.
-3.  **Implement QBFT State Machine:**
-    *   Translate the QBFT state transition logic from the specification and Besu's implementation into Rust.
-    *   Handle events like receiving messages, timer expirations.
-    *   Implement round change procedures.
-4.  **Validator Logic:**
-    *   Implement mechanisms for managing the validator set.
-    *   Implement signature verification for messages.
-    *   Implement voting and quorum-checking logic.
-
-**Phase 3: Block Processing and Networking**
-
-1.  **Block Proposal and Validation:**
-    *   Implement logic for a validator to propose a new block.
-    *   Implement logic for validating incoming block proposals according to QBFT rules.
-2.  **Message Handling and Encoding/Decoding:**
-    *   Implement serialization and deserialization for QBFT messages.
-    *   Develop the P2P message handling logic for exchanging QBFT messages with other nodes. This will likely involve interacting with Reth's networking layer.
-3.  **QBFT Engine Implementation:**
-    *   Create a `QbftEngine` struct that encapsulates the core consensus logic.
-    *   This engine will process incoming blocks and messages, drive the state machine, and produce new blocks when appropriate.
+1.  **Create Adapter Crate:**
+    *   Set up a new crate (e.g., `crates/neura-qbft-adapter`) that depends on `neura_qbft_core` and relevant Reth crates.
+2.  **Implement `neura_qbft_core` Traits:**
+    *   Provide concrete implementations for the traits defined in `neura_qbft_core` (e.g., `QbftFinalState`, timers, block creator, multicaster, block importer) by bridging them to Reth's functionalities (database access, networking, block processing).
+    *   Example: `RethQbftFinalState` would implement `QbftFinalState` by querying Reth's state. `RethValidatorMulticaster` would use Reth's P2P layer.
 
 **Phase 4: Integration with Reth**
 
 1.  **Consensus Abstraction Layer:**
-    *   Implement any necessary traits or interfaces defined by Reth for consensus engines.
-    *   Ensure `QbftEngine` can be plugged into Reth's consensus mechanism selection.
+    *   Implement Reth's `Consensus` trait (or equivalent) using the `QbftController` from `neura_qbft_core` and the adapter components from `neura_qbft_adapter`.
 2.  **Node Builder Integration:**
     *   Modify Reth's `NodeBuilder` to allow selection and instantiation of the QBFT consensus engine.
     *   Handle QBFT-specific configurations.
@@ -98,24 +101,23 @@ The implementation will be broken down into the following phases:
     *   Integrate QBFT block validation and import into Reth's block processing pipeline.
     *   Ensure that blocks finalized by QBFT are correctly marked and handled by the client.
 
-**Phase 5: Testing and Refinement**
+**Phase 5: Advanced Features & End-to-End Testing**
 
-1.  **Unit Tests:**
-    *   Write comprehensive unit tests for all core components of `neura-qbft`, including the state machine, message handling, and validator logic.
-2.  **Integration Tests:**
-    *   Set up test networks with multiple QBFT nodes.
+1.  **Implement Advanced QBFT Features (if any pending):**
+    *   E.g., dynamic validator updates if specified and not yet covered.
+2.  **End-to-End Testing:**
+    *   Set up local test networks with multiple Reth nodes running QBFT.
     *   Test block production, finality, and round changes in a multi-node environment.
-    *   Test scenarios like validator failures and network partitions (if feasible).
+    *   Test scenarios like validator failures and network partitions.
 3.  **Configuration and CLI:**
     *   Add configuration options for enabling and tuning QBFT.
-    *   Ensure CLI commands for node operation work correctly with QBFT.
 4.  **Benchmarking and Optimization:**
     *   Identify and address any performance bottlenecks.
 
 **Phase 6: Documentation and Finalization**
 
 1.  **Code Documentation:**
-    *   Add comprehensive Rustdoc comments to all public APIs in `neura-qbft`.
+    *   Add comprehensive Rustdoc comments to all public APIs in `neura_qbft_core` and the adapter crate.
 2.  **User Documentation:**
     *   Update documentation on how to configure and run a Reth node with QBFT consensus.
 3.  **Update `IMPLEMENTATION_PLAN.md`:**
@@ -135,4 +137,4 @@ The implementation will be broken down into the following phases:
 
 ## Summary
 
-The project aims to integrate QBFT consensus into Reth. The implementation plan outlines a phased approach, starting with research and foundational work, moving through core logic development, Reth integration, and concluding with thorough testing and documentation. The `neura-qbft` crate will encapsulate the QBFT logic, minimizing changes to the core Reth codebase.
+The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles. The next major effort involves implementing the detailed state machine logic and behaviors within this crate, followed by comprehensive testing. Subsequent phases will focus on creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.

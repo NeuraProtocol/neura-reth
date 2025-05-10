@@ -2,11 +2,9 @@ use alloy_primitives::{Address, B256 as Hash, U256, keccak256, Signature as Allo
 use alloy_rlp::{Encodable, Decodable, Header};
 use k256::ecdsa::{
     VerifyingKey as K256VerifyingKey,
-    SigningKey as K256SigningKey,
     Signature as K256EcdsaSignature,
     RecoveryId as K256RecoveryId,
 };
-use k256::elliptic_curve::sec1::ToEncodedPoint;
 use crate::error::QbftError;
 use crate::types::NodeKey;
 use crate::types::RlpSignature;

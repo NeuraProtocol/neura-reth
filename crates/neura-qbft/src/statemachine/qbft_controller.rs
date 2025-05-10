@@ -178,7 +178,7 @@ impl QbftController {
             return Err(QbftError::NoValidators);
         }
         let proposer_index = (block_number as usize) % validators.len();
-        let proposer_address = validators[proposer_index]; // This is for MessageValidator config if it needs initial proposer
+        let _proposer_address = validators[proposer_index]; // Prefixed with _ // This is for MessageValidator config if it needs initial proposer
 
         // Create a MessageValidator instance for this height.
         // Note: MessageValidator constructor might not need proposer_address directly if it's derived from final_state + round_id.

@@ -1,7 +1,7 @@
-use crate::types::{ConsensusRoundIdentifier, RlpSignature, SignedData, NodeKey};
+use crate::types::{ConsensusRoundIdentifier, RlpSignature};
 use crate::payload::qbft_payload::QbftPayload;
 use crate::messagedata::qbft_v1;
-use alloy_primitives::{B256 as Hash, keccak256, Bytes};
+use alloy_primitives::B256 as Hash;
 use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable};
 
 /// Represents the payload of a COMMIT message in QBFT.
@@ -39,21 +39,21 @@ mod tests {
     use k256::ecdsa::SigningKey;
     use rand::rngs::OsRng;
 
-    fn MOCK_ROUND_IDENTIFIER() -> ConsensusRoundIdentifier {
+    fn mock_round_identifier() -> ConsensusRoundIdentifier {
         ConsensusRoundIdentifier { sequence_number: 1, round_number: 2 }
     }
 
-    fn MOCK_DIGEST() -> Hash {
+    fn mock_digest() -> Hash {
         b256!("0000000000000000000000000000000000000000000000000000000000000002")
     }
 
-    fn MOCK_RLP_SIGNATURE() -> RlpSignature {
+    fn mock_rlp_signature() -> RlpSignature {
         let signing_key = SigningKey::random(&mut OsRng);
-        let signature: k256::ecdsa::Signature = signing_key.sign_prehash_recoverable(MOCK_DIGEST().as_slice()).unwrap().0;
+        let signature: k256::ecdsa::Signature = signing_key.sign_prehash_recoverable(mock_digest().as_slice()).unwrap().0;
         
         let r_bytes = signature.r().to_bytes();
         let s_bytes = signature.s().to_bytes();
-        let parity_bool = signing_key.sign_prehash_recoverable(MOCK_DIGEST().as_slice()).unwrap().1.is_y_odd();
+        let parity_bool = signing_key.sign_prehash_recoverable(mock_digest().as_slice()).unwrap().1.is_y_odd();
 
         let alloy_sig = AlloyPrimitiveSignature::from_scalars_and_parity(
             HashB256::from(U256::from_be_slice(&r_bytes).to_be_bytes()),
@@ -66,9 +66,9 @@ mod tests {
     #[test]
     fn test_commit_payload_rlp_encoding_decoding() {
         let original_payload = CommitPayload {
-            round_identifier: MOCK_ROUND_IDENTIFIER(),
-            digest: MOCK_DIGEST(),
-            committed_seal: MOCK_RLP_SIGNATURE(),
+            round_identifier: mock_round_identifier(),
+            digest: mock_digest(),
+            committed_seal: mock_rlp_signature(),
         };
 
         let mut encoded_data = Vec::new();
@@ -77,18 +77,18 @@ mod tests {
         let decoded_payload = CommitPayload::decode(&mut encoded_data.as_slice()).unwrap();
 
         assert_eq!(original_payload, decoded_payload);
-        assert_eq!(decoded_payload.committed_seal, MOCK_RLP_SIGNATURE());
+        assert_eq!(decoded_payload.committed_seal, mock_rlp_signature());
     }
 
     #[test]
     fn test_commit_payload_qbft_payload_methods() {
         let payload = CommitPayload {
-            round_identifier: MOCK_ROUND_IDENTIFIER(),
-            digest: MOCK_DIGEST(),
-            committed_seal: MOCK_RLP_SIGNATURE(),
+            round_identifier: mock_round_identifier(),
+            digest: mock_digest(),
+            committed_seal: mock_rlp_signature(),
         };
 
-        assert_eq!(*payload.round_identifier(), MOCK_ROUND_IDENTIFIER());
+        assert_eq!(*payload.round_identifier(), mock_round_identifier());
         assert_eq!(payload.message_type(), qbft_v1::COMMIT);
     }
 } 

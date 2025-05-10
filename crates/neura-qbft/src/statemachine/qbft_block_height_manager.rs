@@ -133,7 +133,7 @@ impl QbftBlockHeightManager {
             // For simplicity here, let's use parent + fixed increment or rely on BlockTimer logic if available.
             // Besu: blockTimestamp = max(parentTimestamp + 1, blockTimer.getTimestampForFutureBlock())
             // Placeholder: just use parent timestamp + 1 for now. BlockTimer logic will be more complex.
-            let current_time_seconds = std::time::SystemTime::now()
+            let _current_time_seconds = std::time::SystemTime::now() // Prefixed with _
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("Time went backwards")
                 .as_secs();

@@ -171,7 +171,7 @@ impl QbftRound {
         self.send_prepare(block, block_hash_for_log)
     }
 
-    fn send_prepare(&mut self, block: QbftBlock, block_digest: Hash) -> Result<(), QbftError> {
+    fn send_prepare(&mut self, _block: QbftBlock, block_digest: Hash) -> Result<(), QbftError> {
         let prepare = self.message_factory.create_prepare(*self.round_identifier(), block_digest)?;
         log::trace!("Sending Prepare for block {:?} in round {:?}", block_digest, self.round_identifier());
         self.round_state.add_prepare(prepare.clone())?;

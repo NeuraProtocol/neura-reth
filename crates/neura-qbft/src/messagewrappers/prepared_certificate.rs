@@ -1,8 +1,9 @@
-use crate::messagewrappers::prepare::Prepare;
+// use crate::messagewrappers::Proposal; // Removed unused import
+use crate::messagewrappers::Prepare;
 use crate::messagewrappers::bft_message::BftMessage;
 use crate::payload::ProposalPayload;
 // Use traits and derive macros from alloy_rlp directly when 'derive' feature is enabled
-use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
+use alloy_rlp::{RlpDecodable, RlpEncodable};
 
 /// Wrapper for a PreparedCertificate, which consists of a signed proposal payload and a list of prepare messages.
 /// This is used when a PreparedCertificate is piggybacked onto a new Proposal message.
