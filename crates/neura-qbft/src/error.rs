@@ -63,6 +63,8 @@ pub enum QbftError {
     ConsensusInvariantViolation(String),
     #[error("Invalid state: {0}")]
     InvalidState(String),
+    #[error("Block import failed: {0}")]
+    BlockImportFailed(String),
     #[error("Signing error: {0}")]
     SigningError(String),
     #[error("Recovery error: {0}")]

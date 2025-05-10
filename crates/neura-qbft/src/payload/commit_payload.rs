@@ -2,7 +2,7 @@ use crate::types::{ConsensusRoundIdentifier, RlpSignature};
 use crate::payload::qbft_payload::QbftPayload;
 use crate::messagedata::qbft_v1;
 use alloy_primitives::B256 as Hash;
-use alloy_rlp::{RlpEncodable, RlpDecodable, Encodable, Decodable};
+use alloy_rlp::{RlpEncodable, RlpDecodable};
 
 /// Represents the payload of a COMMIT message in QBFT.
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
@@ -36,6 +36,7 @@ mod tests {
     use super::*;
     use crate::messagedata::qbft_v1;
     use alloy_primitives::{b256, Signature as AlloyPrimitiveSignature, U256, B256 as HashB256};
+    use alloy_rlp::{Encodable, Decodable};
     use k256::ecdsa::SigningKey;
     use rand::rngs::OsRng;
 

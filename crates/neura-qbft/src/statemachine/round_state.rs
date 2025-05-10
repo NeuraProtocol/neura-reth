@@ -145,6 +145,10 @@ impl RoundState {
         self.proposal.as_ref()
     }
 
+    pub fn quorum_size(&self) -> usize {
+        self.quorum_size
+    }
+
     pub fn get_prepare_messages(&self) -> Vec<&SignedData<PreparePayload>> {
         self.prepare_messages.values().map(|prepare_wrapper| &prepare_wrapper.signed_payload).collect()
     }
@@ -175,13 +179,12 @@ impl RoundState {
 
     pub fn construct_prepared_certificate(&self) -> Option<PreparedCertificate> {
         if self.is_prepared() && self.proposal.is_some() {
+            // self.proposal is Option<Proposal>. We need the block from it.
+            let proposed_block = self.proposal.as_ref().unwrap().block().clone();
             Some(PreparedCertificate::new(
-                self.proposed_block().unwrap().clone(), // unwrap safe due to is_prepared check
-                self.prepare_messages.values().cloned().map(|p_ref| {
-                    // This is tricky. SignedData<PreparePayload> is needed.
-                    // The Prepare struct wraps SignedData<PreparePayload>.
-                    // We need to get the underlying SignedData.
-                    p_ref.signed_payload.clone() // Assuming Prepare has a public signed_payload or a getter
+                proposed_block,
+                self.prepare_messages.values().cloned().map(|p_wrapper| {
+                    p_wrapper.signed_payload.clone()
                 }).collect(),
                 self.round_identifier.round_number,
             ))

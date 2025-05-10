@@ -1,26 +1,142 @@
-use crate::types::{ConsensusRoundIdentifier, SignedData};
+use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock};
 use alloy_primitives::Address;
-use crate::messagewrappers::RoundChange;
-use crate::payload::RoundChangePayload;
-use crate::statemachine::round_state::PreparedCertificate; // Used by RoundChangeArtifacts
-use crate::validation::RoundChangeMessageValidator; // Corrected import
+use crate::messagewrappers::{RoundChange, BftMessage};
+use crate::payload::{RoundChangePayload, PreparePayload, ProposalPayload};
+use crate::validation::RoundChangeMessageValidator;
 use crate::error::QbftError;
-
 use std::collections::HashMap;
+use std::cmp::Ordering;
+use alloy_primitives::{B256 as Hash};
 
-/// Holds the artifacts from a collection of RoundChange messages that justify a round transition.
-#[derive(Debug, Clone)]
+/// Information about a block that has a valid prepared certificate,
+/// gathered from RoundChange messages.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CertifiedPrepareInfo {
+    pub block: QbftBlock,
+    pub original_signed_proposal: BftMessage<ProposalPayload>,
+    pub prepares: Vec<SignedData<PreparePayload>>,
+    pub prepared_round: u32,
+}
+
+/// Manages RoundChange messages and determines the best CertifiedPrepareInfo.
+pub struct RoundChangeManager {
+    // TargetRound -> Author -> RoundChangeMessage
+    round_change_messages: HashMap<ConsensusRoundIdentifier, HashMap<Address, RoundChange>>,
+    // Stores the best CertifiedPrepareInfo seen for a given block hash from round change messages
+    // Key: Block Hash. Value: The CertifiedPrepareInfo.
+    known_prepared_certificates: HashMap<Hash, CertifiedPrepareInfo>,
+    round_change_quorum_size: usize, // Number of distinct round change messages needed (f+1)
+    validator: RoundChangeMessageValidator,
+}
+
+impl RoundChangeManager {
+    pub fn new(round_change_quorum_size: usize, validator: RoundChangeMessageValidator) -> Self {
+        Self {
+            round_change_messages: HashMap::new(),
+            known_prepared_certificates: HashMap::new(),
+            round_change_quorum_size,
+            validator,
+        }
+    }
+
+    pub fn add_round_change_message(&mut self, message: RoundChange) -> Result<bool, QbftError> {
+        let author = message.author()?;
+        let target_round = *message.round_identifier();
+
+        if !self.validator.validate(&message)? {
+            log::warn!(
+                "RoundChange from {:?} for target {:?} failed validation. Discarding.",
+                author, target_round
+            );
+            return Err(QbftError::ValidationError("Invalid RoundChange message due to validator rules".into()));
+        }
+
+        let round_messages = self.round_change_messages.entry(target_round).or_default();
+        if round_messages.contains_key(&author) {
+            log::debug!(
+                "Duplicate RoundChange from {:?} for target {:?} already processed. Discarding.",
+                author, target_round
+            );
+            return Ok(false); 
+        }
+        round_messages.insert(author, message.clone());
+
+        let rc_payload_data = message.payload();
+            
+        if let (Some(ref metadata), Some(ref block)) = (&rc_payload_data.prepared_round_metadata, &rc_payload_data.prepared_block) {
+            if metadata.prepared_block_hash == block.hash() {
+                let cert_info = CertifiedPrepareInfo {
+                    block: block.clone(),
+                    original_signed_proposal: metadata.signed_proposal_payload.clone(),
+                    prepares: metadata.prepares.clone(),
+                    prepared_round: metadata.prepared_round,
+                };
+                let block_hash = block.hash();
+                match self.known_prepared_certificates.entry(block_hash) {
+                    std::collections::hash_map::Entry::Occupied(mut entry) => {
+                        if cert_info.prepared_round > entry.get().prepared_round {
+                            entry.insert(cert_info);
+                        }
+                    }
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(cert_info);
+                    }
+                }
+            } else {
+                log::warn!(
+                    "RoundChange from {:?} for target {:?} has inconsistent prepared block hash ({:?}) and metadata hash ({:?}). Ignoring prepared info.", 
+                    author, target_round, block.hash(), metadata.prepared_block_hash
+                );
+            }
+        }
+        Ok(true) 
+    }
+
+    fn best_certificate_from_known(&self) -> Option<&CertifiedPrepareInfo> {
+        self.known_prepared_certificates.values().max_by(|a, b| {
+            match a.prepared_round.cmp(&b.prepared_round) {
+                Ordering::Equal => {
+                    a.block.hash().cmp(&b.block.hash())
+                }
+                other => other,
+            }
+        })
+    }
+    
+    pub fn get_round_change_messages_for_target_round(&self, target_round: &ConsensusRoundIdentifier) -> Option<Vec<RoundChange>> {
+        self.round_change_messages.get(target_round).map(|map| map.values().cloned().collect())
+    }
+    
+    pub fn has_sufficient_round_changes(&self, target_round: &ConsensusRoundIdentifier) -> bool {
+        self.round_change_messages
+            .get(target_round)
+            .map_or(false, |messages| messages.len() >= self.round_change_quorum_size)
+    }
+
+    pub fn get_round_change_artifacts(&self, target_round: &ConsensusRoundIdentifier) -> RoundChangeArtifacts {
+        let round_changes_payloads = self.get_round_change_messages_for_target_round(target_round)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|rc_wrapper| rc_wrapper.bft_message().signed_payload.clone())
+            .collect();
+
+        let best_prepared_certificate = self.best_certificate_from_known().cloned();
+
+        RoundChangeArtifacts::new(round_changes_payloads, best_prepared_certificate)
+    }
+}
+
+/// Artifacts gathered from RoundChange messages for a specific target round.
+#[derive(Clone, Debug, Default)]
 pub struct RoundChangeArtifacts {
-    /// The collection of RoundChange messages that triggered this.
     round_changes: Vec<SignedData<RoundChangePayload>>,
-    /// The best PreparedCertificate found among the round_changes, if any.
-    best_prepared_certificate: Option<PreparedCertificate>,
+    best_prepared_certificate: Option<CertifiedPrepareInfo>,
 }
 
 impl RoundChangeArtifacts {
     pub fn new(
-        round_changes: Vec<SignedData<RoundChangePayload>>,
-        best_prepared_certificate: Option<PreparedCertificate>,
+        round_changes: Vec<SignedData<RoundChangePayload>>, 
+        best_prepared_certificate: Option<CertifiedPrepareInfo>
     ) -> Self {
         Self { round_changes, best_prepared_certificate }
     }
@@ -29,179 +145,7 @@ impl RoundChangeArtifacts {
         &self.round_changes
     }
 
-    pub fn best_prepared_certificate(&self) -> Option<&PreparedCertificate> {
+    pub fn best_prepared_certificate(&self) -> Option<&CertifiedPrepareInfo> {
         self.best_prepared_certificate.as_ref()
-    }
-
-    /// Creates RoundChangeArtifacts from a collection of validated RoundChange *wrappers*.
-    /// It finds the RoundChange with the highest prepared round (if any) to determine the best certificate.
-    pub fn try_create(validated_round_changes: &[RoundChange]) -> Option<Self> {
-        if validated_round_changes.is_empty() {
-            return None;
-        }
-
-        let best_prepared_cert_candidate = validated_round_changes.iter()
-            .filter_map(|rc_wrapper| {
-                rc_wrapper.prepared_block().as_ref().and_then(|block| { 
-                    rc_wrapper.payload().prepared_round_metadata.as_ref().map(|metadata| {
-                        PreparedCertificate::new(
-                            (**block).clone(),
-                            metadata.prepares.clone(),
-                            metadata.prepared_round,
-                        )
-                    })
-                })
-            })
-            .max_by(|a, b| a.prepared_round.cmp(&b.prepared_round));
-        
-        let signed_payloads = validated_round_changes.iter()
-            .map(|rc_wrapper| rc_wrapper.bft_message().signed_payload.clone())
-            .collect();
-
-        Some(Self::new(signed_payloads, best_prepared_cert_candidate))
-    }
-}
-
-
-/// Manages RoundChange messages for a given block height.
-struct RoundChangeStatus {
-    // Maps validator address to the RoundChange message they sent for this target round.
-    received_messages: HashMap<Address, RoundChange>, 
-    quorum_size: usize,
-    actioned: bool, // True if a certificate has been created from this status
-}
-
-impl RoundChangeStatus {
-    fn new(quorum_size: usize) -> Self {
-        Self { received_messages: HashMap::new(), quorum_size, actioned: false }
-    }
-
-    fn add_message(&mut self, msg: RoundChange) -> Result<bool, QbftError> {
-        if self.actioned {
-            return Ok(false); // Already actioned, no change
-        }
-        let author = msg.author()?;
-        // Only add if new or different (though QBFT spec implies one RC per validator per target round)
-        // For simplicity, allow overwrite if it's somehow re-validated and different, though unlikely.
-        self.received_messages.insert(author, msg);
-        Ok(self.has_quorum())
-    }
-
-    fn has_quorum(&self) -> bool {
-        self.received_messages.len() >= self.quorum_size
-    }
-
-    fn can_create_certificate(&self) -> bool {
-        self.has_quorum() && !self.actioned
-    }
-
-    /// Consumes the status to create artifacts if quorum is met.
-    fn try_create_artifacts(mut self) -> Option<RoundChangeArtifacts> {
-        if self.can_create_certificate() {
-            self.actioned = true;
-            let collected_messages: Vec<RoundChange> = self.received_messages.into_values().collect();
-            RoundChangeArtifacts::try_create(&collected_messages)
-        } else {
-            None
-        }
-    }
-}
-
-pub struct RoundChangeManager {
-    // Cache of RoundChangeStatus, keyed by the target round identifier.
-    round_change_cache: HashMap<ConsensusRoundIdentifier, RoundChangeStatus>,
-    // Quorum required for a specific round to be considered ready for change (e.g., 2f+1).
-    round_specific_quorum: usize, 
-    // Quorum for early round change (e.g., f+1 messages for *any* future round).
-    early_round_change_f_plus_1_quorum: usize, 
-    // Validator for incoming RoundChange messages for the current height.
-    message_validator: RoundChangeMessageValidator, // Placeholder
-    // For logging purposes, tracks the latest target round seen from each validator.
-    latest_round_seen_from_validator: HashMap<Address, ConsensusRoundIdentifier>,
-}
-
-impl RoundChangeManager {
-    pub fn new(
-        round_specific_quorum: usize, 
-        early_round_change_f_plus_1_quorum: usize, 
-        message_validator: RoundChangeMessageValidator
-    ) -> Self {
-        Self {
-            round_change_cache: HashMap::new(),
-            round_specific_quorum,
-            early_round_change_f_plus_1_quorum,
-            message_validator,
-            latest_round_seen_from_validator: HashMap::new(),
-        }
-    }
-
-    /// Appends a received RoundChange message.
-    /// Returns RoundChangeArtifacts if a full quorum for a specific target round is met.
-    pub fn append_round_change_message(&mut self, msg: RoundChange) -> Result<Option<RoundChangeArtifacts>, QbftError> {
-        if !self.message_validator.validate(&msg)? { // Placeholder validation
-            log::warn!("Received invalid RoundChange message: {:?}", msg);
-            return Err(QbftError::ValidationError("Invalid RoundChange message".into()));
-        }
-
-        let target_round_id = *msg.round_identifier();
-        let author = msg.author()?;
-
-        // Update latest seen round for this validator
-        if let Some(existing_seen_round) = self.latest_round_seen_from_validator.get_mut(&author) {
-            if target_round_id.round_number > existing_seen_round.round_number || 
-               (target_round_id.round_number == existing_seen_round.round_number && 
-                msg.payload().prepared_round_metadata.is_some() && existing_seen_round.round_number == target_round_id.round_number && 
-                msg.payload().prepared_round_metadata.as_ref().map_or(0, |m| m.prepared_round) > 
-                self.round_change_cache.get(&target_round_id).and_then(|rs| rs.received_messages.get(&author)).and_then(|prev_msg| prev_msg.payload().prepared_round_metadata.as_ref()).map_or(0, |m|m.prepared_round) 
-               )
-            {
-                *existing_seen_round = target_round_id;
-            }
-        } else {
-            self.latest_round_seen_from_validator.insert(author, target_round_id);
-        }
-
-        let status_entry = self.round_change_cache
-            .entry(target_round_id)
-            .or_insert_with(|| RoundChangeStatus::new(self.round_specific_quorum));
-        
-        if status_entry.add_message(msg)? {
-            // Quorum met for this specific target_round_id, try to create artifacts
-            // To avoid borrow checker issues with consuming from cache, we remove, try_create, then re-insert if not fully actioned.
-            if status_entry.can_create_certificate() { // Check again before removing
-                 let status = self.round_change_cache.remove(&target_round_id).unwrap(); // Safe unwrap
-                 if let Some(artifacts) = status.try_create_artifacts() {
-                     return Ok(Some(artifacts));
-                 } // If try_create_artifacts returned None (e.g. couldn't make cert), status is consumed.
-            }
-        }
-        Ok(None)
-    }
-
-    /// Checks if an early round change (f+1) condition is met for any future round.
-    /// Returns the lowest future round number that meets this f+1 condition.
-    pub fn lowest_future_round_with_early_quorum(&self, current_round_number: u32, current_sequence_number: u64) -> Option<u32> {
-        let mut future_round_counts: HashMap<u32, usize> = HashMap::new();
-        
-        for (_validator, round_id) in &self.latest_round_seen_from_validator {
-            if round_id.sequence_number == current_sequence_number && round_id.round_number > current_round_number {
-                *future_round_counts.entry(round_id.round_number).or_insert(0) += 1;
-            }
-        }
-
-        future_round_counts.into_iter()
-            .filter(|(_round, count)| *count >= self.early_round_change_f_plus_1_quorum)
-            .map(|(round, _count)| round)
-            .min()
-    }
-
-    /// Discards cached round change messages for rounds prior to the given one.
-    pub fn discard_rounds_prior_to(&mut self, completed_round_identifier: &ConsensusRoundIdentifier) {
-        self.round_change_cache.retain(|round_id, _status| 
-            round_id.sequence_number > completed_round_identifier.sequence_number || 
-            (round_id.sequence_number == completed_round_identifier.sequence_number && 
-             round_id.round_number > completed_round_identifier.round_number)
-        );
-        // Also prune latest_round_seen_from_validator if necessary, though it's less critical for memory.
     }
 } 

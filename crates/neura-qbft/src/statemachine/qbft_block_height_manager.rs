@@ -19,7 +19,7 @@ use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
 // Manages the consensus process for a single block height.
 pub struct QbftBlockHeightManager {
     height: u64, // The block height this manager is responsible for
-    parent_header: QbftBlockHeader,
+    parent_header: Arc<QbftBlockHeader>,
     final_state: Arc<dyn QbftFinalState>,
     block_creator: Arc<dyn QbftBlockCreator>,
     block_importer: Arc<dyn QbftBlockImporter>,
@@ -43,7 +43,7 @@ pub struct QbftBlockHeightManager {
 impl QbftBlockHeightManager {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        parent_header: QbftBlockHeader,
+        parent_header: Arc<QbftBlockHeader>,
         final_state: Arc<dyn QbftFinalState>,
         block_creator: Arc<dyn QbftBlockCreator>,
         block_importer: Arc<dyn QbftBlockImporter>,
@@ -57,10 +57,10 @@ impl QbftBlockHeightManager {
         mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>
     ) -> Self {
         let height = parent_header.number + 1;
+        let round_change_validator = RoundChangeMessageValidator::new(final_state.clone(), parent_header.clone());
         let round_change_manager = RoundChangeManager::new(
-            final_state.quorum_size(),
-            final_state.get_byzantine_fault_tolerance() + 1,
-            round_change_message_validator.clone(),
+            final_state.get_byzantine_fault_tolerance() + 1, // f+1 for round_change_quorum_size
+            round_change_validator
         );
         
         Self {
@@ -111,7 +111,7 @@ impl QbftBlockHeightManager {
 
         let new_qbft_round = QbftRound::new(
             round_identifier,
-            self.parent_header.clone(), // Parent header is for the *current* height's block
+            (*self.parent_header).clone(), // Deref and clone Arc<QbftBlockHeader>
             self.final_state.clone(),
             self.block_creator.clone(),
             self.block_importer.clone(),
@@ -301,66 +301,42 @@ impl QbftBlockHeightManager {
         }
 
         log::debug!("Dispatching RoundChange to RoundChangeManager for target round: {:?}", target_round_identifier);
-        match self.round_change_manager.append_round_change_message(round_change) {
-            Ok(Some(artifacts)) => {
-                log::info!(
-                    "RoundChangeManager reported quorum for round change to round {}. Advancing.", 
-                    artifacts.round_changes().first().map_or(target_round_identifier.round_number, |rc| rc.payload().target_round_identifier.round_number) // Corrected field
-                );
-                let new_round_number = artifacts.round_changes()
-                    .first()
-                    .map(|rc| rc.payload().target_round_identifier.round_number) // Corrected field
-                    .ok_or_else(|| QbftError::InternalError("RoundChangeArtifacts empty or invalid".to_string()))?;
-                
-                self.advance_to_new_round(new_round_number, Some(artifacts))
-            }
-            Ok(None) => {
-                log::trace!("RoundChange message processed by manager, no immediate quorum for specific target.");
-                // Check for early round change (f+1 for any future round)
-                let current_round_num = self.current_round.as_ref()
-                    .map_or(0, |cr| cr.round_identifier().round_number); // Default to 0 if no current round (e.g. before first round)
-                
-                if let Some(future_round_num) = self.round_change_manager.lowest_future_round_with_early_quorum(current_round_num, self.height) {
-                    if self.current_round.is_none() || future_round_num > current_round_num {
+        match self.round_change_manager.add_round_change_message(round_change) {
+            Ok(newly_added) => {
+                if newly_added {
+                    log::info!(
+                        "RoundChangeManager processed new RC for target round {}. Checking for quorum.", 
+                        target_round_identifier.round_number
+                    );
+                    if self.round_change_manager.has_sufficient_round_changes(&target_round_identifier) {
                         log::info!(
-                            "Early round change condition met. Advancing from round {} to future round {} for height {}.",
-                            current_round_num, future_round_num, self.height
+                            "RoundChangeManager reported quorum for round change to round {}. Advancing.", 
+                            target_round_identifier.round_number
                         );
-                        // For an early round change, we don't have specific artifacts for *that* future round's quorum yet.
-                        // We pass None for artifacts, meaning the new round will start fresh or re-propose if it has a local best.
-                        // Besu's logic for this is slightly different: it sends its own RC for that future round, then processes.
-                        // For now, let's try advancing directly. This implies the proposer of that future round will propose.
-                        // Or, if we send our own RC first, then process it, it might trigger the same `advance_to_new_round`
-                        // if our own RC forms a quorum for that future round.
-                        // Let's align with the idea of sending our own RC first for that future round.
-
-                        let new_target_round_id = ConsensusRoundIdentifier {
-                            sequence_number: self.height,
-                            round_number: future_round_num,
-                        };
-
-                        // Try to get prepared cert from current round if any, to piggyback
-                        let prepared_certificate = self.current_round.as_ref().and_then(|cr| cr.construct_prepared_certificate());
-                        let prepared_round_metadata = prepared_certificate.as_ref().map(|cert| {
-                            PreparedRoundMetadata::new(cert.prepared_round, cert.block.hash(), cert.prepares.clone())
-                        });
-                        let prepared_block_for_wrapper = prepared_certificate.as_ref().map(|cert| cert.block.clone());
-                        let prepares_for_wrapper = prepared_certificate.map_or(Vec::new(), |cert| cert.prepares.clone());
-
-                        let own_round_change_for_future = self.message_factory.create_round_change(
-                            new_target_round_id, 
-                            prepared_round_metadata, 
-                            prepared_block_for_wrapper, 
-                            prepares_for_wrapper
-                        )?;
-                        self.validator_multicaster.multicast_round_change(&own_round_change_for_future);
-                        return self.handle_round_change_message(own_round_change_for_future); // Re-enter to process our own RC
+                        let artifacts = self.round_change_manager.get_round_change_artifacts(&target_round_identifier);
+                        self.advance_to_new_round(target_round_identifier.round_number, Some(artifacts))?
+                    } else {
+                        log::trace!("Sufficient RoundChanges not yet received for target round {:?}", target_round_identifier);
                     }
+                } else {
+                    log::trace!("RoundChange message was duplicate or already processed by manager.");
                 }
+                /* // TODO: Re-evaluate if early round change detection is needed for QBFT basic operation.
+                   // This logic was for a more proactive round change based on f+1 messages for *any* future round.
+                let current_round_num = self.current_round.as_ref().map_or(0, |r| r.round_identifier().round_number);
+                if let Some(future_round_num) = self.round_change_manager.lowest_future_round_with_early_quorum(current_round_num, self.height) {
+                    log::info!(
+                        "Early RoundChange quorum detected for future round {}. Initiating round change.", 
+                        future_round_num
+                    );
+                    // This implies we should trigger a local round change to this future_round_num
+                    // self.send_round_change_message(future_round_num, true); // true indicates we are behind
+                }
+                */
                 Ok(())
             }
             Err(e) => {
-                log::error!("Error processing RoundChange message: {}", e);
+                log::error!("Failed to process RoundChange message: {:?}", e);
                 Err(e)
             }
         }
@@ -471,5 +447,52 @@ impl QbftBlockHeightManager {
             _current_round_number, 
             self.height
         )
+    }
+
+    fn send_round_change_message(&mut self, target_round_num: u32, is_timeout: bool) -> Result<(), QbftError> {
+        let new_target_round_id = ConsensusRoundIdentifier {
+            sequence_number: self.height,
+            round_number: target_round_num,
+        };
+
+        // Get PreparedRoundMetadata if current round is prepared
+        let prepared_round_metadata_opt: Option<PreparedRoundMetadata> = self.current_round.as_ref()
+            .and_then(|cr| cr.get_prepared_round_metadata_for_round_change());
+
+        let prepared_block_opt: Option<QbftBlock> = if prepared_round_metadata_opt.is_some() {
+            self.current_round.as_ref().and_then(|cr| cr.round_state().proposed_block().cloned())
+        } else {
+            None
+        };
+        
+        if prepared_round_metadata_opt.is_some() && 
+           (prepared_block_opt.is_none() || prepared_block_opt.as_ref().unwrap().hash() != prepared_round_metadata_opt.as_ref().unwrap().prepared_block_hash) {
+            log::error!(
+                "Inconsistency when creating RoundChange: Prepared metadata present but block is missing or hash mismatch. Metadata: {:?}, Block: {:?}",
+                prepared_round_metadata_opt, prepared_block_opt.as_ref().map(|b| b.hash())
+            );
+            // Fallback to sending without prepared info
+            
+            let own_round_change = self.message_factory.create_round_change(
+                new_target_round_id, 
+                None, // Send without cert
+                None  // Send without cert block
+            )?;
+            self.validator_multicaster.multicast_round_change(&own_round_change);
+            return Ok(());
+        }
+
+        log::debug!(
+            "Sending RoundChange for target round {:?}. Timeout: {}. Prepared metadata: {:?}, Prepared block: {:?}",
+            new_target_round_id, is_timeout, prepared_round_metadata_opt.is_some(), prepared_block_opt.is_some()
+        );
+
+        let own_round_change = self.message_factory.create_round_change(
+            new_target_round_id, 
+            prepared_round_metadata_opt, 
+            prepared_block_opt
+        )?;
+        self.validator_multicaster.multicast_round_change(&own_round_change);
+        self.handle_round_change_message(own_round_change)
     }
 } 

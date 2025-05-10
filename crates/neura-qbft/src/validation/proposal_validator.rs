@@ -113,10 +113,16 @@ impl ProposalValidator {
             if !rc_validator.validate(piggybacked_rc)? {
                 log::warn!(
                     "Proposal from {:?} for round {:?} contains an invalid piggybacked RoundChange message from {:?}. Target round: {:?}", 
-                    author, proposal_round_identifier, piggybacked_rc.author()?, piggybacked_rc.payload().target_round_identifier
+                    author, proposal_round_identifier, piggybacked_rc.author()?, piggybacked_rc.payload().round_identifier
                 );
                 return Ok(false);
             }
+
+            log::trace!(
+                "Proposal from {:?} for {:?} has RoundChange from {:?} for target round {:?}",
+                author, proposal_round_identifier, piggybacked_rc.author()?, piggybacked_rc.payload().round_identifier
+            );
+            // Further validation of the piggybacked RoundChange can be done here.
         }
 
         // 5. Validate piggybacked PreparedCertificate (if any)

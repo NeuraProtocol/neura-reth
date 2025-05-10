@@ -1,5 +1,6 @@
 use crate::types::SignedData;
-use crate::payload::PreparePayload;
+use crate::messagewrappers::BftMessage;
+use crate::payload::{PreparePayload, ProposalPayload};
 use alloy_primitives::B256 as Hash;
 use alloy_rlp::{RlpEncodable, RlpDecodable};
 
@@ -9,6 +10,7 @@ use alloy_rlp::{RlpEncodable, RlpDecodable};
 pub struct PreparedRoundMetadata {
     pub prepared_round: u32, // The round number in which the block was prepared
     pub prepared_block_hash: Hash, // The hash of the block that was prepared
+    pub signed_proposal_payload: BftMessage<ProposalPayload>,
     // In Java, the RoundChange message (not its payload) carries the prepares separately.
     // However, the Proposal message which might re-propose this needs the prepares.
     // The Java RoundChangePayload's getPrepares() actually gets it from the RoundChange message wrapper.
@@ -21,11 +23,13 @@ impl PreparedRoundMetadata {
     pub fn new(
         prepared_round: u32,
         prepared_block_hash: Hash,
+        signed_proposal_payload: BftMessage<ProposalPayload>,
         prepares: Vec<SignedData<PreparePayload>>,
     ) -> Self {
         Self {
             prepared_round,
             prepared_block_hash,
+            signed_proposal_payload,
             prepares,
         }
     }

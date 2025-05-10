@@ -10,13 +10,13 @@ use crate::types::{
 };
 use crate::statemachine::round_state::{RoundState, PreparedCertificate as RoundStatePreparedCertificate};
 // Removed CommitPayload, ProposalPayload from payload import based on build log
-use crate::payload::{MessageFactory, PreparePayload, RoundChangePayload};
-use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange, PreparedCertificateWrapper};
+use crate::payload::{MessageFactory, PreparePayload, RoundChangePayload, ProposalPayload, PreparedRoundMetadata};
+use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange, PreparedCertificateWrapper, BftMessage};
 // Removing this problematic line again, as the types are imported directly or aliased above.
 // use crate::statemachine::{PreparedCertificate as StatemachinePreparedCertificate, RoundState as StatemachineRoundState};
 // Removed Address, Bytes, keccak256 from alloy_primitives import based on build log
-use alloy_primitives::{B256 as Hash, Signature};
-use crate::statemachine::round_change_manager::RoundChangeArtifacts;
+use alloy_primitives::B256 as Hash;
+use crate::statemachine::round_change_manager::{RoundChangeArtifacts, CertifiedPrepareInfo};
 
 // Observers for when a block is mined/imported successfully.
 pub trait QbftMinedBlockObserver: Send + Sync {
@@ -83,6 +83,10 @@ impl QbftRound {
         self.round_state.round_identifier()
     }
 
+    pub fn round_state(&self) -> &RoundState {
+        &self.round_state
+    }
+
     pub fn create_and_propose_block(&mut self, timestamp_seconds: u64) -> Result<(), QbftError> {
         log::debug!("Creating proposed block for round {:?}", self.round_identifier());
         let block = self.block_creator.create_block(
@@ -91,7 +95,7 @@ impl QbftRound {
             timestamp_seconds,
         )?;
         let block_hash_for_log = block.hash(); 
-        self.propose_block(block, Vec::new(), Vec::new(), block_hash_for_log)
+        self.propose_block(block, Vec::new(), None, block_hash_for_log)
     }
     
     pub fn start_round_with_prepared_artifacts(
@@ -99,71 +103,76 @@ impl QbftRound {
         round_change_artifacts: &RoundChangeArtifacts, 
         header_timestamp: u64,
     ) -> Result<(), QbftError> {
-        let block_to_propose_from_cert = round_change_artifacts
-            .best_prepared_certificate()
-            .map(|cert| cert.block.clone());
+        let best_cert_option: Option<&CertifiedPrepareInfo> = round_change_artifacts.best_prepared_certificate();
 
-        let (block_to_propose, block_hash_for_log) = match block_to_propose_from_cert {
-            Some(block) => {
-                let block_hash = block.hash();
+        let (block_to_propose, block_hash_for_log, prepared_artifact_for_proposal) = 
+            if let Some(cert_info) = best_cert_option {
                 log::debug!(
-                    "Re-proposing block from PreparedCertificate for round {:?}: Hash={:?}", 
-                    self.round_identifier(), block_hash
+                    "Re-proposing block from CertifiedPrepareInfo for round {:?}: Hash={:?}, Original Round={:?}", 
+                    self.round_identifier(), cert_info.block.hash(), cert_info.prepared_round
                 );
-                (block, block_hash)
-            }
-            None => {
-                log::debug!("Creating new block for round {:?} as no prepared certificate found.", self.round_identifier());
-                let block = self.block_creator.create_block(
+                (
+                    cert_info.block.clone(), 
+                    cert_info.block.hash(), 
+                    Some((cert_info.original_signed_proposal.clone(), cert_info.prepares.clone()))
+                )
+            } else {
+                log::debug!("Creating new block for round {:?} as no certified prepare info found.", self.round_identifier());
+                let new_block = self.block_creator.create_block(
                     &self.parent_header, 
                     self.round_identifier(), 
                     header_timestamp
                 )?;
-                let block_hash = block.hash();
-                (block, block_hash)
-            }
-        };
+                let new_block_hash = new_block.hash();
+                (new_block, new_block_hash, None)
+            };
 
         let piggybacked_round_changes = round_change_artifacts.round_changes().clone();
-        let piggybacked_prepares = round_change_artifacts
-            .best_prepared_certificate()
-            .map_or(Vec::new(), |cert| cert.prepares.clone());
-
-        self.propose_block(block_to_propose, piggybacked_round_changes, piggybacked_prepares, block_hash_for_log)
+        
+        self.propose_block(block_to_propose, piggybacked_round_changes, prepared_artifact_for_proposal, block_hash_for_log)
     }
 
     fn propose_block(
         &mut self,
         block: QbftBlock,
         round_change_payloads: Vec<SignedData<RoundChangePayload>>,
-        prepare_payloads: Vec<SignedData<PreparePayload>>,
+        prepared_certificate_artifact: Option<(BftMessage<ProposalPayload>, Vec<SignedData<PreparePayload>>)>,
         block_hash_for_log: Hash,
     ) -> Result<(), QbftError> {
-        // Convert RoundChangePayloads to Vec<RoundChange>
         let round_change_proofs: Vec<RoundChange> = round_change_payloads
             .into_iter()
-            .map(|rc_payload| RoundChange::new(rc_payload, None, None)) // Assuming no block/prepares for these proofs
+            .map(|rc_payload| RoundChange::new(rc_payload, None, None)) 
             .collect::<Result<Vec<RoundChange>, QbftError>>()?;
 
-        // Convert PreparePayloads to Option<PreparedCertificateWrapper>
-        // This is complex: requires the original Proposal for these prepares.
-        // For now, if prepare_payloads are present, it implies a prepared state, but we lack the original proposal.
-        // Placeholder: Create None. This needs to be properly implemented if re-proposing with a cert.
-        let prepared_certificate: Option<PreparedCertificateWrapper> = if prepare_payloads.is_empty() {
-            None
-        } else {
-            // TODO: Construct PreparedCertificateWrapper correctly.
-            // This needs the original Proposal that these `prepare_payloads` validated.
-            // And `prepare_payloads` need to be wrapped into `Prepare` messages first.
-            log::warn!("Proposing with non-empty prepares, but PreparedCertificateWrapper construction is placeholder.");
-            None 
-        };
+        let prepared_certificate_wrapper: Option<PreparedCertificateWrapper> = 
+            if let Some((original_signed_proposal, prepare_payloads_from_cert)) = prepared_certificate_artifact {
+                if prepare_payloads_from_cert.is_empty() {
+                    log::warn!(
+                        "Prepared certificate artifact provided but has no prepare payloads. Ignoring for wrapper."
+                    );
+                    None
+                } else {
+                    log::debug!(
+                        "Constructing PreparedCertificateWrapper for new proposal in round {:?} using original proposal from round {:?}",
+                        self.round_identifier(),
+                        original_signed_proposal.payload().round_identifier
+                    );
+                    let prepares_for_wrapper: Vec<Prepare> = prepare_payloads_from_cert
+                        .into_iter() 
+                        .map(Prepare::new) 
+                        .collect();
+                                        
+                    Some(PreparedCertificateWrapper::new(original_signed_proposal, prepares_for_wrapper))
+                }
+            } else {
+                None
+            };
 
         let proposal = self.message_factory.create_proposal(
             *self.round_identifier(),
-            block.clone(), 
-            round_change_proofs, // Corrected type
-            prepared_certificate, // Corrected type
+            block.clone(),
+            round_change_proofs,
+            prepared_certificate_wrapper,
         )?;
         log::trace!("Proposing block {:?} for round {:?}", block_hash_for_log, self.round_identifier());
         self.round_state.set_proposal(proposal.clone())?;
@@ -248,33 +257,42 @@ impl QbftRound {
     pub fn handle_commit_message(&mut self, commit: Commit) -> Result<(), QbftError> {
         let author = commit.author()?;
         log::debug!(
-            "Handling Commit message for round {:?} from {:?}, digest: {:?}",
+            "Handling Commit message for round {:?} from {:?}, digest: {:?}" ,
             self.round_identifier(),
             author,
             commit.payload().digest
         );
 
-        // Add commit to round state. RoundState's add_commit uses MessageValidator.
-        match self.round_state.add_commit(commit) {
+        match self.round_state.add_commit(commit.clone()) {
             Ok(_) => {
-                // Check if we have enough commits to be "committed"
                 if self.round_state.is_committed() {
                     log::trace!(
                         "Round {:?} is COMMITTED after receiving remote commit. Importing block.",
                         self.round_identifier()
                     );
-                    // Attempt to import the block
-                    // This import_block_to_chain should be idempotent or handle already imported blocks gracefully.
-                    return self.import_block_to_chain(); 
+                    // Attempt to import the block. If this fails, the round continues,
+                    // but we might have a problem. If it succeeds, the round ends.
+                    return self.import_block_to_chain();
                 }
                 Ok(())
             }
-            Err(QbftError::ValidationError(_)) => {
-                log::warn!("Invalid Commit message for round {:?}. Ignoring.", self.round_identifier());
-                // Propagate validation error if needed, or just log and ignore
-                Ok(())
+            Err(QbftError::ValidationError(reason)) => {
+                 log::warn!(
+                    "Invalid Commit message for round {:?}: {}. Ignoring.",
+                    self.round_identifier(),
+                    reason
+                );
+                 // Still return Ok(()) as per Besu logic for invalid messages unless they are fatal
+                 Ok(())
             }
-            Err(e) => Err(e), // Other errors from add_commit
+            Err(e) => {
+                log::error!(
+                    "Error processing Commit message for round {:?}: {}",
+                    self.round_identifier(),
+                    e
+                );
+                Err(e)
+            }
         }
     }
 
@@ -285,71 +303,70 @@ impl QbftRound {
     }
 
     fn import_block_to_chain(&mut self) -> Result<(), QbftError> {
-        // Ensure the round is committed
-        if !self.round_state.is_committed() {
-            log::error!(
-                "Attempted to import block for round {:?} which is not committed.", 
+        if self.finalized_block_hash_in_round.is_some() {
+            log::debug!(
+                "Block for round {:?} already finalized and imported. Skipping.",
                 self.round_identifier()
             );
-            return Err(QbftError::InvalidState("Round not committed".into()));
+            return Ok(());
         }
 
-        let _finalized_block = self.round_state.proposed_block().cloned(); // Prefixed with _
-        if let Some(block_to_import) = self.round_state.proposed_block() {
-            let block_hash = block_to_import.hash();
-            let original_header = &block_to_import.header;
-            let commit_seals_option: Option<Vec<Signature>> = self.round_state.get_commit_seals_if_committed();
+        let proposed_block = self.round_state.proposed_block().ok_or_else(|| {
+            log::error!("Attempted to import block, but no proposal exists in round state for {:?}", self.round_identifier());
+            QbftError::InvalidState("Cannot import block: No proposal in round state".to_string())
+        })?;
 
-            let rlp_commit_seals: Vec<RlpSignature> = commit_seals_option
-                .map(|seals| seals.into_iter().map(RlpSignature::from).collect()) // Use RlpSignature::from or RlpSignature() if From is impl
-                .unwrap_or_default();
+        let commit_seals_signatures = self.round_state.get_commit_seals_if_committed().ok_or_else(|| {
+            log::error!("Attempted to import block, but not enough commit seals for {:?}", self.round_identifier());
+            QbftError::InvalidState("Cannot import block: Not enough commit seals".to_string())
+        })?;
+        
+        // Convert alloy_primitives::Signature to RlpSignature for encoding in extra data
+        let commit_seals_rlp: Vec<RlpSignature> = commit_seals_signatures.into_iter().map(RlpSignature).collect();
 
-            let mut bft_extra_data = self.extra_data_codec.decode(&original_header.extra_data)
-                .map_err(|e| QbftError::InternalError(format!("Failed to decode existing extra_data: {}", e)))?;
+        log::debug!(
+            "Importing block {:?} for round {:?} with {} commit seals.",
+            proposed_block.hash(),
+            self.round_identifier(),
+            commit_seals_rlp.len()
+        );
 
-            bft_extra_data.committed_seals = rlp_commit_seals; // Assign Vec<RlpSignature>
-            bft_extra_data.round_number = self.round_identifier().round_number;
-            
-            let new_extra_data_bytes = self.extra_data_codec.encode(&bft_extra_data)?;
+        let mut block_to_import = proposed_block.clone();
+        
+        // Create BftExtraData with the commit seals
+        let mut bft_extra_data = self.extra_data_codec.decode(&block_to_import.header.extra_data)?;
+        bft_extra_data.committed_seals = commit_seals_rlp;
+        
+        // Encode the updated BftExtraData back into the block header
+        block_to_import.header.extra_data = self.extra_data_codec.encode(&bft_extra_data)?;
+        // The block hash will change after updating extra_data, so it needs to be recalculated if used after this point for consistency,
+        // though the block_importer should handle the final validation with the new hash.
+        // For logging or internal state, ensure it's understood that block_to_import.hash() will be different now.
 
-            let new_header = QbftBlockHeader::new(
-                original_header.parent_hash,
-                original_header.ommers_hash,
-                original_header.beneficiary,
-                original_header.state_root,
-                original_header.transactions_root,
-                original_header.receipts_root,
-                original_header.logs_bloom.clone(),
-                original_header.difficulty,
-                original_header.number,
-                original_header.gas_limit,
-                original_header.gas_used,
-                original_header.timestamp,
-                new_extra_data_bytes,
-                original_header.mix_hash,
-                original_header.nonce.clone(),
-            );
-            
-            let block_to_import = QbftBlock::new(
-                new_header,
-                block_to_import.body_transactions.clone(),
-                block_to_import.body_ommers.clone(),
-            );
-
-            log::info!(
-                "Block {:?} prepared for import with {} commit seals. Round: {}", 
-                block_hash,
-                bft_extra_data.committed_seals.len(),
-                bft_extra_data.round_number
-            );
-
-            self.block_importer.import_block(&block_to_import)?;
-            log::info!("Successfully imported block {:?} for round {:?}", block_hash, self.round_identifier());
-            self.round_timer.cancel_timer(*self.round_identifier());
-            self.notify_new_block_listeners(&block_to_import);
-            Ok(())
-        } else {
-            Err(QbftError::InternalError("Attempted to import block but no proposal in RoundState".into()))
+        match self.block_importer.import_block(&block_to_import) { // Pass by reference
+            Ok(_) => {
+                log::info!(
+                    "Successfully imported block {:?} for round {:?}",
+                    block_to_import.hash(), // Use the potentially new hash
+                    self.round_identifier()
+                );
+                self.finalized_block_hash_in_round = Some(block_to_import.hash());
+                self.notify_new_block_listeners(&block_to_import);
+                self.cancel_timers(); // Stop round timer as round is complete
+                // Potentially notify QbftBlockHeightManager that a block for this height is done.
+                Ok(())
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to import block {:?} for round {:?}: {:?}",
+                    block_to_import.hash(),
+                    self.round_identifier(),
+                    e // Assuming e is an error type that can be logged meaningfully
+                );
+                // This is a critical error. The QBFT spec might have guidance on how to proceed.
+                // For now, we return an error. The round might need to be restarted or an error propagated upwards.
+                Err(QbftError::BlockImportFailed(format!("Failed to import block: {:?}", e)))
+            }
         }
     }
 
@@ -446,6 +463,45 @@ impl QbftRound {
             Ok(_) => Ok(true), // Assume it was added or was valid and already there.
             Err(QbftError::ValidationError(_)) => Ok(false), // Invalid prepare, not added.
             Err(e) => Err(e), // Other error.
+        }
+    }
+
+    pub fn get_prepared_round_metadata_for_round_change(&self) -> Option<PreparedRoundMetadata> {
+        if self.round_state.is_prepared() {
+            if let Some(proposal_wrapper) = self.round_state.proposal_message() { 
+                let original_signed_proposal = proposal_wrapper.bft_message().clone(); 
+                let block = proposal_wrapper.block(); 
+                
+                // Use the public getter for prepare messages
+                let prepare_payloads: Vec<SignedData<PreparePayload>> = self.round_state.get_prepare_messages()
+                    .into_iter()
+                    .cloned() // Deref &SignedData to SignedData
+                    .collect();
+                
+                // Use the public getter for quorum size
+                if prepare_payloads.len() < self.round_state.quorum_size() { 
+                     log::warn!(
+                        "Attempted to get PreparedRoundMetadata for round {:?}, but not enough prepares ({}) for quorum ({}).", 
+                        self.round_identifier(), prepare_payloads.len(), self.round_state.quorum_size()
+                    );
+                    return None;
+                }
+
+                Some(PreparedRoundMetadata::new(
+                    self.round_identifier().round_number, 
+                    block.hash(),
+                    original_signed_proposal, 
+                    prepare_payloads,
+                ))
+            } else {
+                 log::warn!(
+                    "Round {:?} is_prepared but has no proposal in RoundState. Cannot create PreparedRoundMetadata.", 
+                    self.round_identifier()
+                );
+                None 
+            }
+        } else {
+            None 
         }
     }
 } 

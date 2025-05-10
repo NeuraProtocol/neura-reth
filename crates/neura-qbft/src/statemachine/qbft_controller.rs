@@ -95,7 +95,7 @@ impl QbftController {
         )?;
 
         let mut height_manager = QbftBlockHeightManager::new(
-            parent_header.clone(),
+            parent_header.clone().into(),
             self.final_state_provider.clone(),
             block_creator,
             self.block_importer.clone(),
@@ -205,17 +205,17 @@ impl QbftController {
         )?;
 
         let height_manager = QbftBlockHeightManager::new(
-            parent_header.clone(), // BHM takes parent_header by value
+            parent_header.clone().into(),
             self.final_state_provider.clone(),
-            block_creator, // Pass the created Arc<dyn QbftBlockCreator>
+            block_creator,
             self.block_importer.clone(),
             self.message_factory.clone(), 
             self.validator_multicaster.clone(),
             self.block_timer.clone(), 
             self.round_timer.clone(),
             self.extra_data_codec.clone(),
-            message_validator, // The specific message validator for this height
-            round_change_message_validator, // The specific RC validator for this height
+            message_validator,
+            round_change_message_validator,
             self.mined_block_observers.clone(),
         );
         Ok(height_manager)

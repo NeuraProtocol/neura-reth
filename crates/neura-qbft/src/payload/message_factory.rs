@@ -94,20 +94,32 @@ impl MessageFactory {
     pub fn create_round_change(
         &self,
         target_round_identifier: ConsensusRoundIdentifier,
-        prepared_round_metadata: Option<PreparedRoundMetadata>,
-        prepared_block: Option<QbftBlock>,
-        prepares_for_wrapper: Vec<SignedData<PreparePayload>>,
+        // This prepared_round_metadata (if Some) is now expected to contain the 
+        // original signed_proposal_payload and the Vec<SignedData<PreparePayload>>.
+        prepared_round_metadata_opt: Option<PreparedRoundMetadata>, 
+        prepared_block_opt: Option<QbftBlock>,
+        // prepares_for_wrapper: Vec<SignedData<PreparePayload>>, // This argument is removed
     ) -> Result<RoundChange, QbftError> {
-        let is_metadata_none = prepared_round_metadata.is_none();
         
-        let payload = RoundChangePayload::new(target_round_identifier, prepared_round_metadata);
-        let signed_payload = SignedData::sign(payload, &self.node_key)?;
+        let rc_payload = RoundChangePayload::new(
+            target_round_identifier, 
+            prepared_round_metadata_opt.clone(), 
+            prepared_block_opt.clone()
+        );
+        let signed_rc_payload = SignedData::sign(rc_payload, &self.node_key)?;
         
-        let prepares_option = if prepares_for_wrapper.is_empty() && is_metadata_none {
-            None 
-        } else {
-            Some(prepares_for_wrapper)
-        };
-        RoundChange::new(signed_payload, prepared_block, prepares_option)
+        // Extract Vec<SignedData<PreparePayload>> for RoundChange::new
+        let prepares_for_rc_new_method: Option<Vec<SignedData<PreparePayload>>> = 
+            if let Some(ref metadata) = prepared_round_metadata_opt {
+                if metadata.prepares.is_empty() {
+                    None 
+                } else {
+                    Some(metadata.prepares.clone()) // Clone the Vec<SignedData<PreparePayload>>
+                }
+            } else {
+                None
+            };
+            
+        RoundChange::new(signed_rc_payload, prepared_block_opt, prepares_for_rc_new_method)
     }
 } 

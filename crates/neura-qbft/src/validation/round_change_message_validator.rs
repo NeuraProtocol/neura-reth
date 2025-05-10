@@ -37,7 +37,7 @@ impl RoundChangeMessageValidator {
     pub fn validate(&self, round_change: &RoundChange) -> Result<bool, QbftError> {
         let author = round_change.author()?;
         let payload = round_change.payload();
-        let target_round_id = payload.target_round_identifier;
+        let target_round_id = payload.round_identifier;
 
         // 1. Author is a current validator
         if !self.final_state.is_validator(author) {
