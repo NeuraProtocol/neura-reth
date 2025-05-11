@@ -52,7 +52,7 @@ The below sections of this implementation plan which consists of completed work 
         *   `validation/`: Placeholder validator traits and factory traits, concrete validator structs (`ProposalValidator`, etc.) and factory implementations.
     *   Addressed RLP encoding/decoding using `alloy-rlp` derives and manual implementations where necessary.
     *   Implemented ECDSA signature creation and recovery logic.
-    *   **Current State:** The `neura_qbft_core` crate compiles successfully without errors or warnings. All core message types and payloads have RLP serialization/deserialization unit tests. Key functionalities like `SignedData` and `MessageFactory` also have initial unit tests.
+    *   **Current State:** The `neura_qbft_core` crate compiles successfully without errors or warnings. All core message types and payloads have RLP serialization/deserialization unit tests. Key functionalities like `SignedData` and `MessageFactory` also have initial unit tests. The validation module structure (validators, factories) has been refactored and placeholder implementations are in place.
 
 **Date: 2024-05-16 - Addressing Build Warnings and Refining State Machine**
     *   **Build Status:** The `neura_qbft_core` crate compiles with several `dead_code` warnings in `qbft_round.rs`, `qbft_block_height_manager.rs`, and `qbft_controller.rs`.
@@ -80,6 +80,17 @@ The below sections of this implementation plan which consists of completed work 
     *   **RLP Testing:** Completed unit tests for RLP serialization and deserialization for all core QBFT message types and their payloads (`ProposalPayload`, `Proposal`, `PreparePayload`, `Prepare`, `CommitPayload`, `Commit`, `RoundChangePayload`, `RoundChange`). `MessageFactory` and `SignedData` also have foundational tests.
     *   **Next Focus:** Message Validation Logic.
 
+**Date: 2024-05-20 - Validation Module Refactoring Completed & Clean Build**
+    *   **Build Status:** The `neura_qbft_core` crate compiles without any errors or warnings.
+    *   **Validation Module:**
+        *   Successfully refactored the validation module into individual validator files (`proposal_validator.rs`, `prepare_validator.rs`, `commit_validator.rs`, `round_change_message_validator.rs`) and their respective factory files (`message_validator_factory.rs`, `round_change_message_validator_factory.rs`).
+        *   Each validator file defines its specific trait (e.g., `ProposalValidator`) and a placeholder `Impl` struct (e.g., `ProposalValidatorImpl`).
+        *   `validation/mod.rs` correctly declares all submodules and re-exports necessary items.
+        *   `ValidationContext` struct has been defined in `proposal_validator.rs` and is used across relevant validators and state machine components.
+        *   Resolved all linter errors and warnings related to imports, struct/trait definitions, and method signatures across the validation module and its consumers (e.g., `qbft_block_height_manager.rs`, `qbft_round.rs`, `round_state.rs`).
+        *   The old monolithic `message_validator.rs` has been deleted.
+    *   **Next Focus:** Implementing the actual validation rules within each validator `Impl` struct.
+
 ## Next Steps
 
 **Continue Phase 2: Crate Scaffolding and Core Logic (`neura_qbft_core` crate)**
@@ -90,8 +101,9 @@ The below sections of this implementation plan which consists of completed work 
     *   Integrate `locked_block` handling into the main proposal flow in `QbftRound` and `QbftBlockHeightManager`. - **COMPLETED**
 
 2.  **Refine Validator Logic (Message Validation Logic):**
-    *   Ensure `ProposalValidator`, `PrepareValidator`, `CommitValidator`, `RoundChangeMessageValidator` have complete validation rules as per the QBFT specification and Besu's implementation. This is the immediate next step.
-    *   Complete the implementation of `MessageValidatorFactory` and `RoundChangeMessageValidatorFactory`.
+    *   The structural refactoring of the validation module (individual validators, factories, `ValidationContext`) is complete.
+    *   Ensure `ProposalValidatorImpl`, `PrepareValidatorImpl`, `CommitValidatorImpl`, `RoundChangeMessageValidatorImpl` have complete validation rules as per the QBFT specification and Besu's implementation. This is the immediate next step.
+    *   Complete the implementation of `MessageValidatorFactoryImpl` and `RoundChangeMessageValidatorFactoryImpl` to correctly instantiate the validator implementations. (This is largely done, but may need minor tweaks as validator `new` methods evolve).
 
 3.  **Implement QBFT State Machine Logic (Continued):**
     *   Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`. This involves:
@@ -171,4 +183,4 @@ The below sections of this implementation plan which consists of completed work 
 
 ## Summary
 
-The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles without warnings. RLP encoding/decoding for all message types has been implemented and unit tested. The next major effort involves implementing comprehensive message validation logic for each QBFT message type, followed by the detailed state machine behaviors. Subsequent phases will focus on creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.
+The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles without warnings. RLP encoding/decoding for all message types has been implemented and unit tested. The validation module has been refactored with individual validator components and factories. The next major effort involves implementing comprehensive message validation rules within these new validator structures, followed by the detailed state machine behaviors. Subsequent phases will focus on creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.
