@@ -3081,7 +3081,7 @@ mod tests {
 
         // Metadata for prepared_round = 2 (from validator2) - THIS IS THE BEST
         let prepared_round_2 = 2;
-        let mut prepared_block_r2 = default_qbft_block( // Made block mutable
+        let prepared_block_r2 = default_qbft_block( // Made block mutable
             parent_h.hash(), current_sequence, prepared_round_2, parent_h.timestamp + 2, 
             30_000_000, validator1_address, codec.clone(), current_validators_vec.clone()); // BENEFICIARY = validator1_address (Proposer for R2)
         
