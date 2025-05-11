@@ -1,7 +1,8 @@
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange, PreparedCertificateWrapper};
-use crate::types::{ConsensusRoundIdentifier, QbftBlock, Address};
-use alloy_primitives::B256 as Hash;
-use std::collections::{HashMap, HashSet}; // Using HashMap for messages to store by author
+use crate::types::{ConsensusRoundIdentifier, QbftBlock};
+use alloy_primitives::{Address, B256 as Hash};
+// use reth_primitives::Sealable; // Original line, commented out or removed
+use std::collections::HashMap;
 
 pub struct RoundState {
     // Identifier for this round (sequence number, round number)
@@ -92,7 +93,7 @@ impl RoundState {
     pub fn add_prepare(&mut self, prepare: Prepare) -> Result<(), &'static str> {
         // Basic check: ensure prepare is for the current proposal's digest
         if let Some(current_digest) = self.proposed_block_hash {
-            if prepare.payload().proposal_digest != current_digest {
+            if prepare.payload().digest != current_digest {
                 return Err("Prepare digest does not match current proposal");
             }
             // Additional check: ensure prepare is for the current round_identifier
@@ -118,7 +119,146 @@ impl RoundState {
         Ok(())
     }
 
-    // TODO: add_commit, add_round_change, set_proposal, etc.
-    // TODO: Methods to check for quorum for prepares, commits, round_changes.
-    // TODO: Method to form PreparedCertificate.
+    /// Sets the proposal for this round.
+    /// Stores the proposal message, block hash, and block.
+    /// Assumes the Proposal message has already been validated externally.
+    ///
+    /// TODO: Consider behavior if a proposal is already set. Replace? Error?
+    pub fn set_proposal(&mut self, proposal: Proposal) {
+        let block_hash = proposal.payload().proposed_block.header.hash(); // Calculate hash using existing hash() method
+        let block = proposal.payload().proposed_block.clone(); // Clone the block
+
+        self.proposal_message = Some(proposal);
+        self.proposed_block_hash = Some(block_hash);
+        self.proposed_block = Some(block);
+    }
+
+    /// Adds a received Commit message.
+    /// Returns Ok(()) if added, Err if relevant checks fail or if already present from this author.
+    /// Assumes the Commit message has already been validated externally (e.g., signature).
+    pub fn add_commit(&mut self, commit: Commit) -> Result<(), &'static str> {
+        // Ensure a proposal is active for this round
+        let current_digest = match self.proposed_block_hash {
+            Some(digest) => digest,
+            None => return Err("Cannot add commit, no proposal active in this round"),
+        };
+
+        // Check if the commit is for the correct proposal digest
+        if commit.payload().digest != current_digest {
+            return Err("Commit digest does not match current proposal");
+        }
+
+        // Check if the commit is for the current round identifier
+        if commit.payload().round_identifier != self.round_identifier {
+            return Err("Commit round identifier does not match current round");
+        }
+
+        let author = match commit.author() {
+            Ok(addr) => addr,
+            Err(_) => return Err("Could not get author from commit message"),
+        };
+
+        if self.commit_messages.insert(author, commit).is_some() {
+            // Optional: Log a warning or handle as an error if a commit from this author already exists.
+            // For now, simple replacement like in add_prepare.
+            // log::warn!("Replaced existing commit message from author: {:?}", author);
+        }
+        Ok(())
+    }
+
+    /// Adds a received RoundChange message.
+    /// Returns Ok(()) if added, Err if relevant checks fail or if already present from this author.
+    /// Assumes the RoundChange message has already been validated externally (e.g., signature).
+    /// This method only stores RoundChange messages that target the current round of this RoundState.
+    pub fn add_round_change(&mut self, round_change: RoundChange) -> Result<(), &'static str> {
+        // Check if the RoundChange targets the current round number
+        if round_change.payload().round_identifier.round_number != self.round_identifier.round_number {
+            // TODO: Clarify if this should be an error or silently ignored if RCs for other rounds
+            // are handled by a higher-level manager. For now, error if not for this state's exact round.
+            return Err("RoundChange message does not target the current round number");
+        }
+        
+        // Also check if the RoundChange targets the current sequence number (height)
+        if round_change.payload().round_identifier.sequence_number != self.round_identifier.sequence_number {
+            return Err("RoundChange message does not target the current sequence number (height)");
+        }
+
+        let author = match round_change.author() {
+            Ok(addr) => addr,
+            Err(_) => return Err("Could not get author from round_change message"),
+        };
+
+        if self.round_change_messages.insert(author, round_change).is_some() {
+            // Optional: Log a warning or handle as an error if a RoundChange from this author already exists.
+            // log::warn!("Replaced existing round_change message from author: {:?}", author);
+        }
+        Ok(())
+    }
+
+    // --- Quorum Checks ---
+
+    /// Checks if the number of unique Prepare messages meets the given threshold.
+    /// The `quorum_threshold` is typically 2F+1 for prepares.
+    pub fn has_prepare_quorum(&self, quorum_threshold: usize) -> bool {
+        // Ensure there is a proposal before checking for prepare quorum.
+        // A round cannot be prepared without a proposal.
+        if self.proposal_message.is_none() {
+            return false;
+        }
+        self.prepare_messages.len() >= quorum_threshold
+    }
+
+    /// Checks if the number of unique Commit messages meets the given threshold.
+    /// The `quorum_threshold` is typically 2F+1 for commits.
+    pub fn has_commit_quorum(&self, quorum_threshold: usize) -> bool {
+        // Ensure the round is prepared before checking for commit quorum.
+        // Commits are only valid for a prepared proposal.
+        if !self.is_prepared() {
+            return false;
+        }
+        self.commit_messages.len() >= quorum_threshold
+    }
+
+    /// Checks if the number of unique RoundChange messages (for the current round) meets the threshold.
+    /// The `quorum_threshold` can vary (e.g., F+1 or 2F+1) depending on the context.
+    pub fn has_round_change_quorum(&self, quorum_threshold: usize) -> bool {
+        self.round_change_messages.len() >= quorum_threshold
+    }
+
+    /// Forms and stores a `PreparedCertificateWrapper` if one is not already present
+    /// and a proposal exists. This method assumes that the prepare quorum has already
+    /// been met by the caller.
+    /// 
+    /// The `PreparedCertificateWrapper` bundles the signed proposal and the collected signed prepares.
+    pub fn form_prepared_certificate(&mut self) -> Result<(), &'static str> {
+        if self.prepared_certificate.is_some() {
+            return Err("Prepared certificate already exists for this round state.");
+        }
+
+        let current_proposal = match &self.proposal_message {
+            Some(proposal) => proposal,
+            None => return Err("Cannot form prepared certificate without an active proposal."),
+        };
+
+        // The Proposal struct derefs to BftMessage<ProposalPayload>.
+        // BftMessage contains the SignedData<ProposalPayload> which is needed.
+        // Accessing the inner BftMessage directly might be cleaner if Proposal has a direct getter for it.
+        // For now, relying on Deref and then cloning the BftMessage part.
+        let proposal_bft_message = (**current_proposal).clone(); 
+        // This `(**current_proposal)` is equivalent to `current_proposal.deref().clone()`
+        // due to automatic dereferencing and the Deref trait on Proposal yielding BftMessage.
+
+        let prepares: Vec<Prepare> = self.prepare_messages.values().cloned().collect();
+
+        // It's crucial that has_prepare_quorum was checked by the caller, ensuring prepares.len() is sufficient.
+        // We could add an assertion here if a quorum_threshold is passed or known.
+        // For now, we trust the caller (e.g., a state machine) to ensure this.
+
+        let new_prepared_certificate = PreparedCertificateWrapper::new(proposal_bft_message, prepares);
+        self.prepared_certificate = Some(new_prepared_certificate);
+
+        Ok(())
+    }
+
+    // TODO: Method to get best prepared certificate from round change messages.
 } 

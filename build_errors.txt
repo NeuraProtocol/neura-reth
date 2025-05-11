@@ -1,12 +1,2 @@
    Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
-warning: unused import: `alloy_primitives::hex`
- --> crates/neura-qbft/src/payload/round_change_payload.rs:7:5
-  |
-7 | use alloy_primitives::hex; // Added hex here
-  |     ^^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` on by default
-
-warning: `neura_qbft_core` (lib) generated 1 warning (run `cargo fix --lib -p neura_qbft_core` to apply 1 suggestion)
-warning: `neura_qbft_core` (lib test) generated 1 warning (1 duplicate)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.70s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.05s

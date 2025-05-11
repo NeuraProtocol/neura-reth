@@ -17,6 +17,7 @@ thiserror = "1.0"
 bytes = "1.5" # If alloy-primitives doesn't cover all Bytes needs directly
 serde = { version = "1.0", features = ["derive"], optional = true } # Made optional
 rand = "0.8"
+reth-primitives = { workspace = true }
 
 # For development, consider:
 # env_logger = "0.9"
@@ -29,7 +30,7 @@ rand = "0.8"
 
 [features]
 default = []
-serde = ["dep:serde", "alloy-primitives/serde"] # Enable serde for this crate and alloy-primitives
+serde = ["dep:serde", "alloy-primitives/serde"] # Enable serde for this crate and alloy-primitives    
 
 # Example feature for integration tests or specific configurations
 # integration-tests = []
