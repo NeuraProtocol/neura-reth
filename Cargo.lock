@@ -5743,6 +5743,7 @@ dependencies = [
  "bytes",
  "chrono",
  "ecdsa",
+ "hex",
  "k256",
  "log",
  "rand 0.8.5",
