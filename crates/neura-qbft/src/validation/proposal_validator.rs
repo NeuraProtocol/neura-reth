@@ -671,42 +671,64 @@ impl ProposalValidator for ProposalValidatorImpl {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests { // Made the module public
     use super::*; // Bring in ProposalValidatorImpl, ValidationContext etc.
     use crate::messagewrappers::{BftMessage, Proposal, Prepare, Commit, RoundChange, PreparedCertificateWrapper};
     use crate::payload::{ProposalPayload, RoundChangePayload, PreparePayload}; // Added RoundChangePayload, PreparePayload
     use crate::types::{NodeKey, QbftBlock, QbftBlockHeader, ConsensusRoundIdentifier, QbftConfig, BftExtraData, SignedData}; // Re-added here too
     use crate::mocks::{MockQbftFinalState};
-    use crate::validation::{MessageValidatorFactory, ProposalValidator, PrepareValidator, CommitValidator};
+    use crate::validation::{MessageValidatorFactory, ProposalValidator, PrepareValidator, CommitValidator}; // Removed RoundChangeMessageValidator
     use crate::error::QbftError;
     use alloy_primitives::{Address, Bytes, B256, U256};
     use alloy_rlp::{Error as RlpError, Encodable, Decodable};
     use std::sync::Arc;
-    use std::collections::{HashSet};
-    use k256::SecretKey as K256SecretKey;
-    use k256::ecdsa::VerifyingKey;
+    use std::collections::{HashSet}; // Removed HashMap
+    // Removed: use k256::SecretKey as K256SecretKey;
+    // Removed: use k256::ecdsa::VerifyingKey;
     // Removed: use k256::ecdsa::signature::Signer; // No longer needed after switching to SignedData::sign
+    use test_log; // Added for logging in tests
 
     // --- Helper Functions --- 
 
-    fn default_config() -> Arc<QbftConfig> {
+    // Made public for use in other validator tests
+    pub fn default_config() -> Arc<QbftConfig> {
         Arc::new(QbftConfig::default())
     }
 
-    fn create_node_key() -> NodeKey {
-        let secret_key = K256SecretKey::random(&mut rand::thread_rng());
-        NodeKey::from(secret_key)
+    // Changed to be deterministic and return Arc<NodeKey>
+    // Made public for use in other validator tests
+    pub fn deterministic_node_key(seed: u8) -> Arc<NodeKey> {
+        let mut bytes = [0u8; 32];
+        bytes[0] = seed;
+        let secret_key = k256::SecretKey::from_slice(&bytes).expect("Failed to create secret_key from slice");
+        Arc::new(NodeKey::from(secret_key))
     }
 
-    fn address_from_key(key: &NodeKey) -> Address {
-        let verifying_key: &VerifyingKey = key.verifying_key();
+    // Existing address_from_key, kept for other tests that might use it with non-Arc keys if any.
+    // Made public for use in other validator tests
+    pub fn address_from_key(key: &NodeKey) -> Address {
+        let verifying_key: &k256::ecdsa::VerifyingKey = key.verifying_key(); // Specified VerifyingKey type
         let uncompressed_pk_bytes = verifying_key.to_encoded_point(false).as_bytes().to_vec();
-        // Ethereum address is last 20 bytes of Keccak256 hash of uncompressed public key (excluding prefix byte 0x04)
         let hash = alloy_primitives::keccak256(&uncompressed_pk_bytes[1..]);
         Address::from_slice(&hash[12..])
     }
 
-    fn default_parent_header(number: u64, _hash: B256, timestamp: u64, gas_limit: u64) -> Arc<QbftBlockHeader> { // _hash param unused for now
+    // New helper for deterministic address from Arc<NodeKey>
+    // Made public for use in other validator tests
+    pub fn deterministic_address_from_arc_key(key: &Arc<NodeKey>) -> Address {
+        address_from_key(key.as_ref())
+    }
+
+    // Keep the old create_node_key for now if other tests depend on its random nature, 
+    // or mark as deprecated/remove later.
+    // Made public for use in other validator tests
+    pub fn create_node_key() -> NodeKey {
+        let secret_key = k256::SecretKey::random(&mut rand::thread_rng());
+        NodeKey::from(secret_key)
+    }
+
+    // Made public for use in other validator tests
+    pub fn default_parent_header(number: u64, _hash: B256, timestamp: u64, gas_limit: u64) -> Arc<QbftBlockHeader> { // _hash param unused for now
         Arc::new(QbftBlockHeader::new(
             B256::ZERO, // parent_hash of parent (grandparent)
             B256::ZERO,    // ommers_hash
@@ -727,7 +749,8 @@ mod tests {
     }
 
     // Mock ExtraDataCodec for tests
-    struct TestExtraDataCodec;
+    // Made public for use in other validator tests
+    pub struct TestExtraDataCodec;
     impl BftExtraDataCodec for TestExtraDataCodec {
         fn decode(&self, data: &Bytes) -> Result<BftExtraData, RlpError> {
             // Use BftExtraData's own RlpDecodable trait
@@ -740,17 +763,20 @@ mod tests {
             Ok(Bytes::from(out_vec))
         }
     }
-    fn testing_extradata_codec() -> Arc<dyn BftExtraDataCodec> {
+    // Made public for use in other validator tests
+    pub fn testing_extradata_codec() -> Arc<dyn BftExtraDataCodec> {
         Arc::new(TestExtraDataCodec)
     }
 
-    fn default_final_state(local_node_key: Arc<NodeKey>, validators: HashSet<Address>) -> Arc<dyn QbftFinalState> {
+    // Made public for use in other validator tests
+    pub fn default_final_state(local_node_key: Arc<NodeKey>, validators: HashSet<Address>) -> Arc<dyn QbftFinalState> {
         // local_address is derived inside MockQbftFinalState now, or not needed for its constructor.
         // Assuming MockQbftFinalState::new takes (Arc<NodeKey>, HashSet<Address>)
         Arc::new(MockQbftFinalState::new(local_node_key, validators))
     }
 
-    fn default_validation_context(
+    // Made public for use in other validator tests
+    pub fn default_validation_context(
         sequence: u64,
         round: u32,
         validators: HashSet<Address>,
@@ -776,38 +802,43 @@ mod tests {
     }
     
     // --- Mock Validators and Factory ---
+    // Made public for use in other validator tests
     #[derive(Clone)]
-    struct MockProposalValidator { fail_on_validate: bool }
+    pub struct MockProposalValidator { pub fail_on_validate: bool } // Made field public
     impl ProposalValidator for MockProposalValidator {
         fn validate_proposal(&self, _proposal: &Proposal, _context: &ValidationContext) -> Result<(), QbftError> {
             if self.fail_on_validate { Err(QbftError::ValidationError("MockProposalValidator failed".to_string())) } else { Ok(()) }
         }
     }
 
+    // Made public for use in other validator tests
     #[derive(Clone)]
-    struct MockPrepareValidator { fail_on_validate: bool }
+    pub struct MockPrepareValidator { pub fail_on_validate: bool } // Made field public
     impl PrepareValidator for MockPrepareValidator {
         fn validate_prepare(&self, _prepare: &Prepare, _context: &ValidationContext) -> Result<(), QbftError> {
             if self.fail_on_validate { Err(QbftError::ValidationError("MockPrepareValidator failed".to_string())) } else { Ok(()) }
         }
     }
     
+    // Made public for use in other validator tests
     #[derive(Clone)]
-    struct MockCommitValidator { fail_on_validate: bool }
+    pub struct MockCommitValidator { pub fail_on_validate: bool } // Made field public
     impl CommitValidator for MockCommitValidator {
         fn validate_commit(&self, _commit: &Commit, _context: &ValidationContext) -> Result<(), QbftError> {
             if self.fail_on_validate { Err(QbftError::ValidationError("MockCommitValidator failed".to_string())) } else { Ok(()) }
         }
     }
 
-    struct MockMessageValidatorFactoryImpl {
-        proposal_should_fail: bool,
-        prepare_should_fail: bool,
-        commit_should_fail: bool,
+    // Made public for use in other validator tests
+    pub struct MockMessageValidatorFactoryImpl {
+        pub proposal_should_fail: bool, // Made field public
+        pub prepare_should_fail: bool, // Made field public
+        pub commit_should_fail: bool, // Made field public
     }
 
     impl MockMessageValidatorFactoryImpl {
-        fn new(p: bool, pr: bool, c: bool) -> Self {
+        // Made public for use in other validator tests
+        pub fn new(p: bool, pr: bool, c: bool) -> Self {
             Self { proposal_should_fail: p, prepare_should_fail: pr, commit_should_fail: c }
         }
     }
@@ -824,7 +855,8 @@ mod tests {
         }
     }
 
-    fn mock_message_validator_factory(
+    // Made public for use in other validator tests
+    pub fn mock_message_validator_factory(
         prop_fail: bool, 
         prep_fail: bool, 
         commit_fail: bool
@@ -833,27 +865,31 @@ mod tests {
     }
 
     // --- Test Proposal Construction Helpers ---
-    fn create_proposal_payload(
+    // Made public for use in other validator tests
+    pub fn create_proposal_payload(
         round_id: ConsensusRoundIdentifier,
         block: QbftBlock
     ) -> ProposalPayload {
         ProposalPayload::new(round_id, block)
     }
 
-    fn create_signed_proposal_payload(
+    // Made public for use in other validator tests
+    pub fn create_signed_proposal_payload(
         payload: ProposalPayload,
         key: &NodeKey
     ) -> SignedData<ProposalPayload> {
         SignedData::sign(payload, key).expect("Failed to sign proposal payload")
     }
 
-    fn create_bft_message_proposal(
+    // Made public for use in other validator tests
+    pub fn create_bft_message_proposal(
         signed_payload: SignedData<ProposalPayload>
     ) -> BftMessage<ProposalPayload> {
         BftMessage::new(signed_payload)
     }
 
-    fn create_proposal(
+    // Made public for use in other validator tests
+    pub fn create_proposal(
         bft_message: BftMessage<ProposalPayload>,
         header_for_proposal_struct: QbftBlockHeader, // The header that Proposal struct itself will hold
         rc_proofs: Vec<RoundChange>,
@@ -862,7 +898,8 @@ mod tests {
         Proposal::new(bft_message, header_for_proposal_struct, rc_proofs, prep_cert)
     }
     
-    fn default_qbft_block(
+    // Made public for use in other validator tests
+    pub fn default_qbft_block(
         parent_hash: B256,
         number: u64,
         round: u32, // For extra data
@@ -2992,17 +3029,24 @@ mod tests {
         assert!(matches!(result, Err(QbftError::ValidationError(s)) if s == "Inconsistent PreparedRoundMetadata in round change proofs"));
     }
 
-    #[test]
+    #[test_log::test] // Ensure test-log is used if logs are needed
     fn test_validate_round_changes_returns_best_prepared_metadata() {
         let config = default_config();
         let codec = testing_extradata_codec();
 
-        let validator1_key = Arc::new(create_node_key());
-        let validator1_address = address_from_key(&validator1_key);
-        let validator2_key = Arc::new(create_node_key()); 
-        let validator2_address = address_from_key(&validator2_key);
-        let validator3_key = Arc::new(create_node_key());
-        let validator3_address = address_from_key(&validator3_key);
+        // Use deterministic keys and addresses
+        let validator1_key = deterministic_node_key(1);
+        let validator1_address = deterministic_address_from_arc_key(&validator1_key);
+        let validator2_key = deterministic_node_key(2); 
+        let validator2_address = deterministic_address_from_arc_key(&validator2_key);
+        let validator3_key = deterministic_node_key(3);
+        let validator3_address = deterministic_address_from_arc_key(&validator3_key);
+
+        // Store keys for easy lookup by address
+        let mut key_map = std::collections::HashMap::new();
+        key_map.insert(validator1_address, validator1_key.clone());
+        key_map.insert(validator2_address, validator2_key.clone());
+        key_map.insert(validator3_address, validator3_key.clone());
 
         let current_validators_set: HashSet<Address> = 
             vec![validator1_address, validator2_address, validator3_address].into_iter().collect();
@@ -3013,48 +3057,49 @@ mod tests {
         let current_sequence = parent_sequence + 1;
         let proposal_target_round = 3; 
 
-        let mut final_state_instance = MockQbftFinalState::new_with_f_override(validator1_key.clone(), current_validators_set.clone(), 1); // Made mutable
-        final_state_instance.add_known_header(parent_h.clone()); // Added: parent_h is parent of prepared_block_r1 and prepared_block_r2
-        let final_state = Arc::new(final_state_instance); // Adjusted
+        // For MockQbftFinalState, the local_node_key is the one used for final_state.node_key()
+        // Let's assume validator1 is our "local" node for the main proposal context.
+        let mut final_state_instance = MockQbftFinalState::new_with_f_override(validator1_key.clone(), current_validators_set.clone(), 1);
+        final_state_instance.add_known_header(parent_h.clone());
+        let final_state = Arc::new(final_state_instance);
 
-        // --- DBG: Print proposer for round 2 ---
-        let proposer_for_round_2_dbg = final_state.get_proposer_for_round(&ConsensusRoundIdentifier::new(current_sequence, 2)).unwrap();
-        dbg!(&proposer_for_round_2_dbg);
-        dbg!(&validator1_address);
-        dbg!(&validator2_address);
-        dbg!(&validator3_address);
-        // --- END DBG ---
-
-        let expected_proposer_for_proposal_round = final_state.get_proposer_for_round(
+        let expected_proposer_for_main_proposal_round = final_state.get_proposer_for_round(
             &ConsensusRoundIdentifier::new(current_sequence, proposal_target_round)).unwrap();
 
         let context = ValidationContext::new(
             current_sequence, proposal_target_round, current_validators_set.clone(),
             parent_h.clone(), final_state.clone(), codec.clone(), config.clone(),
-            None, expected_proposer_for_proposal_round);
+            None, expected_proposer_for_main_proposal_round);
+
+        // Main proposal is signed by the "local" node (validator1 in this setup for final_state)
+        let main_proposal_signer_key = key_map.get(&expected_proposer_for_main_proposal_round).expect("Main proposer key not found");
 
         let proposed_block_for_main_proposal = default_qbft_block(
             parent_h.hash(), current_sequence, proposal_target_round, 
-            parent_h.timestamp + 10, 30_000_000, expected_proposer_for_proposal_round,
+            parent_h.timestamp + 10, 30_000_000, expected_proposer_for_main_proposal_round,
             codec.clone(), current_validators_vec.clone());
 
         let proposal_round_id = ConsensusRoundIdentifier::new(current_sequence, proposal_target_round);
         let proposal_payload_main = create_proposal_payload(proposal_round_id, proposed_block_for_main_proposal.clone());
-        let signed_proposal_payload_main = create_signed_proposal_payload(proposal_payload_main, &final_state.node_key());
+        // Sign main proposal with the key of the actual expected proposer for this round
+        let signed_proposal_payload_main = create_signed_proposal_payload(proposal_payload_main, main_proposal_signer_key);
         let bft_proposal_message_main = create_bft_message_proposal(signed_proposal_payload_main);
 
         // --- Create RCs with different PreparedRoundMetadata --- 
         let mut rc_proofs: Vec<RoundChange> = Vec::new();
         let rc_target_round_id = ConsensusRoundIdentifier::new(current_sequence, proposal_target_round);
 
-        // Metadata for prepared_round = 1 (from validator1)
+        // Metadata for prepared_round = 1
         let prepared_round_1 = 1;
+        let proposer_for_r1 = final_state.get_proposer_for_round(&ConsensusRoundIdentifier::new(current_sequence, prepared_round_1)).unwrap();
+        let signer_key_for_r1 = key_map.get(&proposer_for_r1).expect("Signer key for R1 proposer not found");
+
         let prepared_block_r1 = default_qbft_block( 
             parent_h.hash(), current_sequence, prepared_round_1, parent_h.timestamp + 1, 
-            30_000_000, validator2_address, codec.clone(), current_validators_vec.clone()); // BENEFICIARY = validator2_address (Proposer for R1)
+            30_000_000, proposer_for_r1, codec.clone(), current_validators_vec.clone());
         let inner_proposal_payload_r1 = create_proposal_payload(
             ConsensusRoundIdentifier::new(current_sequence, prepared_round_1), prepared_block_r1.clone());
-        let signed_inner_proposal_r1 = create_signed_proposal_payload(inner_proposal_payload_r1.clone(), &validator2_key); // Signed by validator2_key (Proposer for R1)
+        let signed_inner_proposal_r1 = create_signed_proposal_payload(inner_proposal_payload_r1.clone(), &signer_key_for_r1); // Changed: Use signer_key_for_r1
         let bft_inner_proposal_r1 = create_bft_message_proposal(signed_inner_proposal_r1);
 
         // Create a common PreparePayload for metadata_r1
@@ -3081,16 +3126,19 @@ mod tests {
 
         // Metadata for prepared_round = 2 (from validator2) - THIS IS THE BEST
         let prepared_round_2 = 2;
+        let proposer_for_r2 = final_state.get_proposer_for_round(&ConsensusRoundIdentifier::new(current_sequence, prepared_round_2)).unwrap();
+        let signer_key_for_r2 = key_map.get(&proposer_for_r2).expect("Signer key for R2 proposer not found");
+        
         let prepared_block_r2 = default_qbft_block( // Made block mutable
             parent_h.hash(), current_sequence, prepared_round_2, parent_h.timestamp + 2, 
-            30_000_000, validator1_address, codec.clone(), current_validators_vec.clone()); // BENEFICIARY = validator1_address (Proposer for R2)
+            30_000_000, proposer_for_r2, codec.clone(), current_validators_vec.clone()); // BENEFICIARY = proposer_for_r2
         
         // Ensure the header's hash is computed and cached before cloning for the payload
         let _ = prepared_block_r2.header.hash(); 
 
         let inner_proposal_payload_r2 = create_proposal_payload(
             ConsensusRoundIdentifier::new(current_sequence, prepared_round_2), prepared_block_r2.clone());
-        let signed_inner_proposal_r2 = create_signed_proposal_payload(inner_proposal_payload_r2.clone(), &validator1_key); // Signed by validator1_key (Proposer for R2)
+        let signed_inner_proposal_r2 = create_signed_proposal_payload(inner_proposal_payload_r2.clone(), &signer_key_for_r2); // Changed: Use signer_key_for_r2
         let bft_inner_proposal_r2 = create_bft_message_proposal(signed_inner_proposal_r2);
 
         // Create a common PreparePayload for metadata_r2 (best_prepared_metadata)
@@ -3140,8 +3188,8 @@ mod tests {
         let config = default_config();
         let codec = testing_extradata_codec();
 
-        let proposer_key = Arc::new(create_node_key());
-        let proposer_address = address_from_key(&proposer_key);
+        let proposer_key = Arc::new(create_node_key()); 
+        let proposer_address = deterministic_address_from_arc_key(&proposer_key); // This is fine if address_from_key handles the Arc correctly
         
         let validators: HashSet<Address> = vec![proposer_address].into_iter().collect();
         let validators_vec: Vec<Address> = validators.iter().cloned().collect();

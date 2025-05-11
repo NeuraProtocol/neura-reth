@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 alloy-primitives = { workspace = true, features = ["rlp", "serde"] } # Removed geth-signer
 alloy-rlp = { version = "0.3.11", features = ["derive"] }    # For RLP encoding/decoding derive macros
-k256 = { workspace = true } # Inherit k256 fully from workspace
+k256 = { workspace = true, features = ["ecdsa"] } # Added "ecdsa" feature
 ecdsa = { version = "0.16", features = ["signing", "verifying"] } # Direct, not in workspace.dependencies
 sha3 = "0.10" # Keccak256 is part of this
 chrono = "0.4"
@@ -27,6 +27,7 @@ reth-primitives = { workspace = true }
 # alloy-rlp-derive = "0.1.0" # No longer explicitly needed if alloy-rlp brings it in via "derive" feature
 # Other dev dependencies...
 # tokio = { version = "1", features = ["full"] } # Example, if async tests are needed
+test-log = "0.2.14"
 
 [features]
 default = []

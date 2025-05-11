@@ -2061,24 +2061,26 @@ impl RpcServerHandle {
     }
 
     /// Returns a new [`alloy_network::Ethereum`] http provider with its recommended fillers.
-    pub fn eth_http_provider(
+    pub async fn eth_http_provider(
         &self,
     ) -> Option<impl Provider<alloy_network::Ethereum> + Clone + Unpin + 'static> {
-        self.new_http_provider_for()
+        self.new_http_provider_for().await
     }
 
     /// Returns an http provider from the rpc server handle for the
     /// specified [`alloy_network::Network`].
     ///
     /// This installs the recommended fillers: [`RecommendedFillers`]
-    pub fn new_http_provider_for<N>(&self) -> Option<impl Provider<N> + Clone + Unpin + 'static>
+    pub async fn new_http_provider_for<N>(&self) -> Option<impl Provider<N> + Clone + Unpin + 'static>
     where
         N: RecommendedFillers<RecommendedFillers: Unpin>,
     {
         let rpc_url = self.http_url()?;
         let provider = ProviderBuilder::default()
             .with_recommended_fillers()
-            .connect_http(rpc_url.parse().expect("valid url"));
+            .connect(&rpc_url)
+            .await
+            .expect("failed to create http client");
         Some(provider)
     }
 

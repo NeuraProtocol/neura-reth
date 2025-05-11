@@ -1,40 +1,29 @@
+    Blocking waiting for file lock on build directory
    Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
-error[E0432]: unresolved import `crate::types::Address`
- --> crates/neura-qbft/src/state/round_state.rs:2:57
-  |
-2 | use crate::types::{ConsensusRoundIdentifier, QbftBlock, Address};
-  |                                                         ^^^^^^^ no `Address` in `types`
-  |
-  = help: consider importing this struct instead:
-          alloy_primitives::Address
+error[E0432]: unresolved import `k256::ecdsa::recoverable`
+   --> crates/neura-qbft/src/validation/commit_validator.rs:108:22
+    |
+108 |     use k256::ecdsa::recoverable::Signature as RecoverableK256Signature; // Attempt this import path again
+    |                      ^^^^^^^^^^^ could not find `recoverable` in `ecdsa`
 
-warning: unused import: `HashSet`
- --> crates/neura-qbft/src/state/round_state.rs:4:33
-  |
-4 | use std::collections::{HashMap, HashSet}; // Using HashMap for messages to store by author
-  |                                 ^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` on by default
+error[E0599]: no method named `try_sign_prehashed_recoverable` found for reference `&ecdsa::verifying::VerifyingKey<Secp256k1>` in the current scope
+   --> crates/neura-qbft/src/validation/commit_validator.rs:123:75
+    |
+123 | ... = seal_signer_key.as_ref().try_sign_prehashed_recoverable(digest.as_slice()).expect("Failed to sign digest recoverably");
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&VerifyingKey<Secp256k1>`
 
-error[E0609]: no field `proposal_digest` on type `&prepare_payload::PreparePayload`
-  --> crates/neura-qbft/src/state/round_state.rs:95:34
-   |
-95 |             if prepare.payload().proposal_digest != current_digest {
-   |                                  ^^^^^^^^^^^^^^^ unknown field
-   |
-   = note: available fields are: `round_identifier`, `digest`
+error[E0599]: no method named `try_sign_prehashed_recoverable` found for reference `&ecdsa::signing::SigningKey<Secp256k1>` in the current scope
+   --> crates/neura-qbft/src/validation/commit_validator.rs:434:92
+    |
+434 | ...   let k256_sig_over_different_digest: RecoverableK256Signature = author_key.as_ref().try_sign_prehashed_recoverable(different_digest_...
+    |                                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `sign_prehash_recoverable` with a similar name
+    |
+434 -         let k256_sig_over_different_digest: RecoverableK256Signature = author_key.as_ref().try_sign_prehashed_recoverable(different_digest_for_seal.as_slice()).expect("Failed to sign different digest recoverably"); 
+434 +         let k256_sig_over_different_digest: RecoverableK256Signature = author_key.as_ref().sign_prehash_recoverable(different_digest_for_seal.as_slice()).expect("Failed to sign different digest recoverably"); 
+    |
 
-warning: variable does not need to be mutable
-    --> crates/neura-qbft/src/validation/proposal_validator.rs:3084:13
-     |
-3084 |         let mut prepared_block_r2 = default_qbft_block( // Made block mutable
-     |             ----^^^^^^^^^^^^^^^^^
-     |             |
-     |             help: remove this `mut`
-     |
-     = note: `#[warn(unused_mut)]` on by default
-
-Some errors have detailed explanations: E0432, E0609.
+Some errors have detailed explanations: E0432, E0599.
 For more information about an error, try `rustc --explain E0432`.
-warning: `neura_qbft_core` (lib test) generated 2 warnings
-error: could not compile `neura_qbft_core` (lib test) due to 2 previous errors; 2 warnings emitted
+error: could not compile `neura_qbft_core` (lib test) due to 3 previous errors

@@ -3,6 +3,7 @@ use crate::types::{ConsensusRoundIdentifier, QbftBlock};
 use alloy_primitives::{Address, B256 as Hash};
 // use reth_primitives::Sealable; // Original line, commented out or removed
 use std::collections::HashMap;
+use log; // Ensure log is used
 
 pub struct RoundState {
     // Identifier for this round (sequence number, round number)
@@ -91,30 +92,35 @@ impl RoundState {
     /// Returns Ok(()) if added, Err if already present from this author for this proposal.
     /// Assumes the Prepare message has already been validated externally.
     pub fn add_prepare(&mut self, prepare: Prepare) -> Result<(), &'static str> {
-        // Basic check: ensure prepare is for the current proposal's digest
+        log::debug!(
+            "RoundState ({:?}): Entering add_prepare. Current proposed_block_hash: {:?}. Prepare for digest: {:?}, round: {:?}", 
+            self.round_identifier, 
+            self.proposed_block_hash, 
+            prepare.payload().digest, 
+            prepare.payload().round_identifier
+        );
+
         if let Some(current_digest) = self.proposed_block_hash {
             if prepare.payload().digest != current_digest {
-                return Err("Prepare digest does not match current proposal");
+                return Err("Prepare digest does not match current proposal digest.");
             }
-            // Additional check: ensure prepare is for the current round_identifier
             if prepare.payload().round_identifier != self.round_identifier {
-                return Err("Prepare round identifier does not match current round");
+                return Err("Prepare round identifier does not match current round state.");
             }
         } else {
-            // Cannot add prepare if no proposal is set yet
-            return Err("Cannot add prepare, no proposal active in this round");
+            return Err("Cannot add Prepare: No proposal set in RoundState yet.");
         }
 
         let author = match prepare.author() {
             Ok(addr) => addr,
-            Err(_) => return Err("Could not get author from prepare message"),
+            Err(_) => {
+                log::error!("RoundState ({:?}): Could not get author from prepare message", self.round_identifier);
+                return Err("Could not get author from prepare message")
+            },
         };
 
         if self.prepare_messages.insert(author, prepare).is_some() {
-            // If insert returned Some, it means there was already a message from this author.
-            // Depending on rules, this might be an error or just an update.
-            // For now, let's consider it an update, though QBFT usually expects one per author.
-            // log::warn!("Replaced existing prepare message from author: {:?}", author);
+            log::warn!("RoundState ({:?}): Replaced existing prepare message from author: {:?}", self.round_identifier, author);
         }
         Ok(())
     }
@@ -125,30 +131,38 @@ impl RoundState {
     ///
     /// TODO: Consider behavior if a proposal is already set. Replace? Error?
     pub fn set_proposal(&mut self, proposal: Proposal) {
-        let block_hash = proposal.payload().proposed_block.header.hash(); // Calculate hash using existing hash() method
-        let block = proposal.payload().proposed_block.clone(); // Clone the block
+        log::debug!(
+            "RoundState ({:?}): Entering set_proposal. Current proposed_block_hash: {:?}", 
+            self.round_identifier, 
+            self.proposed_block_hash
+        );
+        let block_hash = proposal.payload().proposed_block.header.hash();
+        log::debug!("RoundState ({:?}): Calculated block_hash: {:?}", self.round_identifier, block_hash);
+        let block = proposal.payload().proposed_block.clone();
 
         self.proposal_message = Some(proposal);
         self.proposed_block_hash = Some(block_hash);
         self.proposed_block = Some(block);
+        log::debug!(
+            "RoundState ({:?}): Exiting set_proposal. New proposed_block_hash: {:?}", 
+            self.round_identifier, 
+            self.proposed_block_hash
+        );
     }
 
     /// Adds a received Commit message.
     /// Returns Ok(()) if added, Err if relevant checks fail or if already present from this author.
     /// Assumes the Commit message has already been validated externally (e.g., signature).
     pub fn add_commit(&mut self, commit: Commit) -> Result<(), &'static str> {
-        // Ensure a proposal is active for this round
         let current_digest = match self.proposed_block_hash {
             Some(digest) => digest,
             None => return Err("Cannot add commit, no proposal active in this round"),
         };
 
-        // Check if the commit is for the correct proposal digest
         if commit.payload().digest != current_digest {
             return Err("Commit digest does not match current proposal");
         }
 
-        // Check if the commit is for the current round identifier
         if commit.payload().round_identifier != self.round_identifier {
             return Err("Commit round identifier does not match current round");
         }
@@ -159,8 +173,6 @@ impl RoundState {
         };
 
         if self.commit_messages.insert(author, commit).is_some() {
-            // Optional: Log a warning or handle as an error if a commit from this author already exists.
-            // For now, simple replacement like in add_prepare.
             // log::warn!("Replaced existing commit message from author: {:?}", author);
         }
         Ok(())
@@ -171,14 +183,10 @@ impl RoundState {
     /// Assumes the RoundChange message has already been validated externally (e.g., signature).
     /// This method only stores RoundChange messages that target the current round of this RoundState.
     pub fn add_round_change(&mut self, round_change: RoundChange) -> Result<(), &'static str> {
-        // Check if the RoundChange targets the current round number
         if round_change.payload().round_identifier.round_number != self.round_identifier.round_number {
-            // TODO: Clarify if this should be an error or silently ignored if RCs for other rounds
-            // are handled by a higher-level manager. For now, error if not for this state's exact round.
             return Err("RoundChange message does not target the current round number");
         }
         
-        // Also check if the RoundChange targets the current sequence number (height)
         if round_change.payload().round_identifier.sequence_number != self.round_identifier.sequence_number {
             return Err("RoundChange message does not target the current sequence number (height)");
         }
@@ -189,7 +197,6 @@ impl RoundState {
         };
 
         if self.round_change_messages.insert(author, round_change).is_some() {
-            // Optional: Log a warning or handle as an error if a RoundChange from this author already exists.
             // log::warn!("Replaced existing round_change message from author: {:?}", author);
         }
         Ok(())
@@ -240,19 +247,9 @@ impl RoundState {
             None => return Err("Cannot form prepared certificate without an active proposal."),
         };
 
-        // The Proposal struct derefs to BftMessage<ProposalPayload>.
-        // BftMessage contains the SignedData<ProposalPayload> which is needed.
-        // Accessing the inner BftMessage directly might be cleaner if Proposal has a direct getter for it.
-        // For now, relying on Deref and then cloning the BftMessage part.
         let proposal_bft_message = (**current_proposal).clone(); 
-        // This `(**current_proposal)` is equivalent to `current_proposal.deref().clone()`
-        // due to automatic dereferencing and the Deref trait on Proposal yielding BftMessage.
 
         let prepares: Vec<Prepare> = self.prepare_messages.values().cloned().collect();
-
-        // It's crucial that has_prepare_quorum was checked by the caller, ensuring prepares.len() is sufficient.
-        // We could add an assertion here if a quorum_threshold is passed or known.
-        // For now, we trust the caller (e.g., a state machine) to ensure this.
 
         let new_prepared_certificate = PreparedCertificateWrapper::new(proposal_bft_message, prepares);
         self.prepared_certificate = Some(new_prepared_certificate);

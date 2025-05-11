@@ -1,2 +1,11 @@
    Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.05s
+warning: unused variable: `prepare_author_address`
+   --> crates/neura-qbft/src/state/round_state_tests.rs:262:13
+    |
+262 |         let prepare_author_address = signed_prepare_for_address_recovery.unwrap().recover_author().unwrap();
+    |             ^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_prepare_author_address`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: `neura_qbft_core` (lib test) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.14s
