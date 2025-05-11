@@ -1,10 +1,11 @@
 use crate::messagewrappers::{Commit, Prepare, Proposal};
 use crate::payload::{PreparePayload, CommitPayload};
-use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock};
-use crate::validation::MessageValidator;
+use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock, QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig};
+use crate::validation::{ProposalValidator, PrepareValidator, CommitValidator, ValidationContext};
 use crate::error::QbftError;
-use alloy_primitives::{Address, Signature};
-use std::collections::HashMap;
+use alloy_primitives::{Address, Signature, B256 as Hash};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use log;
  // For MessageValidator if it becomes shared
 
@@ -25,21 +26,23 @@ impl PreparedCertificate {
 
 pub struct RoundState {
     round_identifier: ConsensusRoundIdentifier,
-    // In Java, MessageValidator is created per round. We can pass it Arc'd if it has shared state
-    // or pass a factory/config to create it internally if it's stateless for the round after init.
-    // For now, let's assume it's owned per RoundState.
-    validator: MessageValidator, 
-    quorum_size: usize, // Number of messages needed for quorum
+    // Store individual validators and context components
+    proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
+    prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
+    commit_validator: Arc<dyn CommitValidator + Send + Sync>,
+    quorum_size: usize, 
 
-    // Current proposal for this round
+    // For creating ValidationContext
+    parent_header: Arc<QbftBlockHeader>,
+    final_state: Arc<dyn QbftFinalState>,
+    extra_data_codec: Arc<dyn BftExtraDataCodec>,
+    config: Arc<QbftConfig>,
+    accepted_proposal_digest: Option<Hash>, // Store accepted digest here
+
     proposal: Option<Proposal>,
-    // Valid Prepare messages received for the current proposal
-    // Store by author to prevent duplicates for the same proposal digest
     prepare_messages: HashMap<Address, Prepare>,
-    // Valid Commit messages received for the current proposal
     commit_messages: HashMap<Address, Commit>,
 
-    // State flags
     is_prepared: bool,
     is_committed: bool,
 }
@@ -47,18 +50,44 @@ pub struct RoundState {
 impl RoundState {
     pub fn new(
         round_identifier: ConsensusRoundIdentifier,
-        validator: MessageValidator, // Placeholder, will need actual type
+        proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
+        prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
+        commit_validator: Arc<dyn CommitValidator + Send + Sync>,
         quorum_size: usize,
+        parent_header: Arc<QbftBlockHeader>,
+        final_state: Arc<dyn QbftFinalState>,
+        extra_data_codec: Arc<dyn BftExtraDataCodec>,
+        config: Arc<QbftConfig>,
     ) -> Self {
         Self {
             round_identifier,
-            validator,
+            proposal_validator,
+            prepare_validator,
+            commit_validator,
             quorum_size,
+            parent_header,
+            final_state,
+            extra_data_codec,
+            config,
+            accepted_proposal_digest: None,
             proposal: None,
             prepare_messages: HashMap::new(),
             commit_messages: HashMap::new(),
             is_prepared: false,
             is_committed: false,
+        }
+    }
+
+    fn create_validation_context(&self) -> ValidationContext {
+        ValidationContext {
+            parent_header: self.parent_header.clone(),
+            final_state: self.final_state.clone(),
+            extra_data_codec: self.extra_data_codec.clone(),
+            config: self.config.clone(),
+            current_round_number: self.round_identifier.round_number,
+            current_sequence_number: self.round_identifier.sequence_number,
+            accepted_proposal_digest: self.accepted_proposal_digest,
+            current_validators: self.final_state.get_validators_for_block(self.round_identifier.sequence_number).unwrap_or_default().into_iter().collect::<HashSet<Address>>(),
         }
     }
 
@@ -70,40 +99,38 @@ impl RoundState {
         if self.proposal.is_some() {
             return Err(QbftError::ProposalAlreadyReceived);
         }
-        // The validator.validate_proposal will internally set its own accepted_proposal_digest
-        if !self.validator.validate_proposal(&proposal_message)? {
-            return Err(QbftError::ValidationError("Invalid proposal".into()));
-        }
-
-        // If we reach here, the proposal is valid and is the first for this round.
-        // Prepares and commits should only be for this proposal.
-        // Ensure prepare_messages and commit_messages are clear for this new proposal context.
+        // Create context for validation
+        let context = self.create_validation_context();
+        self.proposal_validator.validate_proposal(&proposal_message, &context)?;
+        
         self.prepare_messages.clear();
         self.commit_messages.clear();
         
+        // Update accepted_proposal_digest after successful validation
+        self.accepted_proposal_digest = Some(proposal_message.block().hash());
         self.proposal = Some(proposal_message); 
-        self.is_prepared = false; // Reset derived state, update_derived_state will re-evaluate
+        self.is_prepared = false; 
         self.is_committed = false;
-        self.update_derived_state(); // update_derived_state will correctly set these based on empty prepares/commits initially
+        self.update_derived_state(); 
         Ok(())
     }
 
     pub fn add_prepare(&mut self, prepare: Prepare) -> Result<(), QbftError> {
         let author = prepare.author()?;
-        // Check if we already have a prepare from this author FOR THE CURRENT PROPOSAL
-        // MessageValidator.validate_prepare ensures it's for the current proposal's digest.
         if self.prepare_messages.contains_key(&author) {
             log::warn!(
-                "Duplicate Prepare message received from author {:?} for round {:?} and current proposal. Ignoring.",
+                "Duplicate Prepare message received from author {:?} for round {:?}. Ignoring.",
                 author,
-                self.round_identifier // Assuming round_identifier is accessible and loggable
+                self.round_identifier
             );
             return Ok(()); 
         }
 
-        if !self.validator.validate_prepare(&prepare, self.proposal.as_ref())? {
-            return Err(QbftError::ValidationError("Invalid prepare message".into()));
-        }
+        let mut context = self.create_validation_context(); // Create context
+        // accepted_proposal_digest for prepare validation should be the one from the current proposal
+        context.accepted_proposal_digest = self.proposal.as_ref().map(|p| p.block().hash());
+
+        self.prepare_validator.validate_prepare(&prepare, &context)?;
         
         self.prepare_messages.insert(author, prepare);
         self.update_derived_state();
@@ -112,19 +139,20 @@ impl RoundState {
 
     pub fn add_commit(&mut self, commit: Commit) -> Result<(), QbftError> {
         let author = commit.author()?;
-        // Check if we already have a commit from this author FOR THE CURRENT PROPOSAL
         if self.commit_messages.contains_key(&author) {
             log::warn!(
-                "Duplicate Commit message received from author {:?} for round {:?} and current proposal. Ignoring.",
+                "Duplicate Commit message received from author {:?} for round {:?}. Ignoring.",
                 author,
-                self.round_identifier // Assuming round_identifier is accessible and loggable
+                self.round_identifier
             );
             return Ok(());
         }
 
-        if !self.validator.validate_commit(&commit, self.proposal.as_ref())? {
-            return Err(QbftError::ValidationError("Invalid commit message".into()));
-        }
+        let mut context = self.create_validation_context(); // Create context
+        // accepted_proposal_digest for commit validation should be the one from the current proposal
+        context.accepted_proposal_digest = self.proposal.as_ref().map(|p| p.block().hash());
+
+        self.commit_validator.validate_commit(&commit, &context)?;
 
         self.commit_messages.insert(author, commit);
         self.update_derived_state();

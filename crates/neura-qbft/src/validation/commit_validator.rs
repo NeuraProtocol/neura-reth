@@ -1,69 +1,42 @@
-use std::sync::Arc;
-use crate::messagewrappers::{Commit, Proposal};
-use crate::types::QbftFinalState;
+use crate::messagewrappers::Commit;
+use crate::validation::ValidationContext; // Assuming ValidationContext is re-exported by validation/mod.rs
 use crate::error::QbftError;
-use alloy_primitives::B256 as Hash;
+use crate::payload::QbftPayload; // Added import
+// Add other necessary imports if the actual validation logic needs them
 
-pub struct CommitValidator {
-    pub final_state: Arc<dyn QbftFinalState>,
-    pub expected_proposal_digest: Hash,
+pub trait CommitValidator: Send + Sync {
+    fn validate_commit(&self, commit: &Commit, context: &ValidationContext) -> Result<(), QbftError>;
 }
 
-impl CommitValidator {
-    pub fn new(
-        final_state: Arc<dyn QbftFinalState>,
-        accepted_proposal: &Proposal, // Pass the accepted proposal to set context
-    ) -> Self {
-        Self {
-            final_state,
-            expected_proposal_digest: accepted_proposal.block().hash(),
-        }
+#[derive(Default)] 
+pub struct CommitValidatorImpl;
+
+impl CommitValidatorImpl {
+    pub fn new() -> Self {
+        // TODO: This might take dependencies like QbftConfig later.
+        Self::default()
     }
+}
 
-    pub fn validate_commit(&self, commit: &Commit) -> Result<bool, QbftError> {
-        let author_address = commit.author()?;
-        let payload = commit.payload();
-
-        // 1. Author is a current validator
-        if !self.final_state.is_validator(author_address) {
-            log::warn!("Commit from non-validator {:?}. Ignoring.", author_address);
-            return Ok(false);
-        }
-
-        // 2. Commit message's digest matches the accepted proposal's digest
-        if payload.digest != self.expected_proposal_digest {
-            log::warn!(
-                "Commit digest {:?} does not match expected proposal digest {:?}. Author: {:?}", 
-                payload.digest, self.expected_proposal_digest, author_address
-            );
-            return Ok(false);
-        }
-
-        // 3. Validate committed_seal: 
-        // It must be a signature by `author_address` over `payload.digest`.
-        // `payload.digest` is already a hash (B256), so it's used as a prehashed message for recovery.
-        let seal_signer_address = match payload.committed_seal.0.recover_address_from_prehash(&payload.digest) {
-            Ok(addr) => addr,
-            Err(e) => {
-                log::warn!(
-                    "Failed to recover signer from committed_seal. Commit author: {:?}, Digest: {:?}, Error: {}", 
-                    author_address, payload.digest, e
-                );
-                return Ok(false); // Recovery failed, so seal is invalid
-            }
-        };
-
-        if seal_signer_address != author_address {
-            log::warn!(
-                "Committed_seal in Commit from {:?} was not signed by them. Seal signed by: {:?}, Expected: {:?}", 
-                author_address, seal_signer_address, author_address
-            );
-            return Ok(false);
-        }
-
-        // 4. Outer signature of Commit (SignedData<CommitPayload>) is validated by commit.author() implicitly during its call.
-
-        log::debug!("Commit from {:?} for digest {:?} passed validation.", author_address, payload.digest);
-        Ok(true)
+impl CommitValidator for CommitValidatorImpl { 
+    fn validate_commit(&self, commit: &Commit, context: &ValidationContext) -> Result<(), QbftError> { 
+        // TODO: Implement actual Commit message validation logic.
+        // - Check commit.author() is a current validator.
+        // - Check commit.payload().round_identifier() matches context.
+        // - Check commit.payload().digest() (matches proposed block's hash for this round).
+        // - Check commit.payload().commit_seal() is a valid signature by the author over the digest.
+        
+        println!(
+            "CommitValidatorImpl::validate_commit called for commit by {:?} for round: {}, sequence: {}. Context: round {}, sequence: {}. Digest: {:?}",
+            commit.author().ok(),
+            commit.payload().round_identifier().round_number,
+            commit.payload().round_identifier().sequence_number,
+            context.current_round_number,
+            context.current_sequence_number,
+            commit.payload().digest
+        );
+        
+        Ok(())
+        // unimplemented!("validate_commit not implemented yet") 
     }
 } 

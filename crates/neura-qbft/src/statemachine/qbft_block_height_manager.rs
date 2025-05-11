@@ -9,11 +9,16 @@ use crate::statemachine::{
     QbftRound, RoundChangeManager, RoundChangeArtifacts, QbftMinedBlockObserver
 };
 use crate::payload::{MessageFactory, PreparedRoundMetadata};
-use crate::validation::{MessageValidator, RoundChangeMessageValidator, ProposalValidator, RoundChangeMessageValidatorFactory};
+use crate::validation::{
+    RoundChangeMessageValidatorImpl,
+    ProposalValidator,
+    PrepareValidator, CommitValidator,
+    RoundChangeMessageValidatorFactory, MessageValidatorFactory, ValidationContext
+};
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
-use std::collections::HashMap; // Added for message buffers
- // For proposerded import
+use std::collections::{HashMap, HashSet}; // Added HashSet here
+use alloy_primitives::Address; // Added Address import
 
 
 // TODO: Define QbftEventQueue or similar for handling events like timer expiries, received messages.
@@ -31,7 +36,9 @@ pub struct QbftBlockHeightManager {
     round_timer: Arc<dyn RoundTimer>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
     config: Arc<QbftConfig>,
-    message_validator: MessageValidator, // Configured for this height/validators
+    proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
+    prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
+    commit_validator: Arc<dyn CommitValidator + Send + Sync>,
     mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
 
     current_round: Option<QbftRound>, // The active round manager
@@ -59,30 +66,21 @@ impl QbftBlockHeightManager {
         round_timer: Arc<dyn RoundTimer>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
         config: Arc<QbftConfig>,
-        message_validator: MessageValidator, // Should be pre-configured for this height
-        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+        proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
+        prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
+        commit_validator: Arc<dyn CommitValidator + Send + Sync>,
+        actual_message_validator_factory: Arc<dyn MessageValidatorFactory>,
+        _round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
         mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>
     ) -> Self {
         let height = parent_header.number + 1;
 
-        // Create ProposalValidator needed by RoundChangeMessageValidator
-        let proposal_validator_for_rc = Arc::new(ProposalValidator::new(
-            final_state.clone(),
-            parent_header.clone(),
-            extra_data_codec.clone(),
-            round_change_message_validator_factory, 
+        let round_change_validator = RoundChangeMessageValidatorImpl::new(
+            actual_message_validator_factory.clone(), 
             config.clone(),
-        ));
-
-        let round_change_validator = RoundChangeMessageValidator::new(
-            final_state.clone(), 
-            parent_header.clone(),
-            None, // local_committed_round for a new height manager
-            None, // local_prepared_round for a new height manager
-            proposal_validator_for_rc,
         );
         let round_change_manager = RoundChangeManager::new(
-            final_state.get_byzantine_fault_tolerance() + 1, // f+1 for round_change_quorum_size
+            final_state.get_byzantine_fault_tolerance() + 1, 
             round_change_validator
         );
         
@@ -98,7 +96,9 @@ impl QbftBlockHeightManager {
             round_timer,
             extra_data_codec,
             config,
-            message_validator, 
+            proposal_validator,
+            prepare_validator,
+            commit_validator,
             mined_block_observers,
             current_round: None,
             round_change_manager,
@@ -162,7 +162,9 @@ impl QbftBlockHeightManager {
             self.validator_multicaster.clone(),
             self.round_timer.clone(),
             self.extra_data_codec.clone(),
-            self.message_validator.clone(),
+            self.proposal_validator.clone(),
+            self.prepare_validator.clone(),
+            self.commit_validator.clone(),
             self.config.clone(),
             self.mined_block_observers.clone(),
             initial_locked_info_for_new_round,
@@ -505,9 +507,6 @@ impl QbftBlockHeightManager {
             return Ok(());
         }
 
-        // Check if this RoundChange is for a round prior to or same as our current round (if any).
-        // Such messages might be late/redundant unless they contribute to an f+1 for an even later round.
-        // The RoundChangeManager's internal logic should handle this by not forming a quorum for an old round.
         if let Some(current_round_ref) = self.current_round.as_ref() {
             if target_round_identifier.round_number <= current_round_ref.round_identifier().round_number {
                 log::debug!(
@@ -517,8 +516,26 @@ impl QbftBlockHeightManager {
             }
         }
 
+        // Create ValidationContext for the RoundChange message
+        // The context reflects the BHM's current state.
+        // Specific checks within validate_round_change will use this context against the RC's target round.
+        let context = ValidationContext::new(
+            self.height, // current_sequence_number
+            self.current_round.as_ref().map_or(0, |cr| cr.round_identifier().round_number), // current_round_number
+            self.final_state.get_validators_for_block(self.height).unwrap_or_default().into_iter().collect::<HashSet<Address>>(), // current_validators for this height
+            self.parent_header.clone(),
+            self.final_state.clone(),
+            self.extra_data_codec.clone(),
+            self.config.clone(),
+            // accepted_proposal_digest is tricky for RC, as RC might be for a future round or carry its own cert.
+            // For the basic validation of an incoming RC message itself (e.g. signature, author is validator),
+            // this might be None or not strictly needed by the top-level RC validation.
+            // Inner proposal/prepare validation within RC will create their own specific contexts.
+            None, // accepted_proposal_digest for the BHM context
+        );
+
         log::debug!("Dispatching RoundChange to RoundChangeManager for target round: {:?}", target_round_identifier);
-        match self.round_change_manager.add_round_change_message(round_change) {
+        match self.round_change_manager.add_round_change_message(round_change, &context) { // Pass context
             Ok(newly_added) => {
                 if newly_added {
                     log::info!(

@@ -82,13 +82,11 @@ impl QbftController {
             log::info!("QbftController: Replacing existing consensus manager for height {} with new one for height {}", existing_manager.height(), target_height);
         }
 
-        let message_validator = self.message_validator_factory.create_message_validator(
-            &parent_header, 
-            self.final_state_provider.clone(),
-            self.extra_data_codec.clone(),
-            self.round_change_message_validator_factory.clone(),
-            self.config.clone(),
-        )?;
+        // Create individual validators using the factory
+        let proposal_validator = self.message_validator_factory.create_proposal_validator();
+        let prepare_validator = self.message_validator_factory.create_prepare_validator();
+        let commit_validator = self.message_validator_factory.create_commit_validator();
+
         let block_creator = self.block_creator_factory.create_block_creator(
             &parent_header, 
             self.final_state_provider.clone()
@@ -105,7 +103,10 @@ impl QbftController {
             self.round_timer.clone(),
             self.extra_data_codec.clone(),
             self.config.clone(),
-            message_validator,
+            proposal_validator,
+            prepare_validator,
+            commit_validator,
+            self.message_validator_factory.clone(),
             self.round_change_message_validator_factory.clone(),
             self.mined_block_observers.clone(),
         );

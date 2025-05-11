@@ -1,194 +1,74 @@
 use std::sync::Arc;
 use crate::messagewrappers::RoundChange;
-use crate::types::{QbftFinalState, QbftBlockHeader};
+use crate::validation::proposal_validator::ValidationContext; // Corrected import path
 use crate::error::QbftError;
-use crate::validation::ProposalValidator;
- // To validate proposals within prepared certs
-use alloy_primitives::Address;
+use crate::types::QbftConfig; // Corrected import
+use crate::payload::QbftPayload; // Added import
+use crate::validation::MessageValidatorFactory; // For validating piggybacked messages
 
-
-#[derive(Clone)]
-pub struct RoundChangeMessageValidator {
-    final_state: Arc<dyn QbftFinalState>,
-    parent_header: Arc<QbftBlockHeader>, // Parent of the block for the height these RCs are for
-    local_committed_round: Option<u32>, // Highest round committed by local node for this height
-    local_prepared_round: Option<u32>,  // Highest round prepared by local node for this height
-    proposal_validator: Arc<ProposalValidator>, // For validating prepared blocks
-    // To validate a proposal within a PreparedCertificate, we need a MessageValidator or its factory.
-    // This creates a potential circular dependency if MessageValidator needs RCMV for piggybacked RCs.
-    // Let's assume for now that RCMV can create a temporary ProposalValidator for this purpose.
-    // Or, the factory for RCMV can also provide a factory for MessageValidator for one-off use.
-    // For simplicity, let's require a MessageValidatorFactory to be passed in if needed.
-    // This implies the validator for piggybacked RCs inside a Proposal would be simpler or use a different mechanism.
-    // For now, let's focus on direct RC validation. Piggybacked RC validation in ProposalValidator can be simpler.
-    // Consider what context this validator is created with via its factory.
-    // It's for a specific height, so parent_header is known.
+pub trait RoundChangeMessageValidator: Send + Sync {
+    fn validate_round_change(&self, round_change: &RoundChange, context: &ValidationContext) -> Result<(), QbftError>;
 }
 
-impl RoundChangeMessageValidator {
-    pub fn new(
-        final_state: Arc<dyn QbftFinalState>,
-        parent_header: Arc<QbftBlockHeader>,
-        local_committed_round: Option<u32>,
-        local_prepared_round: Option<u32>,
-        proposal_validator: Arc<ProposalValidator>,
-        // message_validator_factory: Arc<dyn MessageValidatorFactory> // If needed for deep cert validation
-    ) -> Self {
-        Self {
-            final_state,
-            parent_header,
-            local_committed_round,
-            local_prepared_round,
-            proposal_validator,
-            // message_validator_factory,
-        }
+// This Impl struct will hold dependencies needed to perform validation.
+// For RoundChange, this often means needing to validate nested proposals or prepares,
+// hence the MessageValidatorFactory.
+pub struct RoundChangeMessageValidatorImpl {
+    #[allow(dead_code)] // Will be used by actual validation logic
+    message_validator_factory: Arc<dyn MessageValidatorFactory>,
+    #[allow(dead_code)] // Will be used by actual validation logic
+    config: Arc<QbftConfig>,
+    // Add other dependencies if needed, e.g., access to QbftFinalState for certain checks.
+}
+
+impl RoundChangeMessageValidatorImpl {
+    // Constructor takes dependencies from the factory that creates it.
+    pub fn new(message_validator_factory: Arc<dyn MessageValidatorFactory>, config: Arc<QbftConfig>) -> Self {
+        Self { message_validator_factory, config }
     }
+}
 
-    pub fn validate(&self, round_change: &RoundChange) -> Result<bool, QbftError> {
-        let author = round_change.author()?;
-        let payload = round_change.payload();
-        let target_round_id = payload.round_identifier;
+impl RoundChangeMessageValidator for RoundChangeMessageValidatorImpl { 
+    fn validate_round_change(&self, round_change: &RoundChange, context: &ValidationContext) -> Result<(), QbftError> { 
+        // TODO: Implement actual RoundChange message validation logic.
+        // Key checks:
+        // 1. Basic message checks: author is validator, signature is valid (implicitly by .author()?).
+        // 2. Target round_identifier sequence number must be >= context.current_sequence_number.
+        //    If it's the same sequence, target round number must be > context.current_round_number.
+        // 3. If PreparedRoundMetadata is present (payload.prepared_round_metadata()):
+        //    a. Get the ProposalValidator from self.message_validator_factory.
+        //    b. Validate prepared_metadata.signed_proposal_payload() using the ProposalValidator and an appropriate ValidationContext for the proposal's round.
+        //    c. Get the PrepareValidator from self.message_validator_factory.
+        //    d. For each prepare_msg in prepared_metadata.prepares():
+        //       Validate prepare_msg using PrepareValidator and appropriate context.
+        //    e. Ensure consistency: prepares form a quorum for the digest in signed_proposal_payload.
+        //    f. The block in round_change.prepared_block() must match the block in signed_proposal_payload.
+        // 4. If PreparedRoundMetadata is NOT present, but round_change.prepared_block() IS present:
+        //    a. This implies a proposal for a new block without a prior prepare certificate.
+        //    b. Perform basic block validation on round_change.prepared_block() (e.g., parent hash, number against context).
+        //    c. This scenario is less common in QBFT if it strictly follows needing a prepared certificate for re-proposals.
+        //       Refer to Besu logic: RoundChangePayload can have Option<PreparedRoundMetadata> and Option<QbftBlock>.
+        //       If metadata (cert) is Some, block must also be Some and match. If metadata is None, block can be Some (new proposal) or None.
 
-        // 1. Author is a current validator
-        if !self.final_state.is_validator(author) {
-            log::warn!("RoundChange from non-validator {:?}. Ignoring.", author);
-            return Ok(false);
+        println!(
+            "RoundChangeMessageValidatorImpl::validate_round_change called for RC by {:?} targeting round: {}, sequence: {}. Context: round {}, sequence: {}",
+            round_change.author().ok(),
+            round_change.payload().round_identifier().round_number,
+            round_change.payload().round_identifier().sequence_number,
+            context.current_round_number,
+            context.current_sequence_number
+        );
+
+        if round_change.payload().prepared_round_metadata.is_some() {
+            println!("  RC contains PreparedRoundMetadata.");
+            // TODO: Validation logic for this case using self.message_validator_factory
         }
-
-        // 2. Signature of the RoundChange message itself is validated by round_change.author() implicitly.
-
-        // 3. Target round validation (basic)
-        // Ensure sequence number matches expected height (derived from parent_header.number + 1)
-        let expected_height = self.parent_header.number + 1;
-        if target_round_id.sequence_number != expected_height {
-            log::warn!(
-                "RoundChange target sequence {} does not match expected height {}. Author: {:?}",
-                target_round_id.sequence_number, expected_height, author
-            );
-            return Ok(false);
+        if let Some(block) = round_change.payload().prepared_block.as_ref() {
+            println!("  RC contains a prepared_block with hash: {:?}", block.header.hash());
+            // TODO: Validation logic for this case
         }
-
-        // Check target_round > local_node_committed_round_for_this_height
-        if let Some(committed_round) = self.local_committed_round {
-            if target_round_id.round_number <= committed_round {
-                log::warn!(
-                    "RoundChange from {:?} for target round {} is not greater than local committed round {}.",
-                    author, target_round_id.round_number, committed_round
-                );
-                return Ok(false);
-            }
-        }
-
-        // Check target_round > local_node_prepared_round_for_this_height
-        if let Some(prepared_round) = self.local_prepared_round {
-            if target_round_id.round_number <= prepared_round {
-                log::warn!(
-                    "RoundChange from {:?} for target round {} is not greater than local prepared round {}.",
-                    author, target_round_id.round_number, prepared_round
-                );
-                return Ok(false);
-            }
-        }
-
-        // 4. Validate PreparedCertificate if present
-        if let Some(prepared_metadata) = &payload.prepared_round_metadata {
-            let prepared_block = match round_change.prepared_block() {
-                Some(block) => block,
-                None => {
-                    log::warn!(
-                        "RoundChange from {:?} has prepared_metadata but no prepared_block.", author
-                    );
-                    return Ok(false); // Invalid structure
-                }
-            };
-
-            // 4.1. Prepared round must be less than target round
-            if prepared_metadata.prepared_round >= target_round_id.round_number {
-                log::warn!(
-                    "RoundChange from {:?}: prepared_round {} not less than target_round {}.",
-                    author, prepared_metadata.prepared_round, target_round_id.round_number
-                );
-                return Ok(false);
-            }
-
-            // 4.2. Validate the block itself (as a proposal for its prepared_round)
-            // This is tricky. We need to essentially run ProposalValidator logic for this block.
-            // The ProposalValidator needs final_state and parent_header.
-            // It also checks if author is proposer for *that* round. The author of the RC is not necessarily the proposer of the prepared block.
-            // For now, basic block header checks against parent_header.
-            if prepared_block.header.number != expected_height {
-                 log::warn!("RC from {:?}: Prepared block number {} incorrect.", author, prepared_block.header.number);
-                 return Ok(false);
-            }
-            if prepared_block.header.parent_hash != self.parent_header.hash() {
-                log::warn!("RC from {:?}: Prepared block parent_hash incorrect.", author);
-                return Ok(false);
-            }
-
-            // Validate the prepared block using the provided ProposalValidator.
-            // Note: This assumes ProposalValidator will have a method like `validate_block_for_round_change` 
-            // or that its existing `validate` or a similar method can be adapted/used carefully here.
-            // The key is to validate the block's content, ancestry, and consistency for its claimed prepared_round.
-            // The `original_signed_proposal` from `prepared_metadata` is crucial here.
-            // We pass the block itself and its original round identifier.
-            // The ProposalValidator should check: block.header.number, block.header.parent_hash, block.header.timestamp (against parent and future limits),
-            // block.header.round, and potentially block body integrity if possible without full transaction execution.
-            if let Err(e) = self.proposal_validator.validate_prepared_block_in_round_change(
-                prepared_block, 
-                &prepared_metadata.signed_proposal_payload.payload().round_identifier,
-                &prepared_metadata.signed_proposal_payload.author()? // Pass proposer for context
-            ) {
-                log::warn!(
-                    "RoundChange from {:?}: Prepared block failed validation: {:?}. Author: {:?}",
-                    author, e, prepared_metadata.signed_proposal_payload.author().unwrap_or_default()
-                );
-                return Ok(false);
-            }
-
-            // 4.3. Validate prepares in the certificate form a quorum for the prepared_block
-            let mut unique_prepare_senders = std::collections::HashSet::<Address>::new();
-            if prepared_metadata.prepares.len() < self.final_state.quorum_size() {
-                log::warn!(
-                    "RoundChange from {:?}: Not enough prepares ({}) in certificate for quorum ({}).",
-                    author, prepared_metadata.prepares.len(), self.final_state.quorum_size()
-                );
-                return Ok(false);
-            }
-
-            for prepare_signed_data in &prepared_metadata.prepares {
-                let prepare_payload = prepare_signed_data.payload();
-                let prepare_author = prepare_signed_data.recover_author()?;
-
-                if !self.final_state.is_validator(prepare_author) {
-                    log::warn!("RC from {:?}: Prepare in cert from non-validator {:?}.", author, prepare_author);
-                    return Ok(false);
-                }
-                if prepare_payload.digest != prepared_block.hash() {
-                    log::warn!(
-                        "RC from {:?}: Prepare in cert has digest {:?} mismatching block digest {:?}. Author: {:?}", 
-                        author, prepare_payload.digest, prepared_block.hash(), prepare_author
-                    );
-                    return Ok(false);
-                }
-                // Check round of prepare matches prepared_round in metadata
-                if prepare_payload.round_identifier.round_number != prepared_metadata.prepared_round || 
-                   prepare_payload.round_identifier.sequence_number != expected_height {
-                     log::warn!("RC from {:?}: Prepare in cert has round_id {:?} mismatching prepared_round {} or height {}. Author: {:?}", 
-                        author, prepare_payload.round_identifier, prepared_metadata.prepared_round, expected_height, prepare_author);
-                    return Ok(false);
-                }
-                unique_prepare_senders.insert(prepare_author);
-            }
-            if unique_prepare_senders.len() < self.final_state.quorum_size() {
-                 log::warn!(
-                    "RoundChange from {:?}: Not enough unique prepares ({}) in certificate for quorum ({}).",
-                    author, unique_prepare_senders.len(), self.final_state.quorum_size()
-                );
-                return Ok(false);
-            }
-        }
-
-        log::debug!("RoundChange from {:?} for target round {:?} passed basic validation.", author, target_round_id);
-        Ok(true)
+        
+        Ok(())
+        // unimplemented!("validate_round_change not implemented yet") 
     }
 } 

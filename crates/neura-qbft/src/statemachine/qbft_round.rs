@@ -17,6 +17,8 @@ use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange, PreparedCer
 // Removed Address, Bytes, keccak256 from alloy_primitives import based on build log
 use alloy_primitives::B256 as Hash;
 use crate::statemachine::round_change_manager::{RoundChangeArtifacts, CertifiedPrepareInfo};
+// Import individual validator traits
+use crate::validation::{ProposalValidator, PrepareValidator, CommitValidator};
 
 // Observers for when a block is mined/imported successfully.
 pub trait QbftMinedBlockObserver: Send + Sync {
@@ -35,6 +37,12 @@ pub struct QbftRound {
     round_timer: Arc<dyn RoundTimer>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
     mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+    #[allow(dead_code)] // Passed to RoundState
+    proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
+    #[allow(dead_code)] // Passed to RoundState
+    prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
+    #[allow(dead_code)] // Passed to RoundState
+    commit_validator: Arc<dyn CommitValidator + Send + Sync>,
     locked_block: Option<CertifiedPrepareInfo>,
     #[allow(dead_code)] // Tied to send_proposal_if_new_block_available
     proposal_sent: bool,
@@ -54,15 +62,23 @@ impl QbftRound {
         validator_multicaster: Arc<dyn ValidatorMulticaster>,
         round_timer: Arc<dyn RoundTimer>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
-        message_validator: crate::validation::MessageValidator, 
+        proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
+        prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
+        commit_validator: Arc<dyn CommitValidator + Send + Sync>,
         config: Arc<QbftConfig>,
         mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
         initial_locked_info: Option<CertifiedPrepareInfo>,
     ) -> Self {
         let round_state = RoundState::new(
             round_identifier,
-            message_validator, 
+            proposal_validator.clone(), 
+            prepare_validator.clone(),
+            commit_validator.clone(),
             final_state.quorum_size(),
+            Arc::new(parent_header.clone()),
+            final_state.clone(),
+            extra_data_codec.clone(),
+            config.clone(),
         );
         round_timer.start_timer(round_identifier, config.message_round_timeout_ms);
         Self {
@@ -76,6 +92,9 @@ impl QbftRound {
             round_timer,
             extra_data_codec,
             mined_block_observers,
+            proposal_validator,
+            prepare_validator,
+            commit_validator,
             locked_block: initial_locked_info,
             proposal_sent: false,
             commit_sent: false, // Initialize commit_sent to false

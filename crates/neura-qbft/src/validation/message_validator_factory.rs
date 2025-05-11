@@ -1,44 +1,43 @@
 use std::sync::Arc;
-use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig};
-use crate::validation::{MessageValidator, RoundChangeMessageValidatorFactory};
-use crate::error::QbftError;
+use crate::types::QbftConfig;
+// Removed unused imports: QbftBlockHeader, QbftFinalState, BftExtraDataCodec
+// Removed unused import: RoundChangeMessageValidatorFactory
+// Removed unused import: QbftError
 
-/// A factory for creating `MessageValidator` instances.
-/// The validator needs to be configured for a specific consensus context (e.g., block height, active validators).
+// Import the validator traits and impls that this factory will create.
+use crate::validation::{ProposalValidator, ProposalValidatorImpl};
+use crate::validation::{PrepareValidator, PrepareValidatorImpl}; 
+use crate::validation::{CommitValidator, CommitValidatorImpl};     
+
+/// A factory for creating validator instances for different message types.
 pub trait MessageValidatorFactory: Send + Sync {
-    /// Creates a `MessageValidator` for the consensus process that will build upon `parent_header`.
-    /// `final_state_view` provides access to chain state like the current validator set for the new block's height.
-    fn create_message_validator(
-        &self,
-        parent_header: &QbftBlockHeader,
-        final_state_view: Arc<dyn QbftFinalState>, // Provides access to validator set, proposer logic, etc.
-        extra_data_codec: Arc<dyn BftExtraDataCodec>, // Added codec
-        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>, // Added factory
-        config: Arc<QbftConfig>, // Added config
-    ) -> Result<MessageValidator, QbftError>;
+    fn create_proposal_validator(&self) -> Arc<dyn ProposalValidator + Send + Sync>;
+    fn create_prepare_validator(&self) -> Arc<dyn PrepareValidator + Send + Sync>;
+    fn create_commit_validator(&self) -> Arc<dyn CommitValidator + Send + Sync>;
 }
 
 /// Concrete Implementation of MessageValidatorFactory
-#[derive(Default)] // Added default for easier instantiation if no special state
-pub struct MessageValidatorFactoryImpl;
+pub struct MessageValidatorFactoryImpl {
+    #[allow(dead_code)] 
+    config: Arc<QbftConfig>,
+}
+
+impl MessageValidatorFactoryImpl {
+    pub fn new(config: Arc<QbftConfig>) -> Self {
+        Self { config }
+    }
+}
 
 impl MessageValidatorFactory for MessageValidatorFactoryImpl {
-    fn create_message_validator(
-        &self,
-        parent_header: &QbftBlockHeader,
-        final_state_view: Arc<dyn QbftFinalState>,
-        extra_data_codec: Arc<dyn BftExtraDataCodec>,
-        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
-        config: Arc<QbftConfig>, // Added config
-    ) -> Result<MessageValidator, QbftError> {
-        // Note: MessageValidator::new now takes the factory and creates validators internally or on demand.
-        // The old way of creating sub-validators here is removed.
-        Ok(MessageValidator::new(
-            final_state_view.clone(),
-            Arc::new(parent_header.clone()), // MessageValidator expects Arc<QbftBlockHeader>
-            extra_data_codec.clone(),
-            round_change_message_validator_factory.clone(),
-            config, // Pass config
-        ))
+    fn create_proposal_validator(&self) -> Arc<dyn ProposalValidator + Send + Sync> {
+        Arc::new(ProposalValidatorImpl::new()) 
+    }
+
+    fn create_prepare_validator(&self) -> Arc<dyn PrepareValidator + Send + Sync> {
+        Arc::new(PrepareValidatorImpl::new()) 
+    }
+
+    fn create_commit_validator(&self) -> Arc<dyn CommitValidator + Send + Sync> {
+        Arc::new(CommitValidatorImpl::new()) 
     }
 } 

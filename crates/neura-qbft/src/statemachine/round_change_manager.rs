@@ -2,7 +2,7 @@ use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock};
 use alloy_primitives::Address;
 use crate::messagewrappers::{RoundChange, BftMessage};
 use crate::payload::{RoundChangePayload, PreparePayload, ProposalPayload};
-use crate::validation::RoundChangeMessageValidator;
+use crate::validation::{RoundChangeMessageValidatorImpl, ValidationContext, RoundChangeMessageValidator};
 use crate::error::QbftError;
 use std::collections::HashMap;
 use std::cmp::Ordering;
@@ -26,11 +26,11 @@ pub struct RoundChangeManager {
     // Key: Block Hash. Value: The CertifiedPrepareInfo.
     known_prepared_certificates: HashMap<Hash, CertifiedPrepareInfo>,
     round_change_quorum_size: usize, // Number of distinct round change messages needed (f+1)
-    validator: RoundChangeMessageValidator,
+    validator: RoundChangeMessageValidatorImpl,
 }
 
 impl RoundChangeManager {
-    pub fn new(round_change_quorum_size: usize, validator: RoundChangeMessageValidator) -> Self {
+    pub fn new(round_change_quorum_size: usize, validator: RoundChangeMessageValidatorImpl) -> Self {
         Self {
             round_change_messages: HashMap::new(),
             known_prepared_certificates: HashMap::new(),
@@ -39,17 +39,11 @@ impl RoundChangeManager {
         }
     }
 
-    pub fn add_round_change_message(&mut self, message: RoundChange) -> Result<bool, QbftError> {
+    pub fn add_round_change_message(&mut self, message: RoundChange, context: &ValidationContext) -> Result<bool, QbftError> {
         let author = message.author()?;
         let target_round = *message.round_identifier();
 
-        if !self.validator.validate(&message)? {
-            log::warn!(
-                "RoundChange from {:?} for target {:?} failed validation. Discarding.",
-                author, target_round
-            );
-            return Err(QbftError::ValidationError("Invalid RoundChange message due to validator rules".into()));
-        }
+        self.validator.validate_round_change(&message, context)?;
 
         let round_messages = self.round_change_messages.entry(target_round).or_default();
         if round_messages.contains_key(&author) {
