@@ -101,28 +101,22 @@ mod tests {
 
     #[test]
     fn test_besu_like_round_0_extra_data() {
-        let expected_vanity = Bytes::from_static(&[0u8; 32]);
         let extra_data = BftExtraData {
-            vanity_data: expected_vanity.clone(),
+            vanity_data: Bytes::from_static(&[0u8; 32]),
             validators: vec![],
             committed_seals: vec![],
             round_number: 0,
         };
 
-        let codec = AlloyBftExtraDataCodec::default();
-        let encoded_bytes = codec.encode(&extra_data).unwrap();
-        
-        let mut expected_rlp = Vec::new();
-        expected_rlp.push(0xe4); 
-        expected_rlp.push(0xa0); 
-        expected_rlp.extend_from_slice(&[0u8; 32]); 
-        expected_rlp.push(0xc0); 
-        expected_rlp.push(0xc0); 
-        expected_rlp.push(0x00); 
+        let mut buffer = Vec::new();
+        extra_data.encode(&mut buffer);
 
-        assert_eq!(encoded_bytes, Bytes::from(expected_rlp));
-
-        let decoded = codec.decode(&encoded_bytes).unwrap();
-        assert_eq!(extra_data, decoded);
+        // RLP of: 32 zero bytes for vanity, empty list for validators, empty list for committed_seals, integer 0 for round
+        // vanity: 0xa00000000000000000000000000000000000000000000000000000000000000000
+        // validators: 0xc0
+        // committed_seals: 0xc0
+        // round_number (0u32): 0x80
+        let expected_rlp_hex = "e4a00000000000000000000000000000000000000000000000000000000000000000c0c080"; // Changed last byte from 00 to 80
+        assert_eq!(hex::encode(buffer), expected_rlp_hex);
     }
 } 

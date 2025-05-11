@@ -66,10 +66,11 @@ mod tests {
 
     #[test]
     fn test_commit_payload_rlp_encoding_decoding() {
+        let specific_mock_seal = mock_rlp_signature();
         let original_payload = CommitPayload {
             round_identifier: mock_round_identifier(),
             digest: mock_digest(),
-            committed_seal: mock_rlp_signature(),
+            committed_seal: specific_mock_seal.clone(),
         };
 
         let mut encoded_data = Vec::new();
@@ -78,7 +79,7 @@ mod tests {
         let decoded_payload = CommitPayload::decode(&mut encoded_data.as_slice()).unwrap();
 
         assert_eq!(original_payload, decoded_payload);
-        assert_eq!(decoded_payload.committed_seal, mock_rlp_signature());
+        assert_eq!(decoded_payload.committed_seal, specific_mock_seal);
     }
 
     #[test]

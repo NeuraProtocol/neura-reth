@@ -83,9 +83,9 @@ impl QbftController {
         }
 
         // Create individual validators using the factory
-        let proposal_validator = self.message_validator_factory.create_proposal_validator();
-        let prepare_validator = self.message_validator_factory.create_prepare_validator();
-        let commit_validator = self.message_validator_factory.create_commit_validator();
+        let proposal_validator = self.message_validator_factory.clone().create_proposal_validator();
+        let prepare_validator = self.message_validator_factory.clone().create_prepare_validator();
+        let commit_validator = self.message_validator_factory.clone().create_commit_validator();
 
         let block_creator = self.block_creator_factory.create_block_creator(
             &parent_header, 

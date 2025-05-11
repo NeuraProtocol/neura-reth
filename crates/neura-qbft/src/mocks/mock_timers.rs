@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-use crate::types::{ConsensusRoundIdentifier, RoundTimer, BlockTimer, QbftBlockHeader};
+use crate::types::{ConsensusRoundIdentifier, RoundTimer, BlockTimer /*, QbftBlockHeader*/};
 
 // --- MockRoundTimer ---
 #[derive(Default, Clone)] // Clone needed if Arc<MockRoundTimer> is cloned
@@ -33,8 +33,8 @@ impl MockRoundTimer {
 }
 
 impl RoundTimer for MockRoundTimer {
-    fn start_timer(&self, round: ConsensusRoundIdentifier) {
-        log::debug!("MockRoundTimer: Starting timer for round {:?}", round);
+    fn start_timer(&self, round: ConsensusRoundIdentifier, timeout_ms: u64) {
+        log::debug!("MockRoundTimer: Starting timer for round {:?} with timeout {}ms", round, timeout_ms);
         self.active_round_timers.lock().unwrap().insert(round);
     }
 

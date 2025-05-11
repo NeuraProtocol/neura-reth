@@ -79,6 +79,16 @@ impl RoundState {
     }
 
     fn create_validation_context(&self) -> ValidationContext {
+        let round_id_for_proposer = self.round_identifier(); // Use current round_identifier
+        let expected_proposer = self.final_state.get_proposer_for_round(&round_id_for_proposer)
+            .unwrap_or_else(|e| {
+                log::error!(
+                    "Failed to get expected proposer for round {:?}: {:?}. Defaulting to Address::ZERO.", 
+                    round_id_for_proposer, e
+                );
+                Address::ZERO // Or handle error more gracefully, perhaps by returning Result from create_validation_context
+            });
+
         ValidationContext {
             parent_header: self.parent_header.clone(),
             final_state: self.final_state.clone(),
@@ -88,6 +98,7 @@ impl RoundState {
             current_sequence_number: self.round_identifier.sequence_number,
             accepted_proposal_digest: self.accepted_proposal_digest,
             current_validators: self.final_state.get_validators_for_block(self.round_identifier.sequence_number).unwrap_or_default().into_iter().collect::<HashSet<Address>>(),
+            expected_proposer, // Add the new field
         }
     }
 

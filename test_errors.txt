@@ -1,0 +1,99 @@
+   Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
+warning: variable does not need to be mutable
+    --> crates/neura-qbft/src/validation/proposal_validator.rs:3084:13
+     |
+3084 |         let mut prepared_block_r2 = default_qbft_block( // Made block mutable
+     |             ----^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: `neura_qbft_core` (lib test) generated 1 warning (run `cargo fix --lib -p neura_qbft_core --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.99s
+     Running unittests src/lib.rs (target/debug/deps/neura_qbft_core-aac66f884fac477e)
+
+running 60 tests
+test messagewrappers::proposal::tests::test_proposal_rlp_roundtrip_with_prepared_cert ... ignored
+test messagewrappers::round_change::tests::rlp_roundtrip_rc_with_metadata_empty_prepares_in_wrapper ... ignored
+test messagewrappers::round_change::tests::rlp_roundtrip_rc_with_prepared_data ... ignored
+test payload::message_factory::tests::test_message_factory_new_and_local_address ... ok
+test payload::prepare_payload::tests::test_prepare_payload_rlp_roundtrip ... ok
+test payload::proposal_payload::tests::test_proposal_payload_rlp_roundtrip ... ok
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_some ... ignored
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_some_metadata_none_block ... ignored
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_none ... ok
+test types::extra_data::tests::test_besu_like_round_0_extra_data ... ok
+test types::extra_data::tests::test_bft_extra_data_empty_seals_validators ... ok
+test types::extra_data::tests::test_bft_extra_data_rlp_roundtrip ... ok
+test messagewrappers::prepare::tests::test_prepare_message_rlp_roundtrip ... ok
+test messagewrappers::round_change::tests::rlp_roundtrip_rc_no_prepared_data ... ok
+test payload::commit_payload::tests::test_commit_payload_rlp_encoding_decoding ... ok
+test messagewrappers::proposal::tests::test_proposal_rlp_roundtrip_no_prepared_cert ... ok
+test validation::proposal_validator::tests::test_placeholder ... ok
+test messagewrappers::commit::tests::test_commit_message_rlp_roundtrip ... ok
+test payload::commit_payload::tests::test_commit_payload_qbft_payload_methods ... ok
+test payload::message_factory::tests::test_create_prepare ... ok
+test payload::message_factory::tests::test_create_proposal ... ok
+test types::signed_data::tests::test_sign_and_recover_author ... ok
+test payload::message_factory::tests::test_create_commit_seal_and_commit ... ok
+test types::signed_data::tests::test_signed_data_rlp_roundtrip ... ok
+test types::signed_data::tests::test_sign_with_different_keys ... ok
+test types::signed_data::tests::test_recover_author_tampered_payload ... ok
+test validation::proposal_validator::tests::test_validate_block_coinbase_matches_author_valid ... ok
+test validation::proposal_validator::tests::test_validate_block_coinbase_matches_author_invalid ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_extradata_round_mismatch ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_gas_limit_below_minimum ... ok
+test payload::message_factory::tests::test_create_round_change ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_extradata_validators_mismatch ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_gas_limit_too_high ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_invalid_difficulty ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_gas_limit_too_low_outside_delta ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_invalid_author ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_invalid_block_number ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_invalid_parent_hash ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_gas_used_exceeds_gas_limit ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_invalid_timestamp_not_after_parent ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_round_mismatch ... ok
+test validation::proposal_validator::tests::test_validate_prepares_for_certificate_insufficient_prepares ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_valid_proposal ... ok
+test validation::proposal_validator::tests::test_validate_round_changes_empty_proofs ... ok
+test validation::proposal_validator::tests::test_validate_proposal_round_0_valid ... ok
+test validation::proposal_validator::tests::test_validate_prepares_for_certificate_duplicate_author ... ok
+test validation::proposal_validator::tests::test_validate_payload_and_block_invalid_nonce ... ok
+[crates/neura-qbft/src/validation/proposal_validator.rs:3022:9] &proposer_for_round_2_dbg = 0xb6fd74411ee97e8646fcbe64746a5cb4f57534c2
+[crates/neura-qbft/src/validation/proposal_validator.rs:3023:9] &validator1_address = 0xb6fd74411ee97e8646fcbe64746a5cb4f57534c2
+[crates/neura-qbft/src/validation/proposal_validator.rs:3024:9] &validator2_address = 0xdf14e3697b1581607377332dbbf19ed704808042
+[crates/neura-qbft/src/validation/proposal_validator.rs:3025:9] &validator3_address = 0xbb0bfd3560d430326da885b37ea30d878daa0e41
+test validation::proposal_validator::tests::test_validate_round_zero_conditions_invalid_has_rc_proofs ... ok
+test validation::proposal_validator::tests::test_validate_round_zero_conditions_invalid_has_prepared_cert ... ok
+test validation::proposal_validator::tests::test_validate_round_zero_conditions_valid ... ok
+test validation::proposal_validator::tests::test_validate_round_changes_duplicate_author ... ok
+test validation::proposal_validator::tests::test_validate_prepares_for_certificate_valid ... ok
+[crates/neura-qbft/src/validation/proposal_validator.rs:2793:9] result.as_ref().err() = Some(
+    ValidationError(
+        "RoundChangeProof targets incorrect round",
+    ),
+)
+test validation::proposal_validator::tests::test_validate_round_changes_rc_targets_wrong_round ... ok
+[crates/neura-qbft/src/validation/proposal_validator.rs:2887:9] result.as_ref().err() = Some(
+    ValidationError(
+        "PreparedRoundMetadata round not less than RoundChange target round",
+    ),
+)
+test validation::proposal_validator::tests::test_validate_round_changes_invalid_inner_rc ... ok
+test validation::proposal_validator::tests::test_validate_round_changes_insufficient_proofs ... ok
+test validation::proposal_validator::tests::test_validate_proposal_round_0_invalid_payload_block ... ok
+test validation::proposal_validator::tests::test_validate_prepares_for_certificate_invalid_prepare_digest_mismatch ... ok
+test validation::proposal_validator::tests::test_validate_proposal_round_0_invalid_round_zero_conditions ... ok
+[crates/neura-qbft/src/validation/proposal_validator.rs:2991:9] result.as_ref().err() = Some(
+    ValidationError(
+        "Inconsistent PreparedRoundMetadata in round change proofs",
+    ),
+)
+test validation::proposal_validator::tests::test_validate_round_changes_inconsistent_prepared_metadata ... ok
+[crates/neura-qbft/src/validation/proposal_validator.rs:3129:9] result.as_ref().err() = None
+test validation::proposal_validator::tests::test_validate_round_changes_returns_best_prepared_metadata ... ok
+
+test result: ok. 55 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.11s
+

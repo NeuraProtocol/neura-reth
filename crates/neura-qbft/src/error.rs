@@ -32,6 +32,30 @@ pub enum QbftError {
     },
     #[error("Proposal already received for this round")]
     ProposalAlreadyReceived,
+    #[error("Proposal not from expected proposer")]
+    ProposalNotFromProposer,
+    #[error("Proposal round identifier mismatch")]
+    ProposalRoundMismatch,
+    #[error("Proposal has invalid parent hash")]
+    ProposalInvalidParentHash,
+    #[error("Proposal has invalid block number")]
+    ProposalInvalidBlockNumber,
+    #[error("Proposal for round 0 must not contain round change proofs")]
+    ProposalHasRoundChangeForRoundZero,
+    #[error("Proposal for round 0 must not contain a prepared certificate")]
+    ProposalHasPreparedCertificateForRoundZero,
+    #[error("Message round mismatch for {message_type}: expected sequence {expected_sequence}, round {expected_round}; got sequence {actual_sequence}, round {actual_round}")]
+    MessageRoundMismatch {
+        message_type: String,
+        expected_sequence: u64,
+        expected_round: u32,
+        actual_sequence: u64,
+        actual_round: u32,
+    },
+    #[error("Prepare message digest does not match accepted proposal digest")]
+    PrepareDigestMismatch,
+    #[error("Commit message digest does not match accepted proposal digest")]
+    CommitDigestMismatch,
     #[error("No proposal received for this round yet")]
     NoProposalReceived,
     #[error("Message intended for a past round: {message_round:?}, current round: {current_round:?}")]

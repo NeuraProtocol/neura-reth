@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use alloy_primitives::{Address, Bytes, B256, U256, Bloom, FixedBytes};
+use alloy_primitives::{Address, Bytes, B256, U256, Bloom};
 use crate::types::{ConsensusRoundIdentifier, QbftBlock, QbftBlockHeader, QbftBlockCreator, QbftBlockCreatorFactory, QbftFinalState, BftExtraData, AlloyBftExtraDataCodec, BftExtraDataCodec};
 use crate::error::QbftError;
 
@@ -26,38 +26,37 @@ impl QbftBlockCreator for MockQbftBlockCreator {
     ) -> Result<QbftBlock, QbftError> {
         let new_block_number = self.parent_header.number + 1;
         
-        let validators: Vec<Address> = self.final_state.validators().into_iter().collect();
-        // For a mock, committed_seals would be empty at creation time.
+        let validators: Vec<Address> = self.final_state.current_validators();
         let bft_extra_data = BftExtraData {
-            vanity_data: Bytes::from_static(&[0u8; 32]), // 32 bytes of zeros
-            validators, // Current validator set from final_state
-            committed_seals: Vec::new(), // Empty for new block proposal
-            round_number: round_identifier.round_number, // Round number for this block
+            vanity_data: Bytes::from_static(&[0u8; 32]), 
+            validators, 
+            committed_seals: Vec::new(), 
+            round_number: round_identifier.round_number, 
         };
         let extra_data_bytes = self.extra_data_codec.encode(&bft_extra_data)?;
 
         let mock_header = QbftBlockHeader::new(
-            self.parent_header.hash(),         // parent_hash
-            B256::ZERO,                       // ommers_hash (typically zero for PoA/QBFT)
-            self.final_state.local_address(), // beneficiary (proposer)
-            B256::random(),                   // state_root (mock)
-            B256::random(),                   // transactions_root (mock, for empty block)
-            B256::random(),                   // receipts_root (mock, for empty block)
-            Bloom::default(),                 // logs_bloom (empty)
-            U256::from(1),                    // difficulty (typically 1 for PoA)
-            new_block_number,                 // number
-            30_000_000,                       // gas_limit (a common value)
-            0,                                // gas_used (empty block)
-            timestamp_seconds,                // timestamp
-            extra_data_bytes,                 // extra_data
-            B256::ZERO,                       // mix_hash (typically zero for PoA)
-            FixedBytes::from_static(&[0u8; 8]).into(), // nonce (typically zero for PoA, must be 8 bytes)
+            self.parent_header.hash(),         
+            B256::ZERO,                       
+            self.final_state.local_address(), 
+            B256::ZERO,                   // state_root (mock) - Changed from random
+            B256::ZERO,                   // transactions_root (mock) - Changed from random
+            B256::ZERO,                   // receipts_root (mock) - Changed from random
+            Bloom::default(),                 
+            U256::from(1),                    
+            new_block_number,                 
+            30_000_000,                       
+            0,                                
+            timestamp_seconds,                
+            extra_data_bytes,                 
+            B256::ZERO,                       
+            Bytes::from_static(&[0u8; 8]), // nonce (8-byte zero array, as QbftBlockHeader::new asserts len 8)
         );
 
         let mock_block = QbftBlock::new(
             mock_header,
-            Vec::new(), // empty transactions
-            Vec::new(), // empty ommers
+            Vec::new(), 
+            Vec::new(), 
         );
         
         log::debug!("MockQbftBlockCreator: Created block for height {}, round {}, timestamp {}. Hash: {:?}", 
@@ -68,16 +67,13 @@ impl QbftBlockCreator for MockQbftBlockCreator {
 }
 
 // --- MockQbftBlockCreatorFactory ---
-#[derive(Default)] // Allow easy creation if no specific state needed for factory itself
 pub struct MockQbftBlockCreatorFactory {
-    // If the factory needs to hold some state or config (e.g. which codec to use), add here.
-    // For this mock, we'll assume AlloyBftExtraDataCodec is used implicitly by MockQbftBlockCreator.
     extra_data_codec: Arc<dyn BftExtraDataCodec>, 
 }
 
 impl MockQbftBlockCreatorFactory {
     pub fn new() -> Self {
-        Self { extra_data_codec: Arc::new(AlloyBftExtraDataCodec) } // Default to Alloy codec
+        Self { extra_data_codec: Arc::new(AlloyBftExtraDataCodec::default()) } // AlloyBftExtraDataCodec is Default
     }
 
     pub fn with_codec(codec: Arc<dyn BftExtraDataCodec>) -> Self {
@@ -92,7 +88,7 @@ impl QbftBlockCreatorFactory for MockQbftBlockCreatorFactory {
         final_state_view: Arc<dyn QbftFinalState>
     ) -> Result<Arc<dyn QbftBlockCreator>, QbftError> {
         Ok(Arc::new(MockQbftBlockCreator::new(
-            Arc::new(parent_header.clone()), // Clone parent_header for Arc ownership
+            Arc::new(parent_header.clone()), 
             final_state_view, 
             self.extra_data_codec.clone()
         )))

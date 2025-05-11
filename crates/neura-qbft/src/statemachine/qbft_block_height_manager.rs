@@ -532,6 +532,13 @@ impl QbftBlockHeightManager {
             // this might be None or not strictly needed by the top-level RC validation.
             // Inner proposal/prepare validation within RC will create their own specific contexts.
             None, // accepted_proposal_digest for the BHM context
+            self.final_state.get_proposer_for_round(&target_round_identifier).unwrap_or_else(|e| {
+                log::error!(
+                    "Failed to get expected proposer for RC target round {:?}: {:?}. Defaulting to Address::ZERO.", 
+                    target_round_identifier, e
+                );
+                Address::ZERO
+            }), // expected_proposer for the RoundChange's target round
         );
 
         log::debug!("Dispatching RoundChange to RoundChangeManager for target round: {:?}", target_round_identifier);

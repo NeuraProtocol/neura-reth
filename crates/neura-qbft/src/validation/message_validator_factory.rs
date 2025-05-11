@@ -11,9 +11,15 @@ use crate::validation::{CommitValidator, CommitValidatorImpl};
 
 /// A factory for creating validator instances for different message types.
 pub trait MessageValidatorFactory: Send + Sync {
-    fn create_proposal_validator(&self) -> Arc<dyn ProposalValidator + Send + Sync>;
-    fn create_prepare_validator(&self) -> Arc<dyn PrepareValidator + Send + Sync>;
-    fn create_commit_validator(&self) -> Arc<dyn CommitValidator + Send + Sync>;
+    /// Creates a new ProposalValidator instance.
+    /// Takes Arc<Self> to allow passing the factory to the validator if needed.
+    fn create_proposal_validator(self: Arc<Self>) -> Arc<dyn ProposalValidator + Send + Sync>;
+
+    /// Creates a new PrepareValidator instance.
+    fn create_prepare_validator(self: Arc<Self>) -> Arc<dyn PrepareValidator + Send + Sync>;
+
+    /// Creates a new CommitValidator instance.
+    fn create_commit_validator(self: Arc<Self>) -> Arc<dyn CommitValidator + Send + Sync>;
 }
 
 /// Concrete Implementation of MessageValidatorFactory
@@ -29,15 +35,15 @@ impl MessageValidatorFactoryImpl {
 }
 
 impl MessageValidatorFactory for MessageValidatorFactoryImpl {
-    fn create_proposal_validator(&self) -> Arc<dyn ProposalValidator + Send + Sync> {
-        Arc::new(ProposalValidatorImpl::new()) 
+    fn create_proposal_validator(self: Arc<Self>) -> Arc<dyn ProposalValidator + Send + Sync> {
+        Arc::new(ProposalValidatorImpl::new(self.clone() as Arc<dyn MessageValidatorFactory>, self.config.clone()))
     }
 
-    fn create_prepare_validator(&self) -> Arc<dyn PrepareValidator + Send + Sync> {
-        Arc::new(PrepareValidatorImpl::new()) 
+    fn create_prepare_validator(self: Arc<Self>) -> Arc<dyn PrepareValidator + Send + Sync> {
+        Arc::new(PrepareValidatorImpl::new())
     }
 
-    fn create_commit_validator(&self) -> Arc<dyn CommitValidator + Send + Sync> {
-        Arc::new(CommitValidatorImpl::new()) 
+    fn create_commit_validator(self: Arc<Self>) -> Arc<dyn CommitValidator + Send + Sync> {
+        Arc::new(CommitValidatorImpl::new())
     }
 } 

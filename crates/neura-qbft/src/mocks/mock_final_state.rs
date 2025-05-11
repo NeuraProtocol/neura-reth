@@ -2,9 +2,11 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use alloy_primitives::Address;
 use k256::ecdsa::SigningKey;
-use rand::rngs::OsRng;
+// use rand::rngs::OsRng; // Replaced with thread_rng for consistency
+use std::collections::HashMap; // Added for block_headers
 
-use crate::types::{QbftFinalState, NodeKey, ConsensusRoundIdentifier};
+use crate::types::{QbftFinalState, NodeKey, ConsensusRoundIdentifier, QbftBlock, QbftBlockHeader};
+use alloy_primitives::B256 as Hash;
 use crate::error::QbftError; // In case any method needs to return a Result compatible with other parts
 
 
@@ -14,6 +16,8 @@ pub struct MockQbftFinalState {
     validators: HashSet<Address>,
     // For simple round-robin proposer selection
     sorted_validators: Vec<Address>,
+    f_override: Option<usize>, // Added for explicit f control in tests
+    block_headers: HashMap<Hash, Arc<QbftBlockHeader>>, // Added field
 }
 
 impl MockQbftFinalState {
@@ -21,6 +25,7 @@ impl MockQbftFinalState {
         let local_address = Address::from_public_key(&local_node_key.verifying_key());
         let mut sorted_validators: Vec<Address> = validators.iter().cloned().collect();
         sorted_validators.sort(); // Ensure consistent order for round-robin
+        
         
         if !validators.contains(&local_address) {
             // This mock assumes the local node is always one of the validators for simplicity.
@@ -35,6 +40,32 @@ impl MockQbftFinalState {
             local_address,
             validators,
             sorted_validators,
+            f_override: None, // Default to None
+            block_headers: HashMap::new(), // Initialize field
+        }
+    }
+
+    // New constructor to allow overriding 'f'
+    pub fn new_with_f_override(
+        local_node_key: Arc<NodeKey>, 
+        validators: HashSet<Address>, 
+        f_override: usize
+    ) -> Self {
+        let local_address = Address::from_public_key(&local_node_key.verifying_key());
+        let mut sorted_validators: Vec<Address> = validators.iter().cloned().collect();
+        sorted_validators.sort(); // Ensure consistent order for round-robin
+        
+        if !validators.contains(&local_address) {
+            panic!("MockQbftFinalState: Local node address {:?} must be in the validator set.", local_address);
+        }
+
+        Self {
+            local_node_key,
+            local_address,
+            validators,
+            sorted_validators,
+            f_override: Some(f_override),
+            block_headers: HashMap::new(), // Initialize field
         }
     }
 
@@ -48,8 +79,9 @@ impl MockQbftFinalState {
         let mut validators_set = HashSet::new();
         let mut sorted_validators_vec = Vec::new();
 
-        for i in 0..num_validators {
-            let sk = SigningKey::random(&mut OsRng);
+        let mut rng = rand::thread_rng(); // Use thread_rng
+        for _i in 0..num_validators { // _i to silence unused warning
+            let sk = SigningKey::random(&mut rng); // Pass rng
             let addr = Address::from_public_key(&sk.verifying_key());
             keys.push(sk);
             validators_set.insert(addr);
@@ -68,6 +100,11 @@ impl MockQbftFinalState {
         // For now, new() derives sorted_validators from the passed HashSet, which is fine.
         mock_state
     }
+
+    // Method to add known headers for testing lookups
+    pub fn add_known_header(&mut self, header: Arc<QbftBlockHeader>) {
+        self.block_headers.insert(header.hash(), header);
+    }
 }
 
 impl QbftFinalState for MockQbftFinalState {
@@ -83,14 +120,41 @@ impl QbftFinalState for MockQbftFinalState {
         self.validators.clone()
     }
 
+    fn current_validators(&self) -> Vec<Address> {
+        self.sorted_validators.clone()
+    }
+
+    fn get_validator_node_key(&self, address: &Address) -> Option<Arc<NodeKey>> {
+        if *address == self.local_address {
+            Some(self.local_node_key.clone())
+        } else {
+            // This mock only knows about the local node key.
+            // For a more complete mock, you might store all validator keys.
+            None
+        }
+    }
+
+    fn get_validators_for_block(&self, _block_number: u64) -> Result<Vec<Address>, QbftError> {
+        // For simplicity, this mock returns the current set of validators for any block number.
+        // A real implementation would fetch historical validator sets.
+        Ok(self.sorted_validators.clone())
+    }
+
+    fn get_block_by_hash(&self, _hash: &Hash) -> Option<QbftBlock> {
+        // This mock does not store blocks.
+        None
+    }
+
+    fn get_block_header(&self, hash: &Hash) -> Option<QbftBlockHeader> {
+        // This mock retrieves block headers stored as Arc<QbftBlockHeader>.
+        // We need to clone the QbftBlockHeader from the Arc to match the trait signature.
+        self.block_headers.get(hash).map(|arc_header| (**arc_header).clone())
+    }
+
     fn is_validator(&self, address: Address) -> bool {
         self.validators.contains(&address)
     }
 
-    // N = number of validators
-    // Quorum size (Q) = 2F + 1
-    // Byzantine Fault Tolerance (F) = floor((N - 1) / 3)
-    // So, Q = 2 * floor((N - 1) / 3) + 1
     fn quorum_size(&self) -> usize {
         let n = self.validators.len();
         if n == 0 { return 0; }
@@ -98,7 +162,10 @@ impl QbftFinalState for MockQbftFinalState {
         2 * f + 1
     }
 
-    fn Byzantine_fault_tolerance_f(&self) -> usize {
+    fn byzantine_fault_tolerance_f(&self) -> usize {
+        if let Some(f_val) = self.f_override {
+            return f_val;
+        }
         let n = self.validators.len();
         if n == 0 { return 0; }
         (n - 1) / 3
@@ -106,25 +173,20 @@ impl QbftFinalState for MockQbftFinalState {
 
     fn is_proposer_for_round(&self, proposer: Address, round: &ConsensusRoundIdentifier) -> bool {
         if self.sorted_validators.is_empty() {
-            return false; // No validators, no proposer
+            return false; 
         }
-        // Simple round-robin: Proposer_for_round_R = Validators[R % N]
-        // Where N is the number of validators.
-        // Besu IBFT 1.0 used: Proposer_for_round_R = Validators[(Height + R) % N]
-        // Let's use (Height + R) % N for more deterministic behavior across heights.
         let n = self.sorted_validators.len();
         let proposer_index = (round.sequence_number as usize + round.round_number as usize) % n;
         self.sorted_validators[proposer_index] == proposer
     }
 
-    fn get_proposer_for_round(&self, round: &ConsensusRoundIdentifier) -> Address {
+    fn get_proposer_for_round(&self, round: &ConsensusRoundIdentifier) -> Result<Address, QbftError> {
         if self.sorted_validators.is_empty() {
-            // This case should ideally not happen in a running system.
-            // Return a zero address or panic. For tests, panic might be better.
-            panic!("No validators available to select a proposer.");
+            log::error!("No validators available to select a proposer for round {:?}.", round);
+            return Err(QbftError::NoValidators);
         }
         let n = self.sorted_validators.len();
         let proposer_index = (round.sequence_number as usize + round.round_number as usize) % n;
-        self.sorted_validators[proposer_index]
+        Ok(self.sorted_validators[proposer_index])
     }
 } 

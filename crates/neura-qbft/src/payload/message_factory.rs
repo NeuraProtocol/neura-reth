@@ -216,6 +216,11 @@ mod tests {
         assert_eq!(proposal_msg.author().unwrap(), factory.local_address(), "Proposal author mismatch");
         assert_eq!(proposal_msg.payload().round_identifier, round_id);
         assert_eq!(proposal_msg.payload().proposed_block.hash(), block.hash());
+        
+        // Ensure both headers have their hash OnceLock populated before comparison
+        let _ = proposal_msg.proposed_block_header().hash();
+        let _ = block.header.hash(); 
+
         assert_eq!(proposal_msg.proposed_block_header(), &block.header);
     }
 

@@ -73,7 +73,6 @@ pub trait QbftFinalState: Send + Sync {
     fn is_local_node_proposer_for_round(&self, round: &ConsensusRoundIdentifier) -> bool {
         self.is_proposer_for_round(self.local_address(), round)
     }
-    fn get_proposer_for_round(&self, round: &ConsensusRoundIdentifier) -> Address;
 
     // Timers - these would return references to timer objects
     // fn round_timer(&self) -> Arc<dyn RoundTimer>;
@@ -92,4 +91,8 @@ pub trait QbftFinalState: Send + Sync {
     fn get_validator_node_key(&self, address: &Address) -> Option<Arc<NodeKey>>;
     fn get_block_by_hash(&self, hash: &Hash) -> Option<QbftBlock>;
     fn get_block_header(&self, hash: &Hash) -> Option<QbftBlockHeader>;
+
+    /// Returns the proposer for a given consensus round.
+    /// This is typically determined by a round-robin selection from the validator set for that height.
+    fn get_proposer_for_round(&self, round_identifier: &ConsensusRoundIdentifier) -> Result<Address, QbftError>;
 } 
