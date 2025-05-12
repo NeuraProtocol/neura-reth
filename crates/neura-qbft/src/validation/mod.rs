@@ -27,6 +27,7 @@ pub use prepare_validator::{PrepareValidator, PrepareValidatorImpl};
 pub use commit_validator::{CommitValidator, CommitValidatorImpl};
 
 // From round_change_message_validator.rs
+// Ensure RoundChangeMessageValidator trait is re-exported
 pub use round_change_message_validator::{RoundChangeMessageValidator, RoundChangeMessageValidatorImpl};
 
 // From factory modules.

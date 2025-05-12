@@ -8,6 +8,7 @@ use crate::types::QbftConfig;
 use crate::validation::{ProposalValidator, ProposalValidatorImpl};
 use crate::validation::{PrepareValidator, PrepareValidatorImpl}; 
 use crate::validation::{CommitValidator, CommitValidatorImpl};     
+use crate::validation::round_change_message_validator_factory::RoundChangeMessageValidatorFactory;
 
 /// A factory for creating validator instances for different message types.
 pub trait MessageValidatorFactory: Send + Sync {
@@ -26,17 +27,25 @@ pub trait MessageValidatorFactory: Send + Sync {
 pub struct MessageValidatorFactoryImpl {
     #[allow(dead_code)] 
     config: Arc<QbftConfig>,
+    round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
 }
 
 impl MessageValidatorFactoryImpl {
-    pub fn new(config: Arc<QbftConfig>) -> Self {
-        Self { config }
+    pub fn new(
+        config: Arc<QbftConfig>,
+        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
+    ) -> Self {
+        Self { config, round_change_message_validator_factory }
     }
 }
 
 impl MessageValidatorFactory for MessageValidatorFactoryImpl {
     fn create_proposal_validator(self: Arc<Self>) -> Arc<dyn ProposalValidator + Send + Sync> {
-        Arc::new(ProposalValidatorImpl::new(self.clone() as Arc<dyn MessageValidatorFactory>, self.config.clone()))
+        Arc::new(ProposalValidatorImpl::new(
+            self.clone() as Arc<dyn MessageValidatorFactory>,
+            self.round_change_message_validator_factory.clone(),
+            self.config.clone()
+        ))
     }
 
     fn create_prepare_validator(self: Arc<Self>) -> Arc<dyn PrepareValidator + Send + Sync> {

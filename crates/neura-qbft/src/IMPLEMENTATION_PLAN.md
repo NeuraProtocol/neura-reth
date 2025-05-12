@@ -104,8 +104,9 @@ The below sections of this implementation plan which consists of completed work 
 2.  **Refine Validator Logic (Message Validation Logic):**
     *   The structural refactoring of the validation module (individual validators, factories, `ValidationContext`) is complete.
     *   `ProposalValidatorImpl` is now largely implemented with extensive tests.
-    *   The core validation logic for `PrepareValidatorImpl` is implemented.
-    *   Ensure `PrepareValidatorImpl`, `CommitValidatorImpl`, `RoundChangeMessageValidatorImpl` have complete validation rules as per the QBFT specification and Besu's implementation. **The immediate next step is implementing unit tests for `PrepareValidatorImpl`, followed by implementing `CommitValidatorImpl` and its tests.**
+    *   The core validation logic for `PrepareValidatorImpl` is implemented, and its unit tests are passing.
+    *   `CommitValidatorImpl` is implemented, and its unit tests are passing.
+    *   Ensure `RoundChangeMessageValidatorImpl` has complete validation rules as per the QBFT specification and Besu's implementation. **The immediate next step is implementing `RoundChangeMessageValidatorImpl` and its tests.**
     *   Complete the implementation of `MessageValidatorFactoryImpl` and `RoundChangeMessageValidatorFactoryImpl` to correctly instantiate the validator implementations. (This is largely done, but may need minor tweaks as validator `new` methods evolve).
 
 3.  **Implement QBFT State Machine Logic (Continued):**
@@ -125,7 +126,7 @@ The below sections of this implementation plan which consists of completed work 
         *   RLP serialization/deserialization of all message types and payloads. - **COMPLETED**
         *   `MessageFactory` operations. - **COMPLETED (Initial Tests)**
         *   Signature creation and verification in `SignedData`. - **COMPLETED**
-        *   Individual validator logic. - **NEXT (ProposalValidator tests passing, `PrepareValidator` logic done, tests next)**
+        *   Individual validator logic. - **IN PROGRESS (ProposalValidator, PrepareValidator, CommitValidator tests passing, `RoundChangeMessageValidatorImpl` next)**
         *   `RoundState` transitions.
         *   `QbftRound` message handling and state changes.
         *   `RoundChangeManager` logic.
@@ -186,4 +187,4 @@ The below sections of this implementation plan which consists of completed work 
 
 ## Summary
 
-The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles without warnings. RLP encoding/decoding for all message types has been implemented and unit tested. The validation module has been refactored with individual validator components and factories. `ProposalValidatorImpl` has seen significant implementation and testing, and the core logic for `PrepareValidatorImpl` is now in place. The next major effort involves writing unit tests for `PrepareValidatorImpl`, then implementing and testing `CommitValidatorImpl` and `RoundChangeMessageValidatorImpl`, and finally the detailed state machine behaviors. Subsequent phases will focus on creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.
+The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles without warnings. RLP encoding/decoding for all message types has been implemented and unit tested. The validation module has been refactored with individual validator components and factories. `ProposalValidatorImpl` has seen significant implementation and testing. The core logic and unit tests for `PrepareValidatorImpl` and `CommitValidatorImpl` are also now complete. The next major effort involves implementing and testing `RoundChangeMessageValidatorImpl`, and finally the detailed state machine behaviors. Subsequent phases will focus on creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.

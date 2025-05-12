@@ -5759,6 +5759,7 @@ dependencies = [
 name = "neura_qbft_core"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-rlp",
  "bytes",

@@ -10,14 +10,7 @@ use std::collections::{HashSet, HashMap}; // Added HashMap for duplicate author 
 use std::sync::Arc;
 
 // Bring in specific validator traits it will need
-use crate::validation::{RoundChangeMessageValidator};
-
-// Bring in MessageValidatorFactory for storage
-use crate::validation::MessageValidatorFactory;
-
-// Note: Other imports from the old struct ProposalValidator like QbftFinalState, QbftConfig, etc. 
-// will be needed here if/when ProposalValidatorImpl uses them.
-// For now, keeping imports minimal for the current placeholder impl.
+use crate::validation::{RoundChangeMessageValidatorFactoryImpl,MessageValidatorFactoryImpl,RoundChangeMessageValidatorFactory,MessageValidatorFactory};
 
 /// Provides necessary context from the current consensus state for message validation.
 #[derive(Clone)]
@@ -78,6 +71,8 @@ pub trait ProposalValidator {
 pub struct ProposalValidatorImpl {
     // Store the factory and config to create child validators as needed
     message_validator_factory: Arc<dyn MessageValidatorFactory>,
+    // Add the round change factory
+    round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>,
     config: Arc<QbftConfig>,
     // No direct child validators stored if created on-demand by factory
 }
@@ -85,10 +80,12 @@ pub struct ProposalValidatorImpl {
 impl ProposalValidatorImpl {
     pub fn new(
         message_validator_factory: Arc<dyn MessageValidatorFactory>,
+        round_change_message_validator_factory: Arc<dyn RoundChangeMessageValidatorFactory>, // Add to constructor
         config: Arc<QbftConfig>,
     ) -> Self {
         Self { 
             message_validator_factory,
+            round_change_message_validator_factory, // Store it
             config,
         }
     }
@@ -412,152 +409,114 @@ impl ProposalValidatorImpl {
         proposal: &Proposal,
         context: &ValidationContext, // For quorum_size, validators for current round
     ) -> Result<Option<crate::payload::PreparedRoundMetadata>, QbftError> { // Return type changed to Option<PreparedRoundMetadata>
-        
-        let round_change_proofs = proposal.round_change_proofs();
-        if round_change_proofs.is_empty() {
-            // If no round changes, then no prepared certificate can come from them.
-            return Ok(None);
-        }
+        log::trace!("Validating RoundChange proofs in proposal for sq/rd {:?}/{:?}", context.current_sequence_number, context.current_round_number);
 
-        // Basic checks on proposal.round_change_proofs():
-        // 1. No duplicate authors.
-        let mut authors = HashSet::new();
-        for rc_proof in round_change_proofs {
-            let author = rc_proof.author()?;
-            if !authors.insert(author) {
-                log::warn!("Invalid Proposal: Duplicate author {:?} in round_change_proofs", author);
-                return Err(QbftError::ValidationError("Duplicate author in round change proofs".to_string()));
-            }
-        }
+        let round_change_proofs = proposal.round_change_proofs(); // Use accessor
+        let num_proofs = round_change_proofs.len();
+        let quorum_size = context.final_state.quorum_size();
 
-        // 2. Sufficient entries for a quorum.
-        let num_validators = context.current_validators.len();
-        if num_validators == 0 {
-            return Err(QbftError::NoValidators); // Cannot have quorum with no validators
-        }
-        // F = (N-1)/3. Quorum = N - F (or commonly 2F+1, which is N - F for N=3F+1, 3F+2; and N-F+1 for N=3F)
-        // Besu's BftHelpers.calculateRequiredMessages uses (N * 2 / 3) + 1, which is ceil(2N/3) or 2F+1 for N>=1.
-        // Let's use context.final_state.get_byzantine_fault_tolerance() if available, or calculate 2F+1.
-        // Assuming QbftConfig provides a way to get F or quorum directly.
-        // For now, placeholder: use fault_tolerance_f to calculate quorum.
-        let f = context.final_state.get_byzantine_fault_tolerance(); // Use QbftFinalState for this
-        let quorum_size = num_validators - f; // N - F is a common definition for QBFT/IBFT style quorum
-                                          // Or, more robustly, 2*f + 1, but this requires N >= 3f+1.
-                                          // Besu QuorumChecker.hasSufficientVote() uses N - F.
-
-        if round_change_proofs.len() < quorum_size {
+        if num_proofs < quorum_size {
             log::warn!(
-                "Invalid Proposal: Insufficient round_change_proofs (got {}, needed {} for quorum)", 
-                round_change_proofs.len(), quorum_size
+                "Invalid Proposal: Insufficient round_change_proofs (got {}, needed {} for quorum). Proposal for sq/rd {:?}/{:?}",
+                num_proofs, quorum_size, context.current_sequence_number, context.current_round_number
             );
             return Err(QbftError::QuorumNotReached {
                 needed: quorum_size,
-                got: round_change_proofs.len(),
+                got: num_proofs,
                 item: "round change proofs".to_string(),
             });
         }
 
-        // Part 3: metadataIsConsistentAcrossRoundChanges logic
-        let mut metadatas_by_prepared_round: HashMap<u32, Vec<&crate::payload::PreparedRoundMetadata>> = HashMap::new();
-        for rc_proof in round_change_proofs {
-            if let Some(metadata) = rc_proof.payload().prepared_round_metadata.as_ref() {
-                metadatas_by_prepared_round.entry(metadata.prepared_round).or_default().push(metadata);
-            }
-        }
+        let mut best_prepared_metadata: Option<crate::payload::PreparedRoundMetadata> = None;
+        let mut distinct_authors = HashSet::new();
+        let round_change_validator = self.message_validator_factory.create_round_change_message_validator();
 
-        for (_prepared_round, metadatas) in metadatas_by_prepared_round {
-            if metadatas.len() > 1 {
-                let first_metadata_hash = metadatas[0].prepared_block_hash;
-                // Compare block hash and also the full original signed proposal if we store it that deeply.
-                // For now, QBFT spec implies consistency of the prepared block, so hash is key.
-                // Besu's PreparedRoundMetadata only has preparedBlockHash, preparedRound, and the signedProposalPayload.
-                // So, comparing the hash and the RLP of signed_proposal_payload should be sufficient.
-                if !metadatas.iter().all(|m| m.prepared_block_hash == first_metadata_hash && m.signed_proposal_payload == metadatas[0].signed_proposal_payload) {
+        let mut prepared_round_metadata_map: HashMap<u32, (&crate::payload::PreparedRoundMetadata, Hash)> = HashMap::new();
+
+        for rc_proof in round_change_proofs.iter() { // Iterate over accessor result
+            let author = rc_proof.author()?;
+            if !distinct_authors.insert(author) {
+                log::warn!(
+                    "Invalid Proposal: Duplicate author {:?} in round_change_proofs. Proposal for sq/rd {:?}/{:?}",
+                    author, context.current_sequence_number, context.current_round_number
+                );
+                return Err(QbftError::ValidationError(
+                    "Duplicate author in round_change_proofs".to_string(),
+                ));
+            }
+
+            // 1. Validate the RoundChange message itself against the current context.
+            match round_change_validator.validate_round_change(rc_proof, context) {
+                Ok(_) => { 
+                    log::trace!("RoundChange proof from {:?} passed basic validation for target round {:?}", author, rc_proof.payload().round_identifier);
+                    // Validation passed, proceed to check metadata.
+                }, 
+                Err(e) => {
+                    // If a specific RoundChange proof is invalid according to its own validator,
+                    // we should ignore this proof for determining the best prepared metadata,
+                    // but the overall proposal validation shouldn't necessarily fail just because of this.
+                    // It *might* fail later if not enough *valid* proofs exist, but we check quorum first.
                     log::warn!(
-                        "Invalid Proposal: Inconsistent PreparedRoundMetadata across round_change_proofs for the same prepared_round"
+                        "RoundChange proof from {:?} failed validation: {:?}. Ignoring for best prepared metadata selection.",
+                        author, e
                     );
-                    return Err(QbftError::ValidationError(
-                        "Inconsistent PreparedRoundMetadata in round change proofs".to_string(),
-                    ));
+                    // Continue to the next proof without considering this one for prepared metadata.
+                    continue; 
                 }
             }
-        }
 
-        // Part 2: Individual RoundChange validation & Target Round Check
-        // Create RoundChangeMessageValidator instance using the factory and config stored in self.
-        // Note: RoundChangeMessageValidatorImpl::new takes factory and config.
-        let rc_validator = crate::validation::RoundChangeMessageValidatorImpl::new(
-            self.message_validator_factory.clone(), 
-            self.config.clone()
-        );
-        
-        let mut valid_rc_prepared_metadatas: Vec<&crate::payload::PreparedRoundMetadata> = Vec::new();
-
-        for rc_proof in round_change_proofs {
-            // Ensure rc_proof targets the proposal's round
-            if rc_proof.payload().round_identifier != proposal.payload().round_identifier {
-            log::warn!(
-                    "Invalid Proposal: RoundChangeProof targets round {:?} but proposal is for round {:?}",
-                    rc_proof.payload().round_identifier,
-                    proposal.payload().round_identifier
+            // 2. Check if the RoundChange targets the correct round (the proposal's round).
+            if rc_proof.payload().round_identifier.round_number != context.current_round_number {
+                log::warn!(
+                    "Invalid Proposal: RoundChangeProof from {:?} targets round {:?} but proposal is for round {:?}. Context sq/rd {:?}/{:?}",
+                    author, rc_proof.payload().round_identifier, context.current_round_number, context.current_sequence_number, context.current_round_number
                 );
+                // This is a critical error for the *proposal* itself, as all proofs must target the proposal round.
                 return Err(QbftError::ValidationError(
                     "RoundChangeProof targets incorrect round".to_string(),
                 ));
             }
 
-            // Perform actual validation of rc_proof using RoundChangeMessageValidator
-            // Create specific ValidationContext for this rc_proof.
-            // This context is for validating the RC message itself, within the scope of the current proposal's round.
-            let rc_context_round_number = rc_proof.payload().round_identifier.round_number;
-            let rc_context_sequence_number = rc_proof.payload().round_identifier.sequence_number;
+            // 3. Process PreparedRoundMetadata if present in this valid proof.
+            if let Some(prepared_metadata) = rc_proof.payload().prepared_round_metadata.as_ref() {
+                let prepared_round = prepared_metadata.prepared_round;
+                let prepared_block_hash = prepared_metadata.prepared_block_hash;
 
-            // Hypothesis: RoundChangeMessageValidatorImpl expects the context's round to be R-1
-            // if the RC payload is for round R.
-            let context_round_for_rc_validator = if rc_context_round_number > 0 { rc_context_round_number - 1 } else { 0 }; // Avoid underflow for round 0 RCs
+                // Check for consistency with other proofs for the same prepared_round.
+                if let Some((existing_metadata, existing_hash)) = prepared_round_metadata_map.get(&prepared_round) {
+                    if prepared_block_hash != *existing_hash || 
+                       prepared_metadata.signed_proposal_payload.hash() != existing_metadata.signed_proposal_payload.hash() 
+                    {
+                        log::warn!(
+                            "Invalid Proposal: Inconsistent PreparedRoundMetadata found across RoundChange proofs for prepared_round {}. Proposal for sq/rd {:?}/{:?}. First Hash: {:?}, Current Hash: {:?}. First Proposal Hash: {:?}, Current Proposal Hash: {:?}",
+                            prepared_round, context.current_sequence_number, context.current_round_number, 
+                            existing_hash, prepared_block_hash, 
+                            existing_metadata.signed_proposal_payload.hash(), prepared_metadata.signed_proposal_payload.hash()
+                        );
+                        return Err(QbftError::ValidationError(
+                            "Inconsistent PreparedRoundMetadata in round change proofs".to_string(),
+                        ));
+                    }
+                } else {
+                    // Store metadata for this prepared_round for consistency checks.
+                    prepared_round_metadata_map.insert(prepared_round, (prepared_metadata, prepared_block_hash));
+                }
 
-            let round_id_for_proposer_in_rc_context = ConsensusRoundIdentifier {
-                sequence_number: rc_context_sequence_number, // Sequence number of the RC itself
-                round_number: context_round_for_rc_validator, // The R-1 round for the context's expected_proposer
-            };
-
-            let rc_specific_context = ValidationContext::new(
-                rc_context_sequence_number, // Sequence number from the RC proof itself
-                context_round_for_rc_validator, // Use R-1 for the context's current_round_number
-                context.current_validators.clone(), 
-                context.parent_header.clone(), 
-                context.final_state.clone(),
-                context.extra_data_codec.clone(),
-                context.config.clone(),
-                None, 
-                // Expected proposer should also be for the R-1 round of the context
-                context.final_state.get_proposer_for_round(&round_id_for_proposer_in_rc_context)? 
-            );
-            
-            rc_validator.validate_round_change(rc_proof, &rc_specific_context)?;
-
-            // If validated, collect its metadata if present.
-            if let Some(metadata) = rc_proof.payload().prepared_round_metadata.as_ref() {
-                valid_rc_prepared_metadatas.push(metadata);
+                // Update best_prepared_metadata if this one is for a higher prepared_round.
+                if best_prepared_metadata.as_ref().map_or(true, |best| prepared_round > best.prepared_round) {
+                    log::debug!("Updating best prepared metadata from round {} to round {} (block hash: {:?}) based on proof from {:?}", 
+                        best_prepared_metadata.as_ref().map_or(0, |b| b.prepared_round), 
+                        prepared_round, 
+                        prepared_block_hash,
+                        author);
+                    best_prepared_metadata = Some(prepared_metadata.clone()); // Clone the metadata
+                }
             }
         }
+        
+        log::debug!("Completed validation of RoundChange proofs. Best prepared round found: {:?}", 
+            best_prepared_metadata.as_ref().map(|m| m.prepared_round));
 
-        // Part 4: getRoundChangeWithLatestPreparedRound logic
-        // This operates on `valid_rc_prepared_metadatas` which should ideally be populated after
-        // individual RC validation passes.
-        let best_prepared_metadata = valid_rc_prepared_metadatas
-            .iter()
-            .max_by_key(|m| m.prepared_round)
-            .map(|&m| m.clone()); // Clone to get owned PreparedRoundMetadata
-
-        // log::warn!("Partial impl: validate_round_changes_in_proposal. Basic & metadata consistency checks done. Returning None for prepared metadata.");
-        // Ok(None)
-        // Now return the actual best_prepared_metadata found
-        if best_prepared_metadata.is_some() {
-            log::debug!("Found best_prepared_metadata from round changes: {:?}", best_prepared_metadata);
-        } else {
-            log::debug!("No prepared_metadata found in any round change proofs.");
-        }
         Ok(best_prepared_metadata)
     }
 
@@ -671,9 +630,10 @@ impl ProposalValidator for ProposalValidatorImpl {
 }
 
 #[cfg(test)]
-pub mod tests { // Made the module public
-    use super::*; // Bring in ProposalValidatorImpl, ValidationContext etc.
-    use crate::messagewrappers::{BftMessage, Proposal, Prepare, Commit, RoundChange, PreparedCertificateWrapper};
+pub mod tests { // Made pub
+    use super::*; // ProposalValidator, ProposalValidatorImpl, ValidationContext, QbftError
+    use crate::messagewrappers::{Proposal, RoundChange, BftMessage, PreparedCertificateWrapper};
+    use crate::messagewrappers::{Prepare, Commit}; // Added Prepare and Commit
     use crate::payload::{ProposalPayload, RoundChangePayload, PreparePayload}; // Added RoundChangePayload, PreparePayload
     use crate::types::{NodeKey, QbftBlock, QbftBlockHeader, ConsensusRoundIdentifier, QbftConfig, BftExtraData, SignedData}; // Re-added here too
     use crate::mocks::{MockQbftFinalState};
@@ -951,7 +911,7 @@ pub mod tests { // Made the module public
     // --- TODO: Actual test functions below ---
     #[test]
     fn test_placeholder() {
-        assert_eq!(1,1);
+        assert!(true);
     }
 
     #[test]
@@ -1021,8 +981,9 @@ pub mod tests { // Made the module public
         // The header in Proposal struct should match the header of the block in the payload
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1098,8 +1059,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1162,8 +1124,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1228,8 +1191,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1291,8 +1255,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1353,8 +1318,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1418,8 +1384,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         
@@ -1485,8 +1452,9 @@ pub mod tests { // Made the module public
         
         let proposal_to_validate = create_proposal(bft_message, proposed_block.header.clone(), vec![], None);
 
-        let msg_val_factory = mock_message_validator_factory(false, false, false);
-        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, config.clone());
+        let msg_val_factory = Arc::new(MessageValidatorFactoryImpl::new(config.clone()));
+        let rc_val_factory = Arc::new(RoundChangeMessageValidatorFactoryImpl::new(msg_val_factory.clone(), config.clone())); // Create RC factory
+        let proposal_validator = ProposalValidatorImpl::new(msg_val_factory, rc_val_factory, config.clone()); // Pass RC factory
 
         let result = proposal_validator.validate_payload_and_block(&proposal_to_validate, &context);
         

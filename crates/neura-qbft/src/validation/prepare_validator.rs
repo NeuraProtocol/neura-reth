@@ -83,7 +83,7 @@ pub mod tests {
     use rand; // Added for random B256 generation
 
     // --- Test Helper: Create Prepare Message ---
-    fn create_prepare_message(
+    pub fn create_prepare_message(
         round_id: ConsensusRoundIdentifier,
         digest: B256,
         signer_key: &NodeKey,

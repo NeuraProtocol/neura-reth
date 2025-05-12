@@ -156,9 +156,8 @@ impl QbftFinalState for MockQbftFinalState {
     }
 
     fn quorum_size(&self) -> usize {
-        let n = self.validators.len();
-        if n == 0 { return 0; }
-        let f = (n - 1) / 3;
+        // Use the potentially overridden f value
+        let f = self.byzantine_fault_tolerance_f();
         2 * f + 1
     }
 

@@ -2,7 +2,7 @@ use crate::types::{ConsensusRoundIdentifier, SignedData, QbftBlock};
 use alloy_primitives::Address;
 use crate::messagewrappers::{RoundChange, BftMessage};
 use crate::payload::{RoundChangePayload, PreparePayload, ProposalPayload};
-use crate::validation::{RoundChangeMessageValidatorImpl, ValidationContext, RoundChangeMessageValidator};
+use crate::validation::{RoundChangeMessageValidatorImpl, ValidationContext};
 use crate::error::QbftError;
 use std::collections::HashMap;
 use std::cmp::Ordering;

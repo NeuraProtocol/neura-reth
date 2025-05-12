@@ -10,6 +10,7 @@ pub mod validation;
 pub mod mocks;
 pub mod state;
 pub mod consensus;
+pub mod testing_helpers;
 
 // Re-export key types for easier use, similar to how a prelude might work.
 // We will populate this as we define the types.

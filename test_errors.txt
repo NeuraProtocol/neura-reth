@@ -1,29 +1,102 @@
-    Blocking waiting for file lock on build directory
    Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
-error[E0432]: unresolved import `k256::ecdsa::recoverable`
-   --> crates/neura-qbft/src/validation/commit_validator.rs:108:22
-    |
-108 |     use k256::ecdsa::recoverable::Signature as RecoverableK256Signature; // Attempt this import path again
-    |                      ^^^^^^^^^^^ could not find `recoverable` in `ecdsa`
+error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
+ --> crates/neura-qbft/src/statemachine/round_change_manager.rs:5:77
+  |
+5 | use crate::validation::{RoundChangeMessageValidatorImpl, ValidationContext, RoundChangeMessageValidator};
+  |                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                                                                             |
+  |                                                                             no `RoundChangeMessageValidator` in `validation`
+  |                                                                             help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
 
-error[E0599]: no method named `try_sign_prehashed_recoverable` found for reference `&ecdsa::verifying::VerifyingKey<Secp256k1>` in the current scope
-   --> crates/neura-qbft/src/validation/commit_validator.rs:123:75
-    |
-123 | ... = seal_signer_key.as_ref().try_sign_prehashed_recoverable(digest.as_slice()).expect("Failed to sign digest recoverably");
-    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&VerifyingKey<Secp256k1>`
+error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
+ --> crates/neura-qbft/src/validation/round_change_message_validator_factory.rs:4:25
+  |
+4 | use crate::validation::{RoundChangeMessageValidator, RoundChangeMessageValidatorImpl};
+  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                         |
+  |                         no `RoundChangeMessageValidator` in `validation`
+  |                         help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
 
-error[E0599]: no method named `try_sign_prehashed_recoverable` found for reference `&ecdsa::signing::SigningKey<Secp256k1>` in the current scope
-   --> crates/neura-qbft/src/validation/commit_validator.rs:434:92
-    |
-434 | ...   let k256_sig_over_different_digest: RecoverableK256Signature = author_key.as_ref().try_sign_prehashed_recoverable(different_digest_...
-    |                                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |
-help: there is a method `sign_prehash_recoverable` with a similar name
-    |
-434 -         let k256_sig_over_different_digest: RecoverableK256Signature = author_key.as_ref().try_sign_prehashed_recoverable(different_digest_for_seal.as_slice()).expect("Failed to sign different digest recoverably"); 
-434 +         let k256_sig_over_different_digest: RecoverableK256Signature = author_key.as_ref().sign_prehash_recoverable(different_digest_for_seal.as_slice()).expect("Failed to sign different digest recoverably"); 
-    |
+error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
+ --> crates/neura-qbft/src/validation/round_change_message_validator.rs:5:79
+  |
+5 | ...osalValidator, RoundChangeMessageValidator, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl,MessageValidato...
+  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                   |
+  |                   no `RoundChangeMessageValidator` in `validation`
+  |                   help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
 
-Some errors have detailed explanations: E0432, E0599.
-For more information about an error, try `rustc --explain E0432`.
-error: could not compile `neura_qbft_core` (lib test) due to 3 previous errors
+error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
+ --> crates/neura-qbft/src/mocks/mock_validator_factory.rs:5:5
+  |
+5 |     RoundChangeMessageValidator, RoundChangeMessageValidatorFactory
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |     |
+  |     no `RoundChangeMessageValidator` in `validation`
+  |     help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
+
+warning: unused import: `ConsensusRoundIdentifier`
+ --> crates/neura-qbft/src/validation/proposal_validator.rs:5:84
+  |
+5 | use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig, ConsensusRoundIdentifier};
+  |                                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `CommitValidator`, `MessageValidatorFactoryImpl`, `RoundChangeMessageValidatorFactoryImpl`, and `RoundChangeMessageValidatorFactory`
+ --> crates/neura-qbft/src/validation/round_change_message_validator.rs:5:25
+  |
+5 | ...::{CommitValidator, PrepareValidator, ProposalValidator, RoundChangeMessageValidator, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl,MessageValidatorFactory, MessageValidatorFactoryImpl,pr...
+  |       ^^^^^^^^^^^^^^^                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `BftMessage`, `Commit`, `Prepare`, `PreparedCertificateWrapper`, and `Proposal`
+ --> crates/neura-qbft/src/validation/round_change_message_validator.rs:6:30
+  |
+6 | use crate::messagewrappers::{Proposal, Prepare, Commit, PreparedCertificateWrapper, BftMessage, RoundChange};
+  |                              ^^^^^^^^  ^^^^^^^  ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused imports: `CommitPayload`, `PreparePayload`, `PreparedRoundMetadata`, `ProposalPayload`, and `RoundChangePayload`
+ --> crates/neura-qbft/src/validation/round_change_message_validator.rs:7:22
+  |
+7 | use crate::payload::{ProposalPayload, PreparePayload, CommitPayload, RoundChangePayload, PreparedRoundMetadata};
+  |                      ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `BftExtraDataCodec`, `BftExtraData`, `ConsensusRoundIdentifier`, `QbftBlockHeader`, and `SignedData`
+ --> crates/neura-qbft/src/validation/round_change_message_validator.rs:8:20
+  |
+8 | use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig, SignedData, ConsensusRoundIdentifier, BftExtraData};
+  |                    ^^^^^^^^^^^^^^^                  ^^^^^^^^^^^^^^^^^              ^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused imports: `Address` and `B256 as Hash`
+ --> crates/neura-qbft/src/validation/round_change_message_validator.rs:9:24
+  |
+9 | use alloy_primitives::{Address, B256 as Hash}; // Keep Hash
+  |                        ^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `MockMessageValidatorFactory`
+   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:266:44
+    |
+266 |     use crate::mocks::{MockQbftFinalState, MockMessageValidatorFactory};
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `AlloyBftExtraDataCodec`
+   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:272:9
+    |
+272 |         AlloyBftExtraDataCodec
+    |         ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::validation::proposal_validator::ProposalValidatorImpl`
+   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:277:9
+    |
+277 |     use crate::validation::proposal_validator::ProposalValidatorImpl;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PrepareValidatorImpl` and `PrepareValidator`
+   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:278:48
+    |
+278 |     use crate::validation::prepare_validator::{PrepareValidatorImpl, PrepareValidator}; // Added PrepareValidator trait
+    |                                                ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `neura_qbft_core` (lib test) generated 10 warnings
+error: could not compile `neura_qbft_core` (lib test) due to 4 previous errors; 10 warnings emitted

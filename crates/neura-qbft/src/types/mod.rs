@@ -69,4 +69,10 @@ impl Default for QbftConfig {
             min_gas_limit: 5000,
         }
     }
-} 
+}
+
+// Constants
+pub const EMPTY_NONCE: alloy_primitives::Bytes = alloy_primitives::Bytes::from_static(&[0u8; 8]);
+
+// #[cfg(any(test, feature = "test-utils"))]
+// ... existing code ... 
