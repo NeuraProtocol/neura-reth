@@ -1,102 +1,392 @@
-   Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
-error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
- --> crates/neura-qbft/src/statemachine/round_change_manager.rs:5:77
-  |
-5 | use crate::validation::{RoundChangeMessageValidatorImpl, ValidationContext, RoundChangeMessageValidator};
-  |                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |                                                                             |
-  |                                                                             no `RoundChangeMessageValidator` in `validation`
-  |                                                                             help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
+   Compiling proc-macro2 v1.0.95
+   Compiling unicode-ident v1.0.18
+   Compiling serde v1.0.219
+   Compiling cfg-if v1.0.0
+   Compiling typenum v1.18.0
+   Compiling version_check v0.9.5
+   Compiling const-oid v0.9.6
+   Compiling subtle v2.6.1
+   Compiling base16ct v0.2.0
+   Compiling cpufeatures v0.2.17
+   Compiling crunchy v0.2.2
+   Compiling unicode-segmentation v1.12.0
+   Compiling paste v1.0.15
+   Compiling unicode-xid v0.2.6
+   Compiling tiny-keccak v2.0.2
+   Compiling ruint-macro v1.2.1
+   Compiling getrandom v0.2.16
+   Compiling itoa v1.0.15
+   Compiling foldhash v0.1.5
+   Compiling rand_core v0.6.4
+   Compiling portable-atomic v1.11.0
+   Compiling shlex v1.3.0
+   Compiling windows_x86_64_msvc v0.52.6
+   Compiling critical-section v1.2.0
+   Compiling autocfg v1.4.0
+   Compiling fnv v1.0.7
+   Compiling generic-array v0.14.7
+   Compiling ff v0.13.1
+   Compiling convert_case v0.7.1
+   Compiling cc v1.2.15
+   Compiling ident_case v1.0.1
+   Compiling strsim v0.11.1
+   Compiling group v0.13.0
+   Compiling thiserror v2.0.12
+   Compiling glob v0.3.2
+   Compiling pin-project-lite v0.2.16
+   Compiling crc-catalog v2.4.0
+   Compiling libc v0.2.172
+   Compiling rustversion v1.0.20
+   Compiling serde_json v1.0.140
+   Compiling num_cpus v1.16.0
+   Compiling memchr v2.7.4
+   Compiling blst v0.3.14
+   Compiling c-kzg v2.1.1
+   Compiling crc v3.3.0
+   Compiling radium v0.7.0
+   Compiling windows-targets v0.52.6
+   Compiling threadpool v1.8.1
+   Compiling ryu v1.0.20
+   Compiling tap v1.0.1
+   Compiling quote v1.0.40
+   Compiling once_cell v1.21.3
+   Compiling heck v0.5.0
+   Compiling hex v0.4.3
+   Compiling funty v2.0.0
+   Compiling zerocopy v0.8.25
+   Compiling windows-sys v0.59.0
+   Compiling lock_api v0.4.12
+   Compiling parking_lot_core v0.9.10
+   Compiling windows-sys v0.52.0
+   Compiling slab v0.4.9
+   Compiling wyz v0.5.1
+   Compiling syn v2.0.101
+   Compiling tracing-core v0.1.33
+   Compiling utf8parse v0.2.2
+   Compiling anstyle v1.0.10
+   Compiling scopeguard v1.2.0
+   Compiling anstyle-parse v0.2.6
+   Compiling secp256k1-sys v0.9.2
+   Compiling num-traits v0.2.19
+   Compiling log v0.4.27
+   Compiling dyn-clone v1.0.19
+   Compiling colorchoice v1.0.3
+   Compiling is_terminal_polyfill v1.70.1
+   Compiling env_filter v0.1.3
+   Compiling futures-task v0.3.31
+   Compiling anstyle-wincon v3.0.7
+   Compiling anstyle-query v1.1.2
+   Compiling pin-utils v0.1.0
+   Compiling thiserror v1.0.69
+   Compiling futures-core v0.3.31
+   Compiling mio v1.0.3
+   Compiling darling_core v0.20.11
+   Compiling socket2 v0.5.9
+   Compiling futures-io v0.3.31
+   Compiling serde_derive v1.0.219
+   Compiling zeroize_derive v1.4.2
+   Compiling alloy-rlp-derive v0.3.11
+   Compiling derive_more-impl v2.0.1
+   Compiling thiserror-impl v2.0.12
+   Compiling auto_impl v1.3.0
+   Compiling tracing-attributes v0.1.28
+   Compiling strum_macros v0.27.1
+   Compiling enumn v0.1.14
+   Compiling num_enum_derive v0.7.3
+   Compiling anstream v0.6.18
+   Compiling tokio-macros v2.5.0
+   Compiling zeroize v1.8.1
+   Compiling futures-macro v0.3.31
+   Compiling env_logger v0.11.8
+   Compiling der v0.7.10
+   Compiling ppv-lite86 v0.2.21
+   Compiling thiserror-impl v1.0.69
+   Compiling num_enum v0.7.3
+   Compiling tracing v0.1.41
+   Compiling futures-util v0.3.31
+   Compiling rand_chacha v0.3.1
+   Compiling test-log-macros v0.2.17
+   Compiling keccak v0.1.5
+   Compiling windows-link v0.1.1
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.6
+   Compiling crypto-bigint v0.5.5
+   Compiling futures-sink v0.3.31
+   Compiling digest v0.10.7
+   Compiling rand v0.8.5
+   Compiling chrono v0.4.41
+   Compiling spki v0.7.3
+   Compiling hmac v0.12.1
+   Compiling signature v2.2.0
+   Compiling sha2 v0.10.9
+   Compiling darling_macro v0.20.11
+   Compiling pkcs8 v0.10.2
+   Compiling rfc6979 v0.4.0
+   Compiling strum v0.27.1
+   Compiling test-log v0.2.17
+   Compiling sha3 v0.10.8
+   Compiling secp256k1 v0.28.2
+   Compiling darling v0.20.11
+   Compiling serde_with_macros v3.12.0
+   Compiling derive_more v2.0.1
+   Compiling serdect v0.2.0
+   Compiling bytes v1.10.1
+   Compiling arrayvec v0.7.6
+   Compiling const-hex v1.14.0
+   Compiling hashbrown v0.15.3
+   Compiling smallvec v1.15.0
+   Compiling serde_with v3.12.0
+   Compiling either v1.15.0
+   Compiling bitvec v1.0.1
+   Compiling bitflags v2.9.0
+   Compiling sec1 v0.7.3
+   Compiling nybbles v0.3.4
+   Compiling elliptic-curve v0.13.8
+   Compiling parking_lot v0.12.3
+   Compiling alloy-rlp v0.3.11
+   Compiling ecdsa v0.16.9
+   Compiling tokio v1.45.0
+   Compiling ruint v1.14.0
+   Compiling k256 v0.13.4
+   Compiling alloy-primitives v1.1.0
+   Compiling alloy-eip2124 v0.2.0
+   Compiling alloy-eip2930 v0.2.1
+   Compiling alloy-eip7702 v0.6.0
+   Compiling alloy-serde v0.15.10
+   Compiling alloy-trie v0.8.1
+   Compiling revm-primitives v18.0.0
+   Compiling alloy-chains v0.2.0
+   Compiling reth-static-file-types v1.3.12 (C:\Users\peter\source\repos\neura-reth\crates\static-file\types)
+   Compiling revm-bytecode v3.0.0
+   Compiling alloy-eips v0.15.10
+   Compiling alloy-hardforks v0.2.0
+   Compiling reth-ethereum-forks v1.3.12 (C:\Users\peter\source\repos\neura-reth\crates\ethereum\hardforks)
+   Compiling revm-state v3.0.0
+   Compiling alloy-consensus v0.15.10
+   Compiling alloy-genesis v0.15.10
+   Compiling tokio-util v0.7.15
+   Compiling reth-primitives-traits v1.3.12 (C:\Users\peter\source\repos\neura-reth\crates\primitives-traits)
+   Compiling reth-ethereum-primitives v1.3.12 (C:\Users\peter\source\repos\neura-reth\crates\ethereum\primitives)
+   Compiling reth-primitives v1.3.12 (C:\Users\peter\source\repos\neura-reth\crates\primitives)
+   Compiling neura_qbft_core v0.1.0 (C:\Users\peter\source\repos\neura-reth\crates\neura-qbft)
+error[E0433]: failed to resolve: could not find `recoverable` in `ecdsa`
+   --> crates\neura-qbft\src\validation\tests\common_helpers.rs:246:38
+    |
+246 |     let secp_signature: k256::ecdsa::recoverable::Signature = key.sign_prehash_recoverable(digest.as_slice())
+    |                                      ^^^^^^^^^^^ could not find `recoverable` in `ecdsa`
 
-error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
- --> crates/neura-qbft/src/validation/round_change_message_validator_factory.rs:4:25
+warning: unused import: `HashMap`
+ --> crates\neura-qbft\src\validation\proposal_validator.rs:9:33
   |
-4 | use crate::validation::{RoundChangeMessageValidator, RoundChangeMessageValidatorImpl};
-  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |                         |
-  |                         no `RoundChangeMessageValidator` in `validation`
-  |                         help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
-
-error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
- --> crates/neura-qbft/src/validation/round_change_message_validator.rs:5:79
-  |
-5 | ...osalValidator, RoundChangeMessageValidator, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl,MessageValidato...
-  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |                   |
-  |                   no `RoundChangeMessageValidator` in `validation`
-  |                   help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
-
-error[E0432]: unresolved import `crate::validation::RoundChangeMessageValidator`
- --> crates/neura-qbft/src/mocks/mock_validator_factory.rs:5:5
-  |
-5 |     RoundChangeMessageValidator, RoundChangeMessageValidatorFactory
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |     |
-  |     no `RoundChangeMessageValidator` in `validation`
-  |     help: a similar name exists in the module: `RoundChangeMessageValidatorImpl`
-
-warning: unused import: `ConsensusRoundIdentifier`
- --> crates/neura-qbft/src/validation/proposal_validator.rs:5:84
-  |
-5 | use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig, ConsensusRoundIdentifier};
-  |                                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+9 | use std::collections::{HashSet, HashMap}; // Added HashMap for duplicate author check
+  |                                 ^^^^^^^
   |
   = note: `#[warn(unused_imports)]` on by default
 
+warning: unused import: `crate::types::SignedData`
+  --> crates\neura-qbft\src\validation\proposal_validator.rs:11:5
+   |
+11 | use crate::types::SignedData; 
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::payload::ProposalPayload`
+  --> crates\neura-qbft\src\validation\proposal_validator.rs:12:5
+   |
+12 | use crate::payload::ProposalPayload; // Add SignedData to imports if not already present
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 warning: unused imports: `CommitValidator`, `MessageValidatorFactoryImpl`, `RoundChangeMessageValidatorFactoryImpl`, and `RoundChangeMessageValidatorFactory`
- --> crates/neura-qbft/src/validation/round_change_message_validator.rs:5:25
+ --> crates\neura-qbft\src\validation\round_change_message_validator.rs:5:25
   |
-5 | ...::{CommitValidator, PrepareValidator, ProposalValidator, RoundChangeMessageValidator, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl,MessageValidatorFactory, MessageValidatorFactoryImpl,pr...
-  |       ^^^^^^^^^^^^^^^                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 | ...::{CommitValidator, PrepareValidator, ProposalValidator, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl,MessageValidatorFactory, MessageValidatorFactoryImpl,pr...
+  |       ^^^^^^^^^^^^^^^                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: unused imports: `BftMessage`, `Commit`, `Prepare`, `PreparedCertificateWrapper`, and `Proposal`
- --> crates/neura-qbft/src/validation/round_change_message_validator.rs:6:30
+ --> crates\neura-qbft\src\validation\round_change_message_validator.rs:6:30
   |
 6 | use crate::messagewrappers::{Proposal, Prepare, Commit, PreparedCertificateWrapper, BftMessage, RoundChange};
   |                              ^^^^^^^^  ^^^^^^^  ^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^
 
 warning: unused imports: `CommitPayload`, `PreparePayload`, `PreparedRoundMetadata`, `ProposalPayload`, and `RoundChangePayload`
- --> crates/neura-qbft/src/validation/round_change_message_validator.rs:7:22
+ --> crates\neura-qbft\src\validation\round_change_message_validator.rs:7:22
   |
 7 | use crate::payload::{ProposalPayload, PreparePayload, CommitPayload, RoundChangePayload, PreparedRoundMetadata};
   |                      ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
 
 warning: unused imports: `BftExtraDataCodec`, `BftExtraData`, `ConsensusRoundIdentifier`, `QbftBlockHeader`, and `SignedData`
- --> crates/neura-qbft/src/validation/round_change_message_validator.rs:8:20
+ --> crates\neura-qbft\src\validation\round_change_message_validator.rs:8:20
   |
 8 | use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig, SignedData, ConsensusRoundIdentifier, BftExtraData};
   |                    ^^^^^^^^^^^^^^^                  ^^^^^^^^^^^^^^^^^              ^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^
 
 warning: unused imports: `Address` and `B256 as Hash`
- --> crates/neura-qbft/src/validation/round_change_message_validator.rs:9:24
+ --> crates\neura-qbft\src\validation\round_change_message_validator.rs:9:24
   |
 9 | use alloy_primitives::{Address, B256 as Hash}; // Keep Hash
   |                        ^^^^^^^  ^^^^^^^^^^^^
 
-warning: unused import: `MockMessageValidatorFactory`
-   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:266:44
-    |
-266 |     use crate::mocks::{MockQbftFinalState, MockMessageValidatorFactory};
-    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `ValidationContext`
+ --> crates\neura-qbft\src\validation\tests\proposal_validator_tests.rs:4:67
+  |
+4 | use crate::validation::{ProposalValidator, ProposalValidatorImpl, ValidationContext}; // Import items under test
+  |                                                                   ^^^^^^^^^^^^^^^^^
 
-warning: unused import: `AlloyBftExtraDataCodec`
-   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:272:9
-    |
-272 |         AlloyBftExtraDataCodec
-    |         ^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `QbftConfig`
+ --> crates\neura-qbft\src\validation\tests\prepare_validator_tests.rs:5:46
+  |
+5 | use crate::types::{ConsensusRoundIdentifier, QbftConfig, SignedData};
+  |                                              ^^^^^^^^^^
 
-warning: unused import: `crate::validation::proposal_validator::ProposalValidatorImpl`
-   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:277:9
-    |
-277 |     use crate::validation::proposal_validator::ProposalValidatorImpl;
-    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused imports: `BftExtraDataCodec` and `QbftConfig`
+ --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:5:46
+  |
+5 | use crate::types::{ConsensusRoundIdentifier, QbftConfig, NodeKey, RlpSignature, QbftFinalState, BftExtraDataCodec,SignedData}; // Added N...
+  |                                              ^^^^^^^^^^                                         ^^^^^^^^^^^^^^^^^
 
-warning: unused imports: `PrepareValidatorImpl` and `PrepareValidator`
-   --> crates/neura-qbft/src/validation/round_change_message_validator.rs:278:48
-    |
-278 |     use crate::validation::prepare_validator::{PrepareValidatorImpl, PrepareValidator}; // Added PrepareValidator trait
-    |                                                ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+warning: unused import: `BftMessage`
+ --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:6:38
+  |
+6 | use crate::messagewrappers::{Commit, BftMessage}; // Corrected: use messagewrappers, Added BftMessage
+  |                                      ^^^^^^^^^^
 
-For more information about this error, try `rustc --explain E0432`.
-warning: `neura_qbft_core` (lib test) generated 10 warnings
-error: could not compile `neura_qbft_core` (lib test) due to 4 previous errors; 10 warnings emitted
+warning: unused import: `QbftPayload`
+ --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:7:37
+  |
+7 | use crate::payload::{CommitPayload, QbftPayload}; // Removed QbftPayloadType
+  |                                     ^^^^^^^^^^^
+
+warning: unused import: `crate::mocks::MockQbftFinalState`
+ --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:9:5
+  |
+9 | use crate::mocks::MockQbftFinalState; // For default_final_state if used directly
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Prepare` and `Proposal`
+ --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:4:43
+  |
+4 | use crate::messagewrappers::{RoundChange, Prepare, Proposal,BftMessage};
+  |                                           ^^^^^^^  ^^^^^^^^
+
+warning: unused imports: `BftExtraData` and `RlpSignature`
+ --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:6:96
+  |
+6 | use crate::types::{ConsensusRoundIdentifier, SignedData, QbftConfig, QbftBlockHeader, NodeKey, BftExtraData, QbftBlock, RlpSignature, Bft...
+  |                                                                                                ^^^^^^^^^^^^             ^^^^^^^^^^^^
+
+warning: unused imports: `CommitValidatorImpl`, `PrepareValidatorImpl`, and `RoundChangeMessageValidatorImpl`
+ --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:7:54
+  |
+7 | ...r, RoundChangeMessageValidatorImpl, ValidationContext, MessageValidatorFactoryImpl, MessageValidatorFactory, ProposalValidatorImpl, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl, CommitValidatorImpl, PrepareValidatorImp...
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                                                                                                                                              ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Bytes` and `U256`
+  --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:10:39
+   |
+10 | use alloy_primitives::{Address, B256, Bytes, U256};
+   |                                       ^^^^^  ^^^^
+
+warning: unused import: `alloy_consensus::Sealable`
+  --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:11:5
+   |
+11 | use alloy_consensus::Sealable;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `MessageValidatorFactoryImpl` and `RoundChangeMessageValidatorFactoryImpl`
+ --> crates\neura-qbft\src\validation\tests\common_helpers.rs:7:123
+  |
+7 | ...epareValidator, CommitValidator, RoundChangeMessageValidatorFactoryImpl, MessageValidatorFactoryImpl, RoundChangeMessageValidator}; //...
+  |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Signature as K256Secp256k1Signature`
+  --> crates\neura-qbft\src\validation\tests\common_helpers.rs:13:38
+   |
+13 | use k256::ecdsa::{signature::Signer, Signature as K256Secp256k1Signature, VerifyingKey};
+   |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> crates\neura-qbft\src\validation\tests\common_helpers.rs:255:16
+    |
+255 |         if let Ok(rec_id) = k256::ecdsa::RecoveryId::from_byte(v_byte) {
+    |                ^^^^^^^^^^   ------------------------------------------ this expression has type `std::option::Option<RecoveryId>`
+    |                |
+    |                expected `Option<RecoveryId>`, found `Result<_, _>`
+    |
+    = note: expected enum `std::option::Option<RecoveryId>`
+               found enum `Result<_, _>`
+
+warning: unused import: `QbftFinalState`
+ --> crates\neura-qbft\src\validation\round_change_message_validator.rs:8:37
+  |
+8 | use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig, SignedData, ConsensusRoundIdentifier, BftExtraData};
+  |                                     ^^^^^^^^^^^^^^
+
+warning: unused import: `signature::Signer`
+  --> crates\neura-qbft\src\validation\tests\common_helpers.rs:13:19
+   |
+13 | use k256::ecdsa::{signature::Signer, Signature as K256Secp256k1Signature, VerifyingKey};
+   |                   ^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `expected`
+   --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:179:59
+    |
+179 |     if let Err(QbftError::PayloadSequenceNumberMismatch { expected, actual }) = result {
+    |                                                           ^^^^^^^^ help: try ignoring the field: `expected: _`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `actual`
+   --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:179:69
+    |
+179 |     if let Err(QbftError::PayloadSequenceNumberMismatch { expected, actual }) = result {
+    |                                                                     ^^^^^^ help: try ignoring the field: `actual: _`
+
+warning: variable does not need to be mutable
+   --> crates\neura-qbft\src\validation\tests\commit_validator_tests.rs:349:9
+    |
+349 |     let mut corrupted_sig = valid_seal_signature.into_inner(); // Get alloy_primitives::Signature
+    |         ----^^^^^^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: unused variable: `codec`
+  --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:21:9
+   |
+21 |     let codec = testing_extradata_codec();
+   |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_codec`
+
+warning: unused variable: `proposal_validator`
+  --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:31:9
+   |
+31 |     let proposal_validator = Arc::new(ProposalValidatorImpl::new(
+   |         ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_proposal_validator`
+
+warning: unused variable: `round_id`
+  --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:57:9
+   |
+57 |     let round_id = ConsensusRoundIdentifier { sequence_number: sequence, round_number: round };
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_round_id`
+
+warning: unused variable: `config`
+  --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:72:5
+   |
+72 |     config: &QbftConfig,
+   |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `round`
+   --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:115:5
+    |
+115 |     round: u64, // Use u64
+    |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_round`
+
+warning: unused variable: `expected_proposer_prepared`
+   --> crates\neura-qbft\src\validation\tests\round_change_message_validator_tests.rs:318:9
+    |
+318 |     let expected_proposer_prepared = addr_proposer; // Assume key_proposer proposed in round 0
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_expected_proposer_prepared`
+
+Some errors have detailed explanations: E0308, E0433.
+For more information about an error, try `rustc --explain E0308`.
+warning: `neura_qbft_core` (lib test) generated 32 warnings
+error: could not compile `neura_qbft_core` (lib test) due to 2 previous errors; 32 warnings emitted

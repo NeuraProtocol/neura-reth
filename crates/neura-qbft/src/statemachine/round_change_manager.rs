@@ -7,6 +7,7 @@ use crate::error::QbftError;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 use alloy_primitives::{B256 as Hash};
+use crate::validation::round_change_message_validator::RoundChangeMessageValidator;
 
 /// Information about a block that has a valid prepared certificate,
 /// gathered from RoundChange messages.

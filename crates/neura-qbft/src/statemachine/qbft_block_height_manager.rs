@@ -76,9 +76,12 @@ impl QbftBlockHeightManager {
         let height = parent_header.number + 1;
 
         let round_change_validator = RoundChangeMessageValidatorImpl::new(
-            actual_message_validator_factory.clone(), 
             config.clone(),
+            proposal_validator.clone(), 
+            prepare_validator.clone(),
+            actual_message_validator_factory.clone()
         );
+
         let round_change_manager = RoundChangeManager::new(
             final_state.get_byzantine_fault_tolerance() + 1, 
             round_change_validator

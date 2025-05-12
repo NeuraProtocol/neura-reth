@@ -39,4 +39,7 @@ pub use round_change_message_validator_factory::{RoundChangeMessageValidatorFact
 
 // All other definitions (structs, traits, impls, use statements for them) 
 // should be within their respective submodule files, not directly in this mod.rs.
+
+#[cfg(test)]
+mod tests;
  

@@ -30,7 +30,7 @@ impl<T: Encodable + Decodable + Clone + std::fmt::Debug + Send + Sync> SignedDat
         &self.signature
     }
 
-    fn calculate_payload_hash(payload: &T) -> Hash {
+    pub fn calculate_payload_hash(payload: &T) -> Hash {
         let mut payload_rlp = Vec::new();
         payload.encode(&mut payload_rlp);
         keccak256(&payload_rlp)
@@ -216,7 +216,7 @@ mod tests {
 
         let signed_data_by_key1 = SignedData::sign(payload.clone(), &node_key1).expect("Signing with key1 failed");
         
-        let recovered_author1 = signed_data_by_key1.recover_author().expect("Author recovery from key1 signature failed");
+        let recovered_author1 = signed_data_by_key1.recover_author().expect("Author recovery from key1's signature failed");
         assert_eq!(recovered_author1, author1, "Recovered author from key1's signature is incorrect");
         assert_ne!(recovered_author1, author2, "Recovered author from key1's signature should not be author2");
 

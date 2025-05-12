@@ -35,7 +35,10 @@ pub enum QbftError {
     #[error("Proposal not from expected proposer")]
     ProposalNotFromProposer,
     #[error("Proposal round identifier mismatch")]
-    ProposalRoundMismatch,
+    ProposalRoundMismatch {
+        expected: u64,
+        actual: u64,
+    },
     #[error("Proposal has invalid parent hash")]
     ProposalInvalidParentHash,
     #[error("Proposal has invalid block number")]
@@ -85,6 +88,12 @@ pub enum QbftError {
     NoValidators,
     #[error("Consensus invariant violation: {0}")]
     ConsensusInvariantViolation(String),
+    #[error("Validation: Payload sequence number ({actual}) does not match context sequence number ({expected})")]
+    PayloadSequenceNumberMismatch { expected: u64, actual: u64 },
+    #[error("Validation: Author {author:?} is not in the current validator set")]
+    ValidationAuthorNotValidator { author: alloy_primitives::Address },
+    #[error("RoundChange Target Round ({target}) must be strictly greater than current round ({current})")]
+    RoundChangeTargetRoundNotGreater { target: u64, current: u64 },
     #[error("Invalid state: {0}")]
     InvalidState(String),
     #[error("Block import failed: {0}")]
@@ -109,6 +118,29 @@ pub enum QbftError {
     MessageFromPastRound,
     #[error("Unknown error")]
     Unknown,
+
+    // Variants added for proposal validation tests
+    #[error("Round change validation failed within proposal: {0}")]
+    RoundChangeValidationError(String), // Assuming it wraps a reason
+    #[error("Proposal round must be exactly one greater than the highest round change message round")]
+    ProposalRoundNotFollowingRoundChanges,
+
+    // -- Specific Proposal Payload Validation Errors --
+    #[error("Proposal author is invalid: expected {expected:?}, got {actual:?}")]
+    ProposalInvalidAuthor {
+        expected: alloy_primitives::Address,
+        actual: alloy_primitives::Address,
+    },
+    #[error("Proposal block sequence number is invalid: expected {expected}, got {actual}")]
+    ProposalBlockSequenceInvalid {
+        expected: u64,
+        actual: u64,
+    },
+    #[error("Proposal block hash does not match metadata: metadata_hash {metadata_hash:?}, proposal_block_hash {proposal_block_hash:?}")]
+    ProposalBlockHashMismatch {
+        metadata_hash: alloy_primitives::B256,
+        proposal_block_hash: alloy_primitives::B256,
+    },
 }
 
 // Helper to convert k256::ecdsa::Error to QbftError
