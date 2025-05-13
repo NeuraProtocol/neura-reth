@@ -109,6 +109,31 @@ The below sections of this implementation plan which consists of completed work 
             *   Borrow checker errors related to test setup.
     ***Current Focus:** All `neura_qbft_core` tests are passing. Next is to decide on addressing warnings or proceeding to state machine implementation.
 
+**Date: 2024-05-22 - `neura_qbft_core` All Tests Passing & Warnings Reduced**
+    ***Build Status:*** All tests in the `neura_qbft_core` crate are passing. Compiler warnings have been addressed, reducing them from 37 to 8 (remaining warnings are for unused helper functions in test code, which can be addressed later or as part of a general cleanup pass).
+    *   **Validation Module:**
+        *   All core validation logic for Proposal, Prepare, Commit, and RoundChange messages is implemented and tested.
+        *   Unit tests for `CommitValidator`, `RoundChangeMessageValidator`, `ProposalValidator`, and `PrepareValidator` are passing.
+        *   Corrected error variants, fixed panics during test setup, and resolved issues with mock final state providing necessary parent headers.
+        *   Addressed numerous borrow checker errors and logic issues within the tests and validator implementations.
+        *   Refined assertions to match exact error messages and variants.
+    *   **Types & Payloads:**
+        *   Core data structures (`SignedData`, `QbftBlockHeader`, `CommitPayload`, `RoundChangePayload`, etc.) are stable and used throughout the tests.
+        *   RLP encoding/decoding for these types is implicitly tested via the validation logic that relies on correct message construction and parsing.
+
+### Next Steps:
+
+1.  **Integrate `neura_qbft_core` with `neura_consensus_qbft`:**
+    *   **Current Focus:** Begin replacing mock implementations and placeholder logic within the `neura_consensus_qbft` crate (and its sub-modules like `neura_synchronizer_qbft`) with the actual, tested components from `neura_qbft_core`.
+    *   This will involve:
+        *   Updating `use` statements to point to `neura_qbft_core` types and validators.
+        *   Instantiating and using the real validator implementations.
+        *   Ensuring the `MessageFactory` from `neura_qbft_core` is used for creating QBFT messages.
+        *   Adapting the main QBFT state machine and message handling logic in `neura_consensus_qbft` to work with the `neura_qbft_core` components.
+    *   Run tests within `neura_consensus_qbft` and address any resulting compilation errors or test failures. This will likely be an iterative process.
+
+2.  **Address Remaining `TODOs` and `FIXMEs`:**
+
 ## Next Steps
 
 **Continue Phase 2: Crate Scaffolding and Core Logic (`neura_qbft_core` crate)**
