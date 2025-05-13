@@ -131,9 +131,42 @@ The below sections of this implementation plan which consists of completed work 
         *   Added proper error handling with `QbftConsensusError`.
     *   **Next Focus:** Integration with `neura_qbft_core` components and implementation of remaining QBFT consensus logic.
 
+**Date: 2024-05-23 - `neura-consensus-qbft` - `Consensus` Trait and `RethQbftFinalState` Implementation**
+    ***Build Status:*** The `neura_consensus_qbft` crate compiles. Warnings related to unused imports and variables have been addressed.
+    *   **`neura-qbft` Crate (`block.rs`):**
+        *   Implemented `From<TransactionSigned>` and `From<&TransactionSigned>` for `neura_qbft_core::types::block::Transaction`.
+        *   Resolved conflict with generic `impl<T: Encodable> From<T> for Transaction` by removing the generic implementation.
+        *   Added `reth-ethereum-primitives` and `reth-primitives-traits` to `neura-qbft/Cargo.toml`.
+    *   **`neura-consensus-qbft` Crate (`lib.rs`):**
+        *   **`QbftConsensus` Struct:**
+            *   Implemented `reth_consensus::Consensus` trait.
+            *   `validate_block_pre_execution`:
+                *   Added trait bound `neura_qbft_core::types::block::Transaction: From<<NT::Primitives as NodePrimitives>::SignedTx>` to resolve `E0277`.
+                *   Fixed "use of moved value" for `qbft_header` by cloning.
+                *   Integrated `ProposalValidatorImpl` from `neura_qbft_core`. This required adding getter methods for `message_validator_factory` and `round_change_message_validator_factory` to `QbftController` in `neura-qbft`.
+            *   Resolved multiple build errors related to unresolved imports (`ProviderNodeTypes`, `MessageFactory`, `SealedHeader`) and addressed warnings.
+        *   **`RethQbftFinalState` Struct:**
+            *   This struct adapts Reth's provider to the `QbftFinalState` trait from `neura_qbft_core`.
+            *   `node_key()`: Implemented.
+            *   `local_address()`: Implemented.
+            *   `get_validators_for_block()`: Implemented (fetches header, decodes validators from `extra_data`).
+            *   `get_block_header()`: Implemented (fetches Reth header, converts to `QbftBlockHeader`).
+            *   `get_proposer_for_round()`: Implemented (based on parent validators and round number).
+            *   `current_validators()`: Implemented. This was challenging, involving:
+                *   Initial attempts with `provider_factory.latest_header()` and UFCS (`<ProviderFactory<NT> as HeaderProvider>::latest_header(...)`) failed.
+                *   Switching to `sealed_header` with `BlockNumberOrTag::Latest` caused type mismatches, requiring `alloy-eips` dependency.
+                *   Final solution involved `self.provider_factory.block_number_for_id(BlockId::Number(BlockNumberOrTag::Latest))` (needs `BlockReaderIdExt`) followed by `self.provider_factory.sealed_header(block_num)`. The successful approach used UFCS with `BlockNumReader` and `HeaderProvider` traits in scope:
+                    *   `<ProviderFactory<NT> as BlockNumReader>::best_block_number(&self.provider_factory)`
+                    *   `<ProviderFactory<NT> as HeaderProvider>::sealed_header(&self.provider_factory, latest_block_num)`
+            *   `validators()`: Implemented (uses `current_validators()`).
+            *   `is_validator()`: Implemented.
+            *   `byzantine_fault_tolerance_f()`: Implemented.
+            *   `quorum_size()`: Implemented.
+    *   **Overall:** Significant progress in implementing core QBFT consensus logic within `neura-consensus-qbft` and integrating it with Reth's interfaces. Key methods of `RethQbftFinalState` are complete.
+
 ### Next Steps:
 
-1. **Complete `neura_consensus_qbft` Implementation:**
+1.  **Complete `neura_consensus_qbft` Implementation:**
     *   **Current Focus:** Implement remaining QBFT consensus logic:
         *   Complete the `validate_body_against_header` implementation.
         *   Implement block proposal and validation logic.
@@ -143,8 +176,14 @@ The below sections of this implementation plan which consists of completed work 
         *   Add unit tests for `QbftConsensus` and its components.
         *   Test integration with `neura_qbft_core` components.
         *   Verify proper error handling and edge cases.
+    *   **Remaining `RethQbftFinalState` Methods:**
+        *   Implement `is_proposer_for_round`. (Currently `todo!()`)
+        *   Implement `get_validator_node_key`. (Currently `todo!()`)
+        *   Implement `get_block_by_hash`. (Currently `todo!()`)
+    *   **`QbftConsensus::validate_header`:**
+        *   Re-enable and fix QBFT core header validation: `self.controller.validate_header_for_proposal(...)`. (Currently commented out with a TODO).
 
-2. **Integration with Reth Node Builder:**
+2.  **Integration with Reth Node Builder:**
     *   Create QBFT-specific configuration types.
     *   Implement node builder integration for QBFT consensus.
     *   Add configuration validation and error handling.
@@ -182,7 +221,7 @@ The below sections of this implementation plan which consists of completed work 
 4. **Address Compiler Warnings (Optional):** - **PENDING DECISION**
     - Manually review and fix the remaining compiler warnings (unused imports, variables, functions).
 
-5. **Implement QBFT State Machine Logic (Continued):** - **NEXT MAJOR STEP**
+5. **Implement QBFT State Machine Logic (`neura_qbft_core`):** - **ONGOING / NEXT MAJOR STEP**
     - Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`. This involves:
         - Handling incoming messages (Proposals, Prepares, Commits, RoundChanges) by dispatching them to the appropriate round and state.
         - Implementing the state transition logic within `RoundState` and `QbftRound` based on message validation and quorum achievement.

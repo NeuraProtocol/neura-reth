@@ -64,6 +64,14 @@ impl QbftController {
         }
     }
 
+    pub fn message_validator_factory(&self) -> Arc<dyn MessageValidatorFactory> {
+        self.message_validator_factory.clone()
+    }
+
+    pub fn round_change_message_validator_factory(&self) -> Arc<dyn RoundChangeMessageValidatorFactory> {
+        self.round_change_message_validator_factory.clone()
+    }
+
     /// Starts or restarts consensus for a new block height, using the given parent header.
     pub fn start_consensus_at_height(&mut self, parent_header: QbftBlockHeader) -> Result<(), QbftError> {
         let target_height = parent_header.number + 1;

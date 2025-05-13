@@ -1,10 +1,33 @@
 use crate::types::header::QbftBlockHeader;
 use alloy_rlp::{RlpEncodable, RlpDecodable, Header as RlpHeader, BufMut, Encodable, Decodable, Error as RlpError};
 use alloy_primitives::{Bytes, B256 as Hash};
+use reth_ethereum_primitives::TransactionSigned;
 
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct Transaction { // Placeholder
     pub rlp: Bytes,
+}
+
+impl From<TransactionSigned> for Transaction {
+    fn from(tx: TransactionSigned) -> Self {
+        // Convert the transaction to RLP bytes
+        let mut buf = Vec::new();
+        tx.encode(&mut buf);
+        Self {
+            rlp: Bytes::from(buf)
+        }
+    }
+}
+
+impl From<&TransactionSigned> for Transaction {
+    fn from(tx: &TransactionSigned) -> Self {
+        // Convert the transaction to RLP bytes
+        let mut buf = Vec::new();
+        tx.encode(&mut buf);
+        Self {
+            rlp: Bytes::from(buf)
+        }
+    }
 }
 
 // QbftBlockBody is a conceptual grouping, not directly RLP-encoded as part of the block's main list structure.

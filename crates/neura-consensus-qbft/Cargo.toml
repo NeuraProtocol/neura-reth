@@ -19,6 +19,7 @@ reth-node-api = { workspace = true }
 reth-node-builder = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-consensus = { workspace = true }
+alloy-eips = { version = "0.15.10", default-features = false }
 reth-chainspec = { workspace = true }
 
 # Other common dependencies

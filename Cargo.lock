@@ -5762,6 +5762,7 @@ name = "neura_consensus_qbft"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus",
+ "alloy-eips 0.15.10",
  "alloy-primitives",
  "k256",
  "neura_qbft_core",
@@ -5794,7 +5795,9 @@ dependencies = [
  "k256",
  "log",
  "rand 0.8.5",
+ "reth-ethereum-primitives",
  "reth-primitives",
+ "reth-primitives-traits",
  "secp256k1 0.28.2",
  "serde",
  "sha3",

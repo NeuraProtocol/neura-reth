@@ -12,26 +12,29 @@ use alloy_primitives::{
     Address as RethAddress, BlockNumber, B256, Bytes, // Added Bytes for nonce conversion
 };
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
-use reth_primitives::SealedBlock; // Keep SealedBlock from reth_primitives
+use reth_primitives::{SealedBlock, SealedHeader};
 use reth_primitives_traits::{
     NodePrimitives, BlockHeader as RethPrimitivesBlockHeaderTrait, 
-    BlockBody as RethPrimitivesBlockBodyTrait, GotExpected, SealedHeader // Use SealedHeader from traits
+    BlockBody as RethPrimitivesBlockBodyTrait, GotExpected, // Use SealedHeader from traits - NOTE: SealedHeader is already imported from reth_primitives, so this line can be simplified if only SealedHeader was intended from traits.
 };
 use reth_chainspec::ChainSpec;
 use reth_provider::{
     ProviderError,
     ProviderFactory, HeaderProvider, // Keep these direct imports
+    BlockNumReader, // Removed BlockReaderIdExt, BlockReader
 };
-use reth_provider::providers::ProviderNodeTypes; // Corrected import path
+use reth_provider::providers::ProviderNodeTypes;
 use reth_node_builder::NodeTypesWithDB;
 
 // Core QBFT imports
 use neura_qbft_core::{
     types::{
         QbftConfig, QbftFinalState, QbftBlockHeader, BftExtraDataCodec, ConsensusRoundIdentifier,
-        NodeKey, RoundTimer, AlloyBftExtraDataCodec, QbftBlock, // Removed MessageFactory from here
+        NodeKey, RoundTimer, AlloyBftExtraDataCodec, QbftBlock, SignedData,
     },
-    // payload::MessageFactory, // Removed unused import
+    messagewrappers::{Proposal, BftMessage},
+    validation::{ValidationContext, ProposalValidator},
+    payload::{ProposalPayload}, // Removed unused MessageFactory
     statemachine::QbftController,
     error::QbftError,
 };
@@ -116,15 +119,15 @@ fn map_provider_to_qbft_error(err: ProviderError) -> QbftError {
 
 impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> QbftFinalState for RethQbftFinalState<NT> {
     fn node_key(&self) -> Arc<NodeKey> {
-        todo!()
+        Arc::clone(&self.node_key)
     }
 
     fn local_address(&self) -> RethAddress {
-        todo!()
+        self.local_address
     }
 
     fn validators(&self) -> HashSet<RethAddress> {
-        todo!()
+        self.current_validators().into_iter().collect()
     }
 
     fn get_validators_for_block(&self, block_number: BlockNumber) -> Result<Vec<RethAddress>, QbftError> {
@@ -137,16 +140,21 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> Qb
         Ok(bft_extra_data.validators.into_iter().collect())
     }
 
-    fn is_validator(&self, _address: RethAddress) -> bool {
-        todo!()
+    fn is_validator(&self, address: RethAddress) -> bool {
+        self.validators().contains(&address)
     }
 
     fn quorum_size(&self) -> usize {
-        todo!()
+        let f = self.byzantine_fault_tolerance_f();
+        2 * f + 1
     }
 
     fn byzantine_fault_tolerance_f(&self) -> usize {
-        todo!()
+        let n = self.validators().len();
+        if n == 0 { // Avoid division by zero or underflow if n=0 although validators should not be empty.
+            return 0;
+        }
+        (n - 1) / 3
     }
 
     fn is_proposer_for_round(&self, _proposer: RethAddress, _round: &ConsensusRoundIdentifier) -> bool {
@@ -154,7 +162,47 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> Qb
     }
 
     fn current_validators(&self) -> Vec<RethAddress> {
-        todo!()
+        // Try to get best_block_number and then sealed_header using UFCS
+        match <ProviderFactory<NT> as BlockNumReader>::best_block_number(&self.provider_factory) { 
+            Ok(latest_block_num) => {
+                match <ProviderFactory<NT> as HeaderProvider>::sealed_header(&self.provider_factory, latest_block_num) { 
+                    Ok(Some(latest_sealed_header)) => {
+                        match self.get_validators_for_block(latest_sealed_header.number()) {
+                            Ok(validators_vec) => validators_vec,
+                            Err(e) => {
+                                warn!(
+                                    target: "consensus::qbft::final_state",
+                                    "Failed to get validators for block {}: {:?}. Returning empty current validators.",
+                                    latest_sealed_header.number(),
+                                    e
+                                );
+                                Vec::new()
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        warn!(target: "consensus::qbft::final_state", "Latest sealed header not found for block number {}. Returning empty current validators.", latest_block_num);
+                        Vec::new()
+                    }
+                    Err(e) => {
+                        warn!(
+                            target: "consensus::qbft::final_state",
+                            "Provider error fetching sealed header for block {}: {:?}. Returning empty current validators.",
+                            latest_block_num, e
+                        );
+                        Vec::new()
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    target: "consensus::qbft::final_state",
+                    "Provider error fetching best block number: {:?}. Returning empty current validators.",
+                    e
+                );
+                Vec::new()
+            }
+        }
     }
 
     fn get_validator_node_key(&self, _address: &RethAddress) -> Option<Arc<NodeKey>> {
@@ -374,6 +422,7 @@ where
     >,
     <NT::Primitives as NodePrimitives>::BlockHeader: RethPrimitivesBlockHeaderTrait + Clone + Send + Sync + 'static,
     <NT::Primitives as NodePrimitives>::BlockBody: RethPrimitivesBlockBodyTrait + Clone + Send + Sync + 'static,
+    neura_qbft_core::types::block::Transaction: From<<NT::Primitives as NodePrimitives>::SignedTx>,
 {
     type Error = QbftConsensusError;
 
@@ -390,10 +439,10 @@ where
         }
 
         // Verify transactions root matches header
-        let transactions_root = body.transactions_root();
-        if transactions_root != header.transactions_root() {
-            return Err(QbftConsensusError::RethConsensus(reth_consensus::ConsensusError::BodyTransactionsRootDiff(
-                reth_primitives_traits::GotExpectedBoxed(Box::new(GotExpected::new(transactions_root, header.transactions_root())))
+        let tx_root = body.calculate_tx_root();
+        if tx_root != header.transactions_root() {
+            return Err(QbftConsensusError::RethConsensus(reth_consensus::ConsensusError::BodyTransactionRootDiff(
+                reth_primitives_traits::GotExpectedBoxed(Box::new(GotExpected::new(tx_root, header.transactions_root())))
             )));
         }
 
@@ -412,12 +461,68 @@ where
     ) -> Result<(), Self::Error> {
         // Get the sealed header using sealed_header()
         let sealed_header = block.sealed_header();
+        
+        // First validate the header
         self.validate_header(sealed_header)?;
- 
-        if block.body().transactions().is_empty() && 
-           sealed_header.number() != 0 {
-            // QBFT-specific: Allow empty blocks if not genesis.
-        }
+
+        // Convert to QBFT header for core validation
+        let qbft_header = convert_reth_header_to_qbft(sealed_header.header());
+        
+        // Create validation context for QBFT core validation
+        let current_sequence = sealed_header.number();
+        let current_round = 0; // For now, we assume round 0 for block validation
+        let validators = self.final_state_adapter.get_validators_for_block(current_sequence)
+            .map_err(|e| QbftConsensusError::QbftCore(e))?;
+        
+        let parent_header = self.final_state_adapter.get_block_header(&sealed_header.parent_hash())
+            .ok_or_else(|| QbftConsensusError::Validation("Parent header not found".to_string()))?;
+        
+        let expected_proposer = self.final_state_adapter.get_proposer_for_round(&ConsensusRoundIdentifier {
+            sequence_number: current_sequence,
+            round_number: current_round,
+        }).map_err(|e| QbftConsensusError::QbftCore(e))?;
+
+        let context = ValidationContext::new(
+            current_sequence,
+            current_round,
+            validators.into_iter().collect(),
+            Arc::new(parent_header),
+            self.final_state_adapter.clone() as Arc<dyn QbftFinalState>,
+            Arc::new(AlloyBftExtraDataCodec::default()), // Use a default codec for now
+            Arc::clone(&self.config),
+            None, // No accepted proposal digest for block validation
+            expected_proposer,
+        );
+
+        // Convert transactions to the expected type for QbftBlock
+        let qbft_transactions: Vec<neura_qbft_core::types::block::Transaction> = block.body().transactions().iter().cloned().map(|tx| tx.into()).collect();
+
+        // Create a proposal for validation
+        let proposal_payload = ProposalPayload::new(
+            ConsensusRoundIdentifier { sequence_number: current_sequence, round_number: current_round },
+            QbftBlock::new(qbft_header.clone(), qbft_transactions, Vec::new()),
+        );
+        let signed_data = SignedData::sign(proposal_payload, &self.final_state_adapter.node_key()).map_err(QbftConsensusError::QbftCore)?;
+        let bft_message = BftMessage::new(signed_data);
+        let proposal = Proposal::new(
+            bft_message,
+            qbft_header,
+            Vec::new(), // No round change proofs for block validation
+            None, // No prepared certificate for block validation
+        );
+
+        // Get the proposal validator from the controller and context
+        let proposal_validator = neura_qbft_core::validation::ProposalValidatorImpl::new(
+            self.controller.message_validator_factory(),
+            self.controller.round_change_message_validator_factory(),
+            self.config.clone(),
+        );
+
+        proposal_validator.validate_proposal(&proposal, &context)
+            .map_err(|e| QbftConsensusError::QbftCore(e))?;
+
+        // Validate body against header
+        self.validate_body_against_header(block.body(), sealed_header)?;
         
         debug!(target: "consensus::qbft", "Validated QBFT block (pre-execution): {}", block.hash());
         Ok(())
@@ -440,7 +545,6 @@ mod tests {
     use reth_provider::test_utils::{create_test_provider_factory, MockNodeTypesWithDB};
     use k256::SecretKey;
     use rand_08::thread_rng;
-    use rand_08::Rng;
     use alloy_primitives::keccak256;
     use std::collections::HashSet;
     use neura_qbft_core::payload::MessageFactory as TestMessageFactory; // Alias for clarity in tests
@@ -481,7 +585,7 @@ mod tests {
         let message_validator_factory = Arc::new(MockMessageValidatorFactory::new());
         let rc_message_validator_factory = Arc::new(MockRoundChangeMessageValidatorFactory::new());
 
-        let controller = Arc::new(QbftController::new(
+        let _controller = Arc::new(QbftController::new(
             final_state_for_controller,
             block_creator_factory,
             block_importer,
@@ -499,7 +603,7 @@ mod tests {
         let consensus = QbftConsensus::<MockNodeTypesWithDB>::new(
             chainspec.clone(),
             provider_factory.clone(),
-            controller.clone(),
+            _controller.clone(),
             config_arc.clone(),
             node_key.clone(),
             local_address,
@@ -507,7 +611,7 @@ mod tests {
 
         assert_eq!(consensus.chainspec.chain, MAINNET.chain);
         assert!(Arc::ptr_eq(&consensus.config, &config_arc));
-        assert!(Arc::ptr_eq(&consensus.controller, &controller));
+        assert!(Arc::ptr_eq(&consensus.controller, &_controller));
     }
 
     // Test for RethRoundTimer functionality through QbftController
@@ -535,7 +639,7 @@ mod tests {
         let message_validator_factory_timer_test = Arc::new(MockMessageValidatorFactory::new());
         let rc_message_validator_factory_timer_test = Arc::new(MockRoundChangeMessageValidatorFactory::new());
 
-        let controller = Arc::new(QbftController::new(
+        let _controller = Arc::new(QbftController::new(
             final_state_for_controller_timer_test,
             block_creator_factory_timer_test,
             block_importer_timer_test,
