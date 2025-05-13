@@ -9,19 +9,22 @@ use std::time::Duration; // For timer
 use reth_consensus::{ConsensusError,HeaderValidator};
 use reth_consensus_common::validation::validate_header_gas;
 use alloy_primitives::{
-    Address as RethAddress, BlockNumber, B256, Bytes, // Added Bytes for nonce conversion
+    Address as RethAddress, BlockNumber, B256, Bytes, // Removed Sealable
 };
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
-use reth_primitives::{SealedBlock, SealedHeader};
+use alloy_eips::BlockHashOrNumber as AlloyBlockHashOrNumber; // Re-adding for get_block_by_hash
+use reth_primitives::{SealedBlock, SealedHeader}; // Removed BlockId from here
 use reth_primitives_traits::{
     NodePrimitives, BlockHeader as RethPrimitivesBlockHeaderTrait, 
     BlockBody as RethPrimitivesBlockBodyTrait, GotExpected, // Use SealedHeader from traits - NOTE: SealedHeader is already imported from reth_primitives, so this line can be simplified if only SealedHeader was intended from traits.
+    Block as RethPrimitivesBlockTrait, // Re-adding for get_block_by_hash
 };
 use reth_chainspec::ChainSpec;
 use reth_provider::{
     ProviderError,
     ProviderFactory, HeaderProvider, // Keep these direct imports
-    BlockNumReader, // Removed BlockReaderIdExt, BlockReader
+    BlockNumReader, // BlockReader was unused after commenting out get_block_by_hash
+    BlockReader, // Re-adding for get_block_by_hash
 };
 use reth_provider::providers::ProviderNodeTypes;
 use reth_node_builder::NodeTypesWithDB;
@@ -117,7 +120,12 @@ fn map_provider_to_qbft_error(err: ProviderError) -> QbftError {
     QbftError::InternalError(format!("Reth Provider Error: {}", err))
 }
 
-impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> QbftFinalState for RethQbftFinalState<NT> {
+impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static>
+    QbftFinalState for RethQbftFinalState<NT>
+where
+    neura_qbft_core::types::block::Transaction: From<<NT::Primitives as reth_primitives_traits::NodePrimitives>::SignedTx>,
+    <NT::Primitives as reth_primitives_traits::NodePrimitives>::SignedTx: Clone,
+{
     fn node_key(&self) -> Arc<NodeKey> {
         Arc::clone(&self.node_key)
     }
@@ -157,8 +165,18 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> Qb
         (n - 1) / 3
     }
 
-    fn is_proposer_for_round(&self, _proposer: RethAddress, _round: &ConsensusRoundIdentifier) -> bool {
-        todo!()
+    fn is_proposer_for_round(&self, proposer: RethAddress, round: &ConsensusRoundIdentifier) -> bool {
+        match self.get_proposer_for_round(round) {
+            Ok(expected_proposer) => expected_proposer == proposer,
+            Err(e) => {
+                warn!(
+                    target: "consensus::qbft::final_state",
+                    "Error getting expected proposer for round {:?}: {:?}. Assuming not proposer.",
+                    round, e
+                );
+                false
+            }
+        }
     }
 
     fn current_validators(&self) -> Vec<RethAddress> {
@@ -205,12 +223,63 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> Qb
         }
     }
 
-    fn get_validator_node_key(&self, _address: &RethAddress) -> Option<Arc<NodeKey>> {
-        todo!()
+    fn get_validator_node_key(&self, address: &RethAddress) -> Option<Arc<NodeKey>> {
+        if *address == self.local_address {
+            Some(Arc::clone(&self.node_key))
+        } else {
+            warn!(
+                target: "consensus::qbft::final_state",
+                "Requested NodeKey for a non-local address: {}. This is not currently supported beyond the local node's key.",
+                address
+            );
+            None
+        }
     }
 
-    fn get_block_by_hash(&self, _hash: &B256) -> Option<QbftBlock> {
-        todo!()
+    fn get_block_by_hash(&self, hash: &B256) -> Option<QbftBlock> {
+        match self.provider_factory.provider() {
+            Ok(provider) => {
+                match provider.block(AlloyBlockHashOrNumber::Hash(*hash)) { 
+                    Ok(Some(reth_block_unsealed)) => { 
+                        let qbft_header = convert_reth_header_to_qbft(reth_block_unsealed.header());
+
+                        let qbft_transactions: Vec<neura_qbft_core::types::block::Transaction> =
+                            reth_block_unsealed.body().transactions().iter().map(|reth_tx_signed| {
+                                (*reth_tx_signed).clone().into()
+                            }).collect();
+
+                        // TODO: Fix ommers retrieval. For now, returning empty ommers.
+                        let qbft_ommers: Vec<QbftBlockHeader> = Vec::new(); 
+                        /*
+                        let qbft_ommers: Vec<QbftBlockHeader> = 
+                            <<NT as NodeTypes>::Primitives as NodePrimitives>::Block as RethPrimitivesBlockTrait>::ommers(&reth_block_unsealed)
+                            .iter()
+                            .map(|reth_ommer_header| convert_reth_header_to_qbft(reth_ommer_header))
+                            .collect();
+                        */
+                        
+                        Some(QbftBlock::new(qbft_header, qbft_transactions, qbft_ommers))
+                    }
+                    Ok(None) => None, // Block not found
+                    Err(e) => {
+                        warn!(
+                            target: "consensus::qbft::final_state",
+                            "Provider error fetching block by hash {}: {:?}",
+                            hash, e
+                        );
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    target: "consensus::qbft::final_state",
+                    "Error getting provider in get_block_by_hash: {:?}",
+                    e
+                );
+                None
+            }
+        }
     }
 
     fn get_block_header(&self, block_hash: &B256) -> Option<QbftBlockHeader> {
@@ -314,17 +383,19 @@ pub struct QbftConsensus<NT: NodeTypesWithDB + ProviderNodeTypes> {
     controller: Arc<QbftController>,
     config: Arc<QbftConfig>,
     final_state_adapter: Arc<RethQbftFinalState<NT>>,
+    extra_data_codec: Arc<AlloyBftExtraDataCodec>,
 }
 
 // Manual Debug implementation for QbftConsensus
 impl<NT: NodeTypesWithDB + ProviderNodeTypes> fmt::Debug for QbftConsensus<NT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("QbftConsensus")
-            .field("chainspec", &self.chainspec) // Arc<ChainSpec> is Debug
-            .field("provider_factory", &"ProviderFactory { ... }") // Placeholder for ProviderFactory
-            .field("controller", &"Arc<QbftController> { ... }") // Placeholder for QbftController
-            .field("config", &self.config) // Arc<QbftConfig> is Debug
-            .field("final_state_adapter", &self.final_state_adapter) // RethQbftFinalState is Debug
+            .field("chainspec", &self.chainspec)
+            .field("provider_factory", &"ProviderFactory { ... }")
+            .field("controller", &"Arc<QbftController> { ... }")
+            .field("config", &self.config)
+            .field("final_state_adapter", &self.final_state_adapter)
+            .field("extra_data_codec", &self.extra_data_codec)
             .finish()
     }
 }
@@ -344,7 +415,7 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> Qb
             provider_factory.clone(),
             node_key,
             local_address,
-            extra_data_codec,
+            Arc::clone(&extra_data_codec),
             Arc::clone(&config),
         ));
         
@@ -354,6 +425,7 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes + Clone + Send + Sync + 'static> Qb
             controller,
             config,
             final_state_adapter,
+            extra_data_codec,
         }
     }
 }
@@ -376,13 +448,32 @@ where
             )));
         }
         
-        let _qbft_header = convert_reth_header_to_qbft(header.header()); // Prefixed with _
-        // TODO: Re-enable QBFT core header validation. Method validate_header_for_proposal not found or signature mismatch.
-        // self.controller.validate_header_for_proposal(&_qbft_header, Arc::clone(&self.final_state_adapter))
-        //     .map_err(|e| reth_consensus::ConsensusError::Other(format!("QBFT Core error: {}", e)))?;
-        warn!(target: "consensus::qbft", "QBFT core header validation (validate_header_for_proposal) is currently disabled for header {}.", header.hash());
+        let qbft_block_header = convert_reth_header_to_qbft(header.header());
 
-        debug!(target: "consensus::qbft", "Validated QBFT header (standalone): {}", header.hash());
+        // QBFT Nonce check (must be 0, represented as 8 zero bytes)
+        // QbftBlockHeader::new ensures nonce is 8 bytes. Here we check it's all zeros.
+        if qbft_block_header.nonce != alloy_primitives::Bytes::from_static(&[0u8; 8]) {
+            return Err(reth_consensus::ConsensusError::Other(format!(
+                "Invalid QBFT nonce. Expected 8 zero bytes, Got: {:?}",
+                qbft_block_header.nonce
+            )));
+        }
+
+        // Basic Extra Data decode check using the stored codec
+        if let Err(e) = self.extra_data_codec.decode(&qbft_block_header.extra_data) {
+            return Err(reth_consensus::ConsensusError::Other(format!(
+                "Failed to decode QBFT BftExtraData from header {}: {}",
+                header.hash(), e
+            )));
+        }
+
+        // Remove the old TODO and warning
+        // // TODO: Re-enable QBFT core header validation. Method validate_header_for_proposal not found or signature mismatch.
+        // // self.controller.validate_header_for_proposal(&_qbft_header, Arc::clone(&self.final_state_adapter))
+        // //     .map_err(|e| reth_consensus::ConsensusError::Other(format!("QBFT Core error: {}", e)))?;
+        // warn!(target: "consensus::qbft", "QBFT core header validation (validate_header_for_proposal) is currently disabled for header {}.", header.hash());
+
+        debug!(target: "consensus::qbft", "Validated QBFT header (standalone checks): {}", header.hash());
         Ok(())
     }
 
