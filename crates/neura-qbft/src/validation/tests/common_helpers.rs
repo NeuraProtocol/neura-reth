@@ -39,10 +39,10 @@ pub fn deterministic_address_from_arc_key(key: &Arc<NodeKey>) -> Address {
 }
 
 // Optional: keep the random key generator if needed for specific scenarios
-pub fn create_node_key() -> NodeKey {
-    let secret_key = k256::SecretKey::random(&mut rand::thread_rng());
-    NodeKey::from(secret_key)
-}
+// pub fn create_node_key() -> NodeKey {
+//     let secret_key = k256::SecretKey::random(&mut rand::thread_rng());
+//     NodeKey::from(secret_key)
+// }
 
 // --- Block and Header Helpers ---
 
@@ -63,6 +63,7 @@ pub fn default_parent_header(number: u64, _hash: B256, timestamp: u64, gas_limit
         Bytes::from_static(&[0x01, 0x02]), // extra_data (dummy)
         B256::ZERO,    // mix_hash
         Bytes::from_static(&[0u8; 8]), // nonce (8-byte zero array)
+        None, // base_fee_per_gas
     ))
 }
 
@@ -90,6 +91,7 @@ pub fn default_qbft_block(
         parent_hash, B256::ZERO, beneficiary, B256::ZERO, B256::ZERO,
         B256::ZERO, Default::default(), U256::from(1), number, gas_limit,
         0, timestamp, extra_data, B256::ZERO, Bytes::from_static(&[0u8; 8]),
+        None, // base_fee_per_gas
     );
     QbftBlock {
         header,
@@ -298,47 +300,47 @@ pub fn create_proposal(
 
 // Added helpers for other message types
 
-pub fn create_prepare_payload(
-    round_id: ConsensusRoundIdentifier,
-    digest: B256
-) -> PreparePayload {
-    PreparePayload::new(round_id, digest)
-}
+// pub fn create_prepare_payload(
+//     round_id: ConsensusRoundIdentifier,
+//     digest: B256
+// ) -> PreparePayload {
+//     PreparePayload::new(round_id, digest)
+// }
 
-pub fn create_signed_prepare_payload(
-    payload: PreparePayload,
-    key: &NodeKey
-) -> SignedData<PreparePayload> {
-    SignedData::sign(payload, key).expect("Failed to sign prepare payload")
-}
+// pub fn create_signed_prepare_payload(
+//     payload: PreparePayload,
+//     key: &NodeKey
+// ) -> SignedData<PreparePayload> {
+//     SignedData::sign(payload, key).expect("Failed to sign prepare payload")
+// }
 
-pub fn create_prepare(
-    signed_payload: SignedData<PreparePayload>
-) -> Prepare {
-    Prepare::new(signed_payload)
-}
+// pub fn create_prepare(
+//     signed_payload: SignedData<PreparePayload>
+// ) -> Prepare {
+//     Prepare::new(signed_payload)
+// }
 
 
-pub fn create_commit_payload(
-    round_id: ConsensusRoundIdentifier,
-    digest: B256,
-    committed_seal: RlpSignature // Assuming commit needs the seal directly as Bytes
-) -> CommitPayload {
-    CommitPayload::new(round_id, digest, committed_seal)
-}
+// pub fn create_commit_payload(
+//     round_id: ConsensusRoundIdentifier,
+//     digest: B256,
+//     committed_seal: RlpSignature // Assuming commit needs the seal directly as Bytes
+// ) -> CommitPayload {
+//     CommitPayload::new(round_id, digest, committed_seal)
+// }
 
-pub fn create_signed_commit_payload(
-    payload: CommitPayload,
-    key: &NodeKey
-) -> SignedData<CommitPayload> {
-    SignedData::sign(payload, key).expect("Failed to sign commit payload")
-}
+// pub fn create_signed_commit_payload(
+//     payload: CommitPayload,
+//     key: &NodeKey
+// ) -> SignedData<CommitPayload> {
+//     SignedData::sign(payload, key).expect("Failed to sign commit payload")
+// }
 
-pub fn create_commit(
-    signed_payload: SignedData<CommitPayload>
-) -> Commit {
-    Commit::new(signed_payload)
-}
+// pub fn create_commit(
+//     signed_payload: SignedData<CommitPayload>
+// ) -> Commit {
+//     Commit::new(signed_payload)
+// }
 
 // --- Round Change Message Helpers ---
 
@@ -357,11 +359,11 @@ pub fn create_signed_round_change_payload(
     SignedData::sign(payload, key).expect("Failed to sign round change payload")
 }
 
-pub fn create_bft_message_round_change(
-    signed_payload: SignedData<RoundChangePayload>
-) -> BftMessage<RoundChangePayload> {
-    BftMessage::new(signed_payload)
-}
+// pub fn create_bft_message_round_change(
+//     signed_payload: SignedData<RoundChangePayload>
+// ) -> BftMessage<RoundChangePayload> {
+//     BftMessage::new(signed_payload)
+// }
 
 pub fn create_round_change(
     signed_payload_data: SignedData<RoundChangePayload>,

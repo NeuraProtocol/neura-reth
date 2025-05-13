@@ -51,6 +51,7 @@ impl QbftBlockCreator for MockQbftBlockCreator {
             extra_data_bytes,                 
             B256::ZERO,                       
             Bytes::from_static(&[0u8; 8]), // nonce (8-byte zero array, as QbftBlockHeader::new asserts len 8)
+            None, // base_fee_per_gas
         );
 
         let mock_block = QbftBlock::new(

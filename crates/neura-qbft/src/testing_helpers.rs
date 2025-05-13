@@ -77,6 +77,7 @@ pub fn default_parent_header(number: u64, parent_hash: B256, timestamp: u64, gas
         alloy_primitives::Bytes::from_static(&[0u8; 32]), // Empty extra data
         B256::ZERO,                          // Zero mix hash
         crate::types::EMPTY_NONCE,           // Default empty nonce
+        None,                                // base_fee_per_gas
     );
     
     Arc::new(header)

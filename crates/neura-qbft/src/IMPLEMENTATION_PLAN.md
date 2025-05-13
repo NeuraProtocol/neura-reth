@@ -120,6 +120,7 @@ The below sections of this implementation plan which consists of completed work 
     *   **Types & Payloads:**
         *   Core data structures (`SignedData`, `QbftBlockHeader`, `CommitPayload`, `RoundChangePayload`, etc.) are stable and used throughout the tests.
         *   RLP encoding/decoding for these types is implicitly tested via the validation logic that relies on correct message construction and parsing.
+    *   **Overall:** The `neura-consensus-qbft` crate is in a much more stable state. The core structures and adaptations are largely in place.
 
 **Date: 2024-05-22 - `neura_consensus_qbft` Initial Implementation**
     ***Build Status:** The `neura_consensus_qbft` crate compiles with a few `dead_code` warnings, which have been addressed with `#[allow(dead_code)]` attributes.
@@ -183,56 +184,18 @@ The below sections of this implementation plan which consists of completed work 
         *   All public methods of `RethQbftFinalState` (`node_key`, `local_address`, `get_validators_for_block`, `get_block_header`, `get_proposer_for_round`, `current_validators`, `validators`, `is_validator`, `byzantine_fault_tolerance_f`, `quorum_size`, `is_proposer_for_round`, `get_validator_node_key`, `get_block_by_hash`) now have corresponding unit tests in the `reth_qbft_final_state_tests` module.
         *   Tests cover various scenarios, including interactions with a `TestStageDB` for block and header retrieval, validator set calculations, and proposer selection logic.
         *   Issues related to `TestStageDB` setup (inserting full blocks vs. headers only) and type mismatches (especially for `Withdrawal` types and `SealedBlock` construction) were resolved.
+    *   **Overall:** The `neura-consensus-qbft` crate is in a much more stable state. The core structures and adaptations are largely in place.
 
-### Next Steps:
+**Date: 2024-05-27 - `neura_qbft_core` Warnings Addressed & `neura-consensus-qbft` Tests Enhanced**
+    ***Build Status (neura_qbft_core):*** All tests in the `neura_qbft_core` crate are passing. The 8 `dead_code` warnings previously present in `validation/tests/common_helpers.rs` have been addressed by commenting out the unused helper functions. The crate is now considered clean in terms of actionable warnings.
+    ***Build Status (neura_consensus_qbft):*** All tests in `neura_consensus_qbft` are passing, and all compiler warnings have been resolved.
+    *   **`neura_qbft_core` Cleanup:** Commented out unused test helper functions in `neura_qbft_core/src/validation/tests/common_helpers.rs`.
+    *   **`neura-consensus-qbft` Testing:**
+        *   Added comprehensive unit tests for `RethRoundTimer`, covering multiple independent timers, rapid manipulation, and behavior when the event sender is dropped.
+        *   Resolved a test failure in `test_reth_round_timer_sender_dropped` by correcting test logic for timer instantiation and MPSC channel handling.
+        *   Addressed all compiler warnings in `neura-consensus-qbft` test code.
 
-1.  **Complete `neura_consensus_qbft` Implementation & Testing:**
-    *   **Current Focus:** Add comprehensive unit tests and refine existing code.
-        *   **Testing:**
-            *   Add unit tests for `QbftConsensus` (covering `validate_header`, `validate_header_against_parent`, `validate_body_against_header`, `validate_block_pre_execution`).
-            *   Add unit tests for `RethQbftFinalState` (covering all implemented methods, mocking provider interactions where necessary). - **COMPLETED**
-            *   Add unit tests for `RethRoundTimer`.
-        *   **Refinement & Review:**
-            *   Review the existing implementations in `QbftConsensus` and `RethQbftFinalState` for any further improvements, particularly in error propagation, logging, and the clarity of interactions with `neura_qbft_core`.
-            *   Ensure all necessary conversions between Reth types and QBFT core types are robust.
-    *   **(Deferred) Revisit `get_block_by_hash` ommers:** While the current stub is acceptable, a note can be made to potentially revisit if full Reth block ommer propagation into `QbftBlock` becomes a strict requirement later.
-
-2.  **Integration with Reth Node Builder:**
-    *   Create QBFT-specific configuration types.
-    *   Implement node builder integration for QBFT consensus.
-    *   Add configuration validation and error handling.
-
-3. **Block Import and Finalization:**
-    *   Implement block import logic for QBFT consensus.
-    *   Add proper finalization handling.
-    *   Integrate with Reth's block processing pipeline.
-
-4. **Testing and Documentation:**
-    *   Add comprehensive tests for the entire QBFT consensus implementation.
-    *   Document the implementation details and configuration options.
-    *   Add examples and usage instructions.
-
-## Next Steps
-
-**Continue Phase 2: Crate Scaffolding and Core Logic (`neura_qbft_core` crate)**
-
-1. **Resolve Build Warnings & Refine State Machine Connections:** - **COMPLETED**
-    - Apply the planned changes to address the `dead_code` warnings. - **COMPLETED**
-    - Ensure `QbftRound` correctly signals block finalization to `QbftBlockHeightManager`. - **COMPLETED**
-    - Integrate `locked_block` handling into the main proposal flow in `QbftRound` and `QbftBlockHeightManager`. - **COMPLETED**
-
-2. **Refine Validator Logic (Message Validation Logic):** - **COMPLETED**
-    - The structural refactoring of the validation module (individual validators, factories, `ValidationContext`) is complete.
-    - `ProposalValidatorImpl` is now largely implemented with extensive tests.
-    - The core validation logic for `PrepareValidatorImpl` is implemented, and its unit tests are passing.
-    - `CommitValidatorImpl` is implemented, and its unit tests are passing.
-    - `RoundChangeMessageValidatorImpl` is implemented, and its unit tests are passing after significant debugging.
-
-3. **Verify Crate-Level Test Suite:** - **COMPLETED**
-    - **Immediate Next Step:** Run all tests for the `neura_qbft_core` crate (`cargo test -p neura_qbft_core --lib | cat`) to ensure no regressions or previously unnoticed failures exist in other test suites (e.g., `prepare_validator_tests`, `proposal_validator_tests`, state machine tests). - **COMPLETED (All tests passing)**
-    - Analyze and address any failures found in the full crate test run. - **COMPLETED (No failures found)**
-
-4. **Address Compiler Warnings (Optional):** - **PENDING DECISION**
+4. **Address Compiler Warnings (Optional):** - **COMPLETED** (Warnings in `neura_qbft_core` test helpers commented out; warnings in `neura-consensus-qbft` resolved)
     - Manually review and fix the remaining compiler warnings (unused imports, variables, functions).
 
 5. **Implement QBFT State Machine Logic (`neura_qbft_core`):** - **ONGOING / NEXT MAJOR STEP**
@@ -313,4 +276,13 @@ The below sections of this implementation plan which consists of completed work 
 
 ## Summary
 
-The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles (with warnings) and **passes all its unit tests**, including all individual validator test suites (`ProposalValidator`, `PrepareValidator`, `CommitValidator`, `RoundChangeMessageValidator`). This marks the completion of the core validation logic implementation and its initial verification. The next decision point is whether to address compiler warnings or proceed directly to implementing the QBFT state machine logic. Subsequent phases will focus on completing the state machine behaviors, creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.
+The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully passes all its unit tests, including all individual validator test suites (`ProposalValidator`, `PrepareValidator`, `CommitValidator`, `RoundChangeMessageValidator`). The previously noted `dead_code` warnings in its test helpers have been addressed by commenting out the unused functions.
+
+The `neura_consensus_qbft` crate, which integrates `neura_qbft_core` with Reth, also has all its tests passing and all compiler warnings resolved. This includes comprehensive tests for `RethQbftFinalState`, `RethRoundTimer`, and the various header/block validation methods in `QbftConsensus`. The parent hash validation issue was previously resolved.
+
+With the initial implementation and unit testing of the adapter components in `neura-consensus-qbft` largely complete, the primary focus shifts to the core state machine.
+
+The immediate next step is to:
+1.  Proceed with implementing the QBFT state machine logic in `neura_qbft_core`.
+
+Subsequent phases will focus on completing the state machine behaviors, creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.

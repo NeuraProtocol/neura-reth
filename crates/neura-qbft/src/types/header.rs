@@ -19,6 +19,7 @@ pub struct QbftBlockHeader {
     pub extra_data: Bytes,
     pub mix_hash: Hash,
     pub nonce: Bytes, // Typically 8 bytes, U64::from(0) for PoA
+    pub base_fee_per_gas: Option<U256>, // ADDED for EIP-1559 compatibility with Alloy hash
     // Seal fields (e.g. R, S, V for a signed header) are usually not part of the hash
     // but are part of the full block structure or transmitted separately.
     // QBFT seals are in extra_data.
@@ -46,6 +47,7 @@ impl QbftBlockHeader {
         extra_data: Bytes,
         mix_hash: Hash,
         nonce: Bytes, // Should be 8 bytes
+        base_fee_per_gas: Option<U256>, // ADDED
     ) -> Self {
         // Basic validation for nonce length
         assert_eq!(nonce.len(), 8, "Nonce must be 8 bytes for standard header encoding");
@@ -65,6 +67,7 @@ impl QbftBlockHeader {
             extra_data,
             mix_hash,
             nonce,
+            base_fee_per_gas, // ADDED
             hash: std::sync::OnceLock::new(),
         }
     }
@@ -73,7 +76,8 @@ impl QbftBlockHeader {
         *self.hash.get_or_init(|| {
             let mut rlp_buf = Vec::new();
             self.encode_for_hashing(&mut rlp_buf);
-            alloy_primitives::keccak256(&rlp_buf)
+            let core_hash = alloy_primitives::keccak256(&rlp_buf);
+            core_hash
         })
     }
 
@@ -89,13 +93,18 @@ impl QbftBlockHeader {
         self.receipts_root.encode(out);
         self.logs_bloom.encode(out);
         self.difficulty.encode(out);
-        U256::from(self.number).encode(out); // Number as U256 for RLP
+        U256::from(self.number).encode(out);
         U256::from(self.gas_limit).encode(out);
         U256::from(self.gas_used).encode(out);
         U256::from(self.timestamp).encode(out);
         self.extra_data.encode(out);
         self.mix_hash.encode(out);
         self.nonce.encode(out);
+        // Manually encode Option<U256> for base_fee_per_gas
+        match &self.base_fee_per_gas {
+            Some(val) => val.encode(out),
+            None => out.put_u8(0x80), // RLP_NULL or EMPTY_STRING_CODE
+        }
     }
 
     fn rlp_payload_length(&self) -> usize {
@@ -113,7 +122,12 @@ impl QbftBlockHeader {
         U256::from(self.timestamp).length() +
         self.extra_data.length() +
         self.mix_hash.length() +
-        self.nonce.length()
+        self.nonce.length() +
+        // Manually calculate length for Option<U256>
+        match &self.base_fee_per_gas {
+            Some(val) => val.length(),
+            None => 1, // Length of 0x80
+        }
     }
 }
 
@@ -152,6 +166,15 @@ impl Decodable for QbftBlockHeader {
             extra_data: Decodable::decode(buf)?,
             mix_hash: Decodable::decode(buf)?,
             nonce: Decodable::decode(buf)?,
+            // Manually decode Option<U256> for base_fee_per_gas
+            base_fee_per_gas: {
+                if buf.first() == Some(&0x80) {
+                    *buf = &buf[1..]; // Consume the 0x80 byte
+                    None
+                } else {
+                    Some(Decodable::decode(buf)?)
+                }
+            },
             hash: std::sync::OnceLock::new(),
         };
 

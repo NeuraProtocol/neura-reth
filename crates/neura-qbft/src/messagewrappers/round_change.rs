@@ -102,6 +102,7 @@ mod tests {
             AlloyBytes::from(vec![0xca, 0xfe, 0xba, 0xbe]), // extra_data
             B256::from([6; 32]), // mix_hash
             AlloyBytes::from(vec![0; 8]), // nonce
+            None, // base_fee_per_gas
         )
     }
 

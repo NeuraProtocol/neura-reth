@@ -59,6 +59,7 @@ mod tests {
             Bytes::from_static(&[0u8; 32]),      // extra_data (e.g., BftExtraData RLP)
             B256::from([5; 32]),                  // mix_hash (made distinct)
             Bytes::from_static(&[0u8; 8]),       // nonce (must be 8 bytes)
+            None, // base_fee_per_gas
         )
     }
 

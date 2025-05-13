@@ -44,6 +44,7 @@ mod tests {
             Bytes::new(), // extra_data
             B256::ZERO, // mix_hash
             Bytes::from_static(&[0u8;8]), // nonce (must be 8 bytes for QbftBlockHeader::new)
+            None, // base_fee_per_gas
         ))
     }
 

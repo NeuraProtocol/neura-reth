@@ -9,7 +9,7 @@ use std::time::Duration; // For timer
 use reth_consensus::{ConsensusError,HeaderValidator};
 use reth_consensus_common::validation::validate_header_gas;
 use alloy_primitives::{
-    Address as RethAddress, BlockNumber, B256, Bytes, // Removed Sealable
+    Address as RethAddress, BlockNumber, B256, U256, // Removed Bytes
 };
 use alloy_consensus::{EMPTY_OMMER_ROOT_HASH};
 use alloy_eips::BlockHashOrNumber as AlloyBlockHashOrNumber; // Re-adding for get_block_by_hash
@@ -50,6 +50,9 @@ use std::sync::Mutex;
 use thiserror::Error;
 use alloy_consensus::BlockHeader as AlloyConsensusBlockHeader; // Added for number()
 use std::fmt;
+
+#[cfg(test)]
+mod test_utils; // MOVED and ADDED: Declare test_utils module here for crate visibility during tests
 
 #[derive(Debug, Error)]
 pub enum QbftConsensusError {
@@ -99,7 +102,7 @@ impl<NT: NodeTypesWithDB + ProviderNodeTypes> RethQbftFinalState<NT> {
 fn convert_reth_header_to_qbft<H: RethPrimitivesBlockHeaderTrait>(reth_header: &H) -> QbftBlockHeader {
     QbftBlockHeader::new(
         reth_header.parent_hash(),
-        EMPTY_OMMER_ROOT_HASH, // QBFT doesn't use ommers in the same way, parent ommers hash is fixed.
+        reth_header.ommers_hash(),
         reth_header.beneficiary(),
         reth_header.state_root(),
         reth_header.transactions_root(),
@@ -110,9 +113,10 @@ fn convert_reth_header_to_qbft<H: RethPrimitivesBlockHeaderTrait>(reth_header: &
         reth_header.gas_limit(),
         reth_header.gas_used(),
         reth_header.timestamp(),
-        reth_header.extra_data().clone(), // extra_data() returns &Bytes
+        reth_header.extra_data().clone(),
         reth_header.mix_hash().unwrap_or_default(), // Use unwrap_or_default for Option<B256>
-        Bytes::copy_from_slice(reth_header.nonce().unwrap_or_default().as_slice()), // Handle Option<FixedBytes<8>>
+        reth_header.nonce().unwrap_or_default().into(), // Convert Option<FixedBytes<8>> to FixedBytes<8> then to Bytes
+        reth_header.base_fee_per_gas().map(U256::from),
     )
 }
 
@@ -623,28 +627,30 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*; 
+
     use neura_qbft_core::{
-        mocks::{
+        mocks::{ 
             MockQbftFinalState, MockQbftBlockCreatorFactory, MockQbftBlockImporter,
             MockValidatorMulticaster, MockBlockTimer, MockMessageValidatorFactory,
             MockRoundChangeMessageValidatorFactory,
         },
-        statemachine::QbftController,
-        types::{QbftConfig, NodeKey, AlloyBftExtraDataCodec}, 
+        statemachine::QbftController, 
+        types::{QbftConfig, NodeKey, AlloyBftExtraDataCodec, ConsensusRoundIdentifier}, 
+        payload::MessageFactory as TestMessageFactory, 
     };
-    use reth_chainspec::MAINNET;
-    use reth_provider::test_utils::MockNodeTypesWithDB;
-    use reth_stages::test_utils::{TestStageDB, StorageKind};
-    use k256::SecretKey;
-    use rand_08::thread_rng;
-    use alloy_primitives::keccak256;
-    use std::collections::HashSet;
-    use neura_qbft_core::payload::MessageFactory as TestMessageFactory;
-    use reth_primitives::{
-        BlockBody as RethBlockBody, Header as RethPrimitivesHeader, 
-        TransactionSigned, SealedBlock as RethSealedBlock
-    };
-    
+    use reth_provider::test_utils::MockNodeTypesWithDB; // MockNodeTypesWithDB is used directly
+    use reth_chainspec::MAINNET; // MAINNET is used directly
+    use reth_stages::test_utils::{TestStageDB};
+    use k256::SecretKey; 
+    use rand_08::thread_rng; 
+    use alloy_primitives::{keccak256, B256, U256, Bytes}; // REMOVED: FixedBytes
+    use std::collections::HashSet; 
+    use alloy_consensus::{Header as AlloyConsensusHeader, Sealable, EMPTY_OMMER_ROOT_HASH, constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS}}; 
+    use reth_primitives::SealedHeader; // Used in test_get_block_by_hash_empty_body
+    use reth_primitives::{BlockBody as RethBlockBody, SealedBlock as RethSealedBlock}; // ADDED specific imports
+    use reth_consensus::Consensus; // ADDED: Consensus trait for validate_block_pre_execution
+    use alloy_eips::eip4895::Withdrawals; // ADDED: For block body
 
     // Test for QbftConsensus::new()
     #[test]
@@ -812,179 +818,7 @@ mod tests {
 
     mod reth_qbft_final_state_tests {
         use super::*; // Pulls from the parent `tests` module.
-        use reth_stages::test_utils::TestStageDB;
-        use k256::SecretKey;
-        use alloy_primitives::U256;
-        use std::iter;
-        use alloy_consensus::Sealable;
-        use alloy_consensus::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-        use alloy_primitives::B256;
-        use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
-        use alloy_eips::eip4895::Withdrawals;
-        // Imports like RethBlockBody, RethPrimitivesHeader, TransactionSigned, RethSealedBlock
-        // will be brought in by `use super::*;`
-
-        // Helper to generate a unique NodeKey and corresponding RethAddress for testing
-        fn generate_unique_node_key_and_address() -> (Arc<NodeKey>, RethAddress) {
-            let mut rng = thread_rng();
-            let secret_key = SecretKey::random(&mut rng);
-            let node_key = Arc::new(NodeKey::from(secret_key));
-            let verifying_key = node_key.verifying_key();
-            let uncompressed_pk_bytes = verifying_key.to_encoded_point(false).as_bytes().to_vec();
-            let hash = keccak256(&uncompressed_pk_bytes[1..]);
-            let local_address = RethAddress::from_slice(&hash[12..]);
-            (node_key, local_address)
-        }
-
-        fn default_qbft_config_for_test() -> Arc<QbftConfig> {
-            Arc::new(QbftConfig {
-                difficulty: U256::from(1), // Default difficulty for QBFT blocks
-                block_period_seconds: 1, 
-                message_round_timeout_ms: 2000, // Corrected field name and value type (ms)
-                ..Default::default()
-            })
-        }
-
-        fn default_extra_data_codec_for_test() -> Arc<AlloyBftExtraDataCodec> {
-            Arc::new(AlloyBftExtraDataCodec::default())
-        }
-
-        // Corrected setup_test_final_state_components
-        fn setup_test_final_state_components(
-            num_initial_validators: usize,
-        ) -> (
-            RethQbftFinalState<MockNodeTypesWithDB>,
-            Vec<RethAddress>, // initial_validators (these will be in the custom genesis)
-            Arc<QbftConfig>,
-            Arc<AlloyBftExtraDataCodec>,
-            TestStageDB,
-        ) {
-            let test_db = TestStageDB::default(); // Still useful for its factory
-            let config = default_qbft_config_for_test();
-            let extra_data_codec = default_extra_data_codec_for_test();
-            let (node_key, local_address) = generate_unique_node_key_and_address();
-
-            // Create initial validators for the QBFT genesis block
-            let mut qbft_genesis_validators: Vec<RethAddress> = iter::repeat_with(|| generate_unique_node_key_and_address().1)
-                .take(num_initial_validators.saturating_sub(1)) 
-                .collect();
-            qbft_genesis_validators.push(local_address); // Ensure local node is a validator
-
-            // Create BftExtraData for QBFT genesis
-            let bft_extra_data_for_genesis = neura_qbft_core::types::BftExtraData {
-                vanity_data: Bytes::from_static(&[0u8; 32]),
-                validators: qbft_genesis_validators.clone(),
-                committed_seals: Vec::new(),
-                round_number: 0u32,
-            };
-            let qbft_genesis_extra_data_bytes = extra_data_codec.encode(&bft_extra_data_for_genesis).unwrap();
-
-            // Create the QBFT genesis header (block 0)
-            let qbft_genesis_alloy_header = alloy_consensus::Header {
-                number: 0,
-                parent_hash: B256::ZERO, // Genesis parent hash
-                ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                beneficiary: RethAddress::random(), // Can be arbitrary for genesis
-                state_root: B256::random(),      // Typically post-genesis state root
-                transactions_root: EMPTY_TRANSACTIONS, 
-                receipts_root: EMPTY_RECEIPTS,         
-                logs_bloom: Default::default(),
-                difficulty: config.difficulty, // Use QBFT config difficulty
-                gas_limit: MAINNET.genesis_header().gas_limit, // Borrow from MAINNET or set custom
-                gas_used: 0,
-                timestamp: 0, // Genesis timestamp
-                extra_data: qbft_genesis_extra_data_bytes,
-                mix_hash: Default::default(),
-                nonce: alloy_primitives::FixedBytes::ZERO, // QBFT nonce
-                base_fee_per_gas: Some(MAINNET.genesis_header().base_fee_per_gas.unwrap_or(1_000_000_000)),
-                withdrawals_root: None,
-                blob_gas_used: None,
-                excess_blob_gas: None,
-                parent_beacon_block_root: None,
-                requests_hash: None, 
-            };
-
-            let alloy_sealed_qbft_genesis = qbft_genesis_alloy_header.seal_slow();
-            let (header_part, hash_part) = alloy_sealed_qbft_genesis.into_parts();
-            let _reth_sealed_qbft_genesis_header = 
-                reth_primitives_traits::SealedHeader::new(header_part.clone(), hash_part);
-            
-            let qbft_genesis_body = RethBlockBody {
-                transactions: Vec::<TransactionSigned>::new(),
-                ommers: Vec::<RethPrimitivesHeader>::new(),
-                withdrawals: Option::<Withdrawals>::None, // Use Vec<reth_primitives::Withdrawal>
-            };
-
-            // Use header_part (alloy_consensus::Header) for seal_parts
-            let qbft_genesis_sealed_block = RethSealedBlock::seal_parts(header_part, qbft_genesis_body);
-
-            test_db.insert_blocks(
-                std::iter::once(&qbft_genesis_sealed_block), 
-                StorageKind::Database(None) 
-            )
-                .expect("Failed to insert QBFT genesis block into test_db");
-
-            let provider_factory_from_test_db = test_db.factory.clone();
-
-            let final_state = RethQbftFinalState::new(
-                provider_factory_from_test_db,
-                node_key.clone(),
-                local_address,
-                extra_data_codec.clone(), // Use the same codec used for encoding
-                config.clone(),
-            );
-            (final_state, qbft_genesis_validators, config, extra_data_codec, test_db)
-        }
-
-        // Corrected create_sealed_header_with_validators
-        fn create_sealed_header_with_validators(
-            block_number: BlockNumber,
-            parent_hash: B256,
-            validators_slice: &[RethAddress], // Changed to slice
-            extra_data_codec: &AlloyBftExtraDataCodec,
-            _qbft_config: &QbftConfig, // Added qbft_config, though not used in current body
-            difficulty: U256,        // Not an Option anymore
-        ) -> SealedHeader {
-            use neura_qbft_core::types::BftExtraData;
-            use alloy_primitives::Sealable;
-
-            let bft_extra_data = BftExtraData {
-                vanity_data: Bytes::from_static(&[0u8; 32]),
-                validators: validators_slice.to_vec(), // Convert slice to Vec
-                committed_seals: Vec::new(),
-                round_number: 0u32,
-            };
-            let extra_data_bytes = extra_data_codec.encode(&bft_extra_data).unwrap();
-
-            let alloy_header = alloy_consensus::Header {
-                number: block_number,
-                extra_data: extra_data_bytes,
-                parent_hash, // Use directly
-                ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                beneficiary: RethAddress::random(),
-                state_root: B256::random(),
-                transactions_root: B256::random(),
-                receipts_root: B256::random(),
-                logs_bloom: Default::default(),
-                difficulty, // Use directly
-                gas_limit: 30_000_000, // Example gas limit
-                gas_used: 0,
-                timestamp: block_number * 1, // Simple timestamp progression
-                mix_hash: Default::default(),
-                nonce: alloy_primitives::FixedBytes::ZERO, // Corrected: Use FixedBytes::ZERO for [0u8; 8]
-                base_fee_per_gas: Some(1_000_000_000), // Example base fee
-                withdrawals_root: None,
-                blob_gas_used: None,
-                excess_blob_gas: None,
-                parent_beacon_block_root: None,
-                requests_hash: None,
-            };
-
-            let sealed_alloy_header = alloy_header.seal_slow();
-            let (header_part, hash_part) = sealed_alloy_header.into_parts();
-            reth_primitives_traits::SealedHeader::new(header_part.clone(), hash_part)
-        }
-
+        
         #[test]
         fn test_new_and_basic_getters() {
             // Use the new setup function correctly
@@ -1302,33 +1136,907 @@ mod tests {
             let (final_state, _initial_validators, qbft_config, _codec, test_db) =
                 setup_test_final_state_components(1);
 
-            let genesis_sealed_header = test_db.factory.sealed_header(0).unwrap().expect("Genesis header missing");
+            let genesis_sealed_header: SealedHeader = test_db.factory.sealed_header(0).unwrap().expect("Genesis header missing");
             
-            // For this test, we'll assume the genesis block in TestStageDB has an empty body
-            // (which is typical for a default TestStageDB genesis).
-            // We need to ensure our get_block_by_hash can handle this.
-
             let qbft_block_opt = final_state.get_block_by_hash(&genesis_sealed_header.hash());
             assert!(qbft_block_opt.is_some(), "QBFT Genesis block not found by hash");
             
             let qbft_block = qbft_block_opt.unwrap();
 
-            // Verify header details
             assert_eq!(qbft_block.header.number, 0, "Block number mismatch");
             assert_eq!(qbft_block.header.parent_hash, genesis_sealed_header.parent_hash(), "Parent hash mismatch");
             assert_eq!(qbft_block.header.difficulty, qbft_config.difficulty, "Difficulty mismatch");
-            // ... (add more header field checks if necessary, e.g., roots if TestStageDB populates them meaningfully for genesis)
             assert_eq!(qbft_block.header.transactions_root, EMPTY_TRANSACTIONS, "Genesis transactions_root mismatch");
 
-
-            // Verify body (transactions and ommers)
             assert!(qbft_block.body_transactions.is_empty(), "Expected empty transactions for default genesis");
             assert!(qbft_block.body_ommers.is_empty(), "Expected empty ommers as per current implementation");
 
-            // Test with a non-existent hash
             let non_existent_hash = B256::random();
             let non_existent_block_opt = final_state.get_block_by_hash(&non_existent_hash);
             assert!(non_existent_block_opt.is_none(), "Expected None for non-existent block hash");
+        }
+    }
+
+    mod qbft_consensus_tests {
+        use super::*; 
+
+        #[test]
+        fn test_validate_header_valid() {
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test(); 
+            
+            let validators = vec![local_address]; 
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let valid_header = create_sealed_header_with_validators( 
+                1, 
+                B256::random(), 
+                &validators,
+                &extra_data_codec,
+                &config,
+                config.difficulty, 
+            );
+            
+            assert!(consensus.validate_header(&valid_header).is_ok());
+        }
+
+        #[test]
+        fn test_validate_header_invalid_difficulty() {
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test(); 
+            
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+            let invalid_difficulty = config.difficulty + U256::from(1);
+
+            let header_wrong_difficulty = create_sealed_header_with_validators( 
+                1,
+                B256::random(),
+                &validators,
+                &extra_data_codec,
+                &config,
+                invalid_difficulty, 
+            );
+            
+            let result = consensus.validate_header(&header_wrong_difficulty);
+            assert!(result.is_err());
+            if let Err(ConsensusError::Other(msg)) = result {
+                assert!(msg.contains("Invalid QBFT difficulty"));
+            } else {
+                panic!("Expected ConsensusError::Other for difficulty mismatch, got {:?}", result);
+            }
+        }
+
+        #[test]
+        fn test_validate_header_invalid_nonce() {
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test(); 
+            
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let header_with_bad_nonce_alloy = AlloyConsensusHeader {
+                number: 1,
+                parent_hash: B256::random(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                transactions_root: EMPTY_TRANSACTIONS,
+                receipts_root: EMPTY_RECEIPTS,
+                logs_bloom: Default::default(),
+                difficulty: config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: 1,
+                extra_data: { // Valid extra data
+                    let bft_extra = neura_qbft_core::types::BftExtraData {
+                        vanity_data: Bytes::from_static(&[0u8; 32]),
+                        validators: validators.clone(),
+                        committed_seals: Vec::new(),
+                        round_number: 0,
+                    };
+                    extra_data_codec.encode(&bft_extra).unwrap()
+                },
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes([0,0,0,0,0,0,0,1]), // Non-zero nonce!
+                base_fee_per_gas: Some(1_000_000_000),
+                withdrawals_root: None,
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            
+            let sealed_bad_nonce_header = header_with_bad_nonce_alloy.seal_slow();
+            let (header_part, hash_part) = sealed_bad_nonce_header.into_parts();
+            let reth_sealed_bad_nonce_header = SealedHeader::new(header_part, hash_part);
+
+            let result = consensus.validate_header(&reth_sealed_bad_nonce_header);
+            assert!(result.is_err());
+            if let Err(ConsensusError::Other(msg)) = result {
+                assert!(msg.contains("Invalid QBFT nonce"));
+            } else {
+                panic!("Expected ConsensusError::Other for nonce mismatch, got {:?}", result);
+            }
+        }
+
+        #[test]
+        fn test_validate_header_invalid_extra_data() {
+            let (consensus, _node_key, _local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test(); 
+
+            let invalid_extra_data = Bytes::from_static(&[1, 2, 3, 4]); 
+
+            let header_with_bad_extra_alloy = AlloyConsensusHeader {
+                number: 1,
+                parent_hash: B256::random(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                transactions_root: EMPTY_TRANSACTIONS,
+                receipts_root: EMPTY_RECEIPTS,
+                logs_bloom: Default::default(),
+                difficulty: config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: 1,
+                extra_data: invalid_extra_data, // Invalid
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, // Correct nonce
+                base_fee_per_gas: Some(1_000_000_000),
+                withdrawals_root: None,
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+
+            let sealed_bad_extra_header = header_with_bad_extra_alloy.seal_slow();
+            let (header_part, hash_part) = sealed_bad_extra_header.into_parts();
+            let reth_sealed_bad_extra_header = SealedHeader::new(header_part, hash_part);
+            
+            let result = consensus.validate_header(&reth_sealed_bad_extra_header);
+            assert!(result.is_err());
+             if let Err(ConsensusError::Other(msg)) = result {
+                assert!(msg.contains("Failed to decode QBFT BftExtraData"));
+            } else {
+                panic!("Expected ConsensusError::Other for extra data decode error, got {:?}", result);
+            }
+        }
+
+        #[test]
+        fn test_validate_header_against_parent_valid() {
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let parent_header = create_sealed_header_with_validators(
+                1, // block_number
+                B256::random(), // parent_hash (can be random for this test)
+                &validators,
+                &extra_data_codec,
+                &config,
+                config.difficulty,
+            );
+
+            let current_header = create_sealed_header_with_validators(
+                2, // block_number = parent + 1
+                parent_header.hash(), // parent_hash
+                &validators, 
+                &extra_data_codec,
+                &config,
+                config.difficulty, 
+                // Gas limit will be default from create_sealed_header_with_validators
+                // Timestamp will be block_number * 1, so 2 > 1
+            );
+            
+            let result = consensus.validate_header_against_parent(&current_header, &parent_header);
+            assert!(result.is_ok(), "Expected valid header against parent, got {:?}", result);
+        }
+
+        #[test]
+        fn test_validate_header_against_parent_block_number_mismatch() {
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let parent_header = create_sealed_header_with_validators(
+                1, 
+                B256::random(), 
+                &validators,
+                &extra_data_codec,
+                &config,
+                config.difficulty,
+            );
+
+            let current_header_wrong_num = create_sealed_header_with_validators(
+                3, // block_number != parent + 1
+                parent_header.hash(), 
+                &validators, 
+                &extra_data_codec,
+                &config,
+                config.difficulty, 
+            );
+            
+            let result = consensus.validate_header_against_parent(&current_header_wrong_num, &parent_header);
+            assert!(result.is_err());
+            match result.unwrap_err() {
+                ConsensusError::ParentBlockNumberMismatch { .. } => {}, // Expected
+                e => panic!("Expected ParentBlockNumberMismatch, got {:?}", e),
+            }
+        }
+
+        #[test]
+        fn test_validate_header_against_parent_timestamp_in_past() {
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            // Parent header with timestamp based on its number (e.g., 2)
+            let parent_header_ts_2 = create_sealed_header_with_validators(
+                2, 
+                B256::random(), 
+                &validators,
+                &extra_data_codec,
+                &config,
+                config.difficulty,
+            );
+
+            // Current header (number 3) but with an earlier or same timestamp as parent_header_ts_2
+            // We need to manually create the alloy header to set a custom timestamp
+            let bft_extra_data = neura_qbft_core::types::BftExtraData {
+                vanity_data: Bytes::from_static(&[0u8; 32]),
+                validators: validators.clone(),
+                committed_seals: Vec::new(),
+                round_number: 0u32,
+            };
+            let extra_data_bytes = extra_data_codec.encode(&bft_extra_data).unwrap();
+
+            let current_alloy_header_bad_ts = AlloyConsensusHeader {
+                number: 3, // parent_header_ts_2.number + 1
+                parent_hash: parent_header_ts_2.hash(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                transactions_root: EMPTY_TRANSACTIONS,
+                receipts_root: EMPTY_RECEIPTS,
+                logs_bloom: Default::default(),
+                difficulty: config.difficulty,
+                gas_limit: 30_000_000, // from create_sealed_header_with_validators
+                gas_used: 0,
+                timestamp: parent_header_ts_2.timestamp(), // Timestamp same as parent's
+                extra_data: extra_data_bytes,
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None,
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_current_bad_ts = current_alloy_header_bad_ts.seal_slow();
+            let (h_part, h_hash) = sealed_current_bad_ts.into_parts();
+            let current_header_bad_ts = SealedHeader::new(h_part, h_hash);
+            
+            let result = consensus.validate_header_against_parent(&current_header_bad_ts, &parent_header_ts_2);
+            assert!(result.is_err());
+            match result.unwrap_err() {
+                ConsensusError::TimestampIsInPast { .. } => {}, // Expected
+                e => panic!("Expected TimestampIsInPast, got {:?}", e),
+            }
+        }
+
+        #[test]
+        fn test_validate_header_against_parent_gas_limit_invalid() {
+            // This test relies on reth_consensus_common::validation::validate_header_gas
+            // We create a header that should fail that validation by setting gas_used > gas_limit.
+            let (consensus, _node_key, local_address, config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let parent_header = create_sealed_header_with_validators(
+                1, 
+                B256::random(), 
+                &validators,
+                &extra_data_codec,
+                &config,
+                config.difficulty,
+            );
+
+            let bft_extra_data = neura_qbft_core::types::BftExtraData {
+                vanity_data: Bytes::from_static(&[0u8; 32]),
+                validators: validators.clone(),
+                committed_seals: Vec::new(),
+                round_number: 0u32,
+            };
+            let extra_data_bytes = extra_data_codec.encode(&bft_extra_data).unwrap();
+
+            let current_alloy_header_bad_gas = AlloyConsensusHeader {
+                number: 2, 
+                parent_hash: parent_header.hash(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                transactions_root: EMPTY_TRANSACTIONS,
+                receipts_root: EMPTY_RECEIPTS,
+                logs_bloom: Default::default(),
+                difficulty: config.difficulty,
+                gas_limit: 100, // Gas limit
+                gas_used: 200,  // MODIFIED: gas_used > gas_limit
+                timestamp: parent_header.timestamp() + 1,
+                extra_data: extra_data_bytes,
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None,
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_current_bad_gas = current_alloy_header_bad_gas.seal_slow();
+            let (h_part, h_hash) = sealed_current_bad_gas.into_parts();
+            let current_header_bad_gas = SealedHeader::new(h_part, h_hash);
+
+            let result = consensus.validate_header_against_parent(&current_header_bad_gas, &parent_header);
+            assert!(result.is_err(), "Expected an error due to gas_used > gas_limit");
+            // The error from validate_header_gas is wrapped in ConsensusError::Other
+            match result.unwrap_err() {
+                ConsensusError::Other(s) => {
+                    assert!(s.contains("Gas validation error"), "Error message prefix mismatch: {}", s);
+                    // The specific error from validate_header_gas is HeaderGasUsedExceedsGasLimit
+                    // which gets wrapped. The debug format of HeaderGasUsedExceedsGasLimit will be in the string.
+                    assert!(s.contains("HeaderGasUsedExceedsGasLimit"), "Specific error type mismatch: {}", s);
+                }, 
+                e => panic!("Expected ConsensusError::Other for gas validation, got {:?}", e),
+            }
+        }
+
+        #[test]
+        fn test_validate_block_pre_execution_valid() {
+            let (consensus, _node_key, local_address, qbft_config, test_db, final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let parent_sealed_header = create_sealed_header_with_validators(
+                0, // block_number for genesis-like parent
+                B256::ZERO, // parent_hash for genesis
+                &validators,
+                &extra_data_codec,
+                &qbft_config,
+                qbft_config.difficulty,
+            );
+
+            test_db.insert_headers_with_td(std::iter::once(&parent_sealed_header)).unwrap();
+
+            // Calculate expected proposer for block 1, round 0
+            let block_number = 1;
+            let current_round: u32 = 0;
+            let expected_proposer = final_state_adapter
+                .get_proposer_for_round(&ConsensusRoundIdentifier {
+                    sequence_number: block_number,
+                    round_number: current_round,
+                })
+                .expect("Failed to get expected proposer for block 1, round 0");
+            
+            let current_alloy_header = AlloyConsensusHeader {
+                number: block_number,
+                parent_hash: parent_sealed_header.hash(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: expected_proposer, // SET BENEFICIARY
+                state_root: B256::random(), // Placeholder
+                transactions_root: EMPTY_TRANSACTIONS, // For an empty block body
+                receipts_root: EMPTY_RECEIPTS,     // For an empty block body
+                logs_bloom: Default::default(),
+                difficulty: qbft_config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: parent_sealed_header.timestamp() + 1,
+                extra_data: test_utils::create_valid_bft_extra_data_bytes(&validators, &extra_data_codec, 0),
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None, // Assuming no withdrawals for simplicity
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_alloy_header = current_alloy_header.seal_slow();
+            let (header_part, header_hash) = sealed_alloy_header.into_parts(); // header_part is alloy_consensus::Header for block 1
+            
+            // Create and insert the SealedHeader for block 1 into the DB
+            let reth_block1_sealed_header = SealedHeader::new(header_part.clone(), header_hash);
+            test_db.insert_headers_with_td(std::iter::once(&reth_block1_sealed_header)).unwrap();
+
+            let block_body = RethBlockBody { 
+                transactions: Vec::new(),
+                ommers: Vec::new(), // QBFT has empty ommers
+                withdrawals: Some(Withdrawals(Vec::new())), // Match header's withdrawals_root
+            };
+
+            // Construct RethSealedBlock using seal_parts
+            let sealed_block = RethSealedBlock::seal_parts(
+                header_part,           // Pass the unsealed alloy_consensus::Header for block 1
+                block_body             // Takes BlockBody
+            );
+            
+            // Ensure mock proposal validator is set to pass (default in setup)
+            // consensus.core_validator is QbftBlockValidator which wraps MockProposalValidator
+
+            let result = consensus.validate_block_pre_execution(&sealed_block);
+            assert!(result.is_ok(), "Expected valid block pre-execution, got {:?}", result);
+        }
+
+        #[test]
+        fn test_validate_block_pre_execution_core_validator_fails_other() {
+            let (consensus, _node_key, local_address, qbft_config, test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+
+            let validators = vec![local_address]; // Keep validators simple for this test
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let parent_sealed_header = create_sealed_header_with_validators(
+                0, B256::ZERO, &validators, &extra_data_codec, &qbft_config, qbft_config.difficulty,
+            );
+            test_db.insert_headers_with_td(std::iter::once(&parent_sealed_header)).unwrap();
+
+            let block_number = 1;
+            // Attempt to trigger "Round in block extra_data mismatch"
+            let alloy_header_block1 = AlloyConsensusHeader {
+                number: block_number,
+                parent_hash: parent_sealed_header.hash(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                transactions_root: EMPTY_TRANSACTIONS,
+                receipts_root: EMPTY_RECEIPTS,
+                logs_bloom: Default::default(),
+                difficulty: qbft_config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: parent_sealed_header.timestamp() + 1,
+                extra_data: test_utils::create_valid_bft_extra_data_bytes(&validators, &extra_data_codec, 1), // Round 1, context expects 0
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None, 
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_alloy_header_b1 = alloy_header_block1.seal_slow();
+            let (header_part_b1, header_hash_b1) = sealed_alloy_header_b1.into_parts();
+            
+            let reth_b1_sealed_header = SealedHeader::new(header_part_b1.clone(), header_hash_b1);
+            test_db.insert_headers_with_td(std::iter::once(&reth_b1_sealed_header)).unwrap();
+
+            let block_body_b1 = RethBlockBody { transactions: Vec::new(), ommers: Vec::new(), withdrawals: Some(Withdrawals(Vec::new())) };
+            let sealed_block_b1 = RethSealedBlock::seal_parts(header_part_b1, block_body_b1);
+            
+            let result = consensus.validate_block_pre_execution(&sealed_block_b1);
+            // Parent hash check is now expected to pass.
+            // The intended validation failure for this test is the round mismatch.
+            match result {
+                Err(QbftConsensusError::QbftCore(QbftError::ValidationError(msg))) if msg.contains("Round in block extra_data mismatch") => {
+                    // This is the expected error.
+                }
+                Ok(_) => panic!("Expected core validation error (Round in block extra_data mismatch), but got Ok"),
+                Err(e) => panic!("Expected QbftError::ValidationError for round mismatch, but got other error: {:?}", e),
+            }
+        }
+
+        #[test]
+        fn test_validate_block_pre_execution_body_tx_root_mismatch() {
+            let (consensus, _node_key, local_address, qbft_config, test_db, final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let parent_sealed_header = create_sealed_header_with_validators(
+                0, B256::ZERO, &validators, &extra_data_codec, &qbft_config, qbft_config.difficulty,
+            );
+            test_db.insert_headers_with_td(std::iter::once(&parent_sealed_header)).unwrap();
+
+            let block_number = 1;
+            let current_round: u32 = 0;
+            let expected_proposer = final_state_adapter
+                .get_proposer_for_round(&ConsensusRoundIdentifier {
+                    sequence_number: block_number,
+                    round_number: current_round,
+                })
+                .expect("Failed to get expected proposer for block 1, round 0");
+
+            let alloy_header_block1 = AlloyConsensusHeader {
+                number: block_number,
+                parent_hash: parent_sealed_header.hash(),
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: expected_proposer, // SET BENEFICIARY
+                state_root: B256::random(),
+                transactions_root: B256::random(), // Set a specific, non-empty tx_root in header
+                receipts_root: EMPTY_RECEIPTS, 
+                logs_bloom: Default::default(),
+                difficulty: qbft_config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: parent_sealed_header.timestamp() + 1,
+                extra_data: test_utils::create_valid_bft_extra_data_bytes(&validators, &extra_data_codec, 0),
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None, 
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_alloy_header_b1 = alloy_header_block1.seal_slow();
+            let (header_part_b1, header_hash_b1) = sealed_alloy_header_b1.into_parts();
+            
+            let reth_b1_sealed_header = SealedHeader::new(header_part_b1.clone(), header_hash_b1);
+            test_db.insert_headers_with_td(std::iter::once(&reth_b1_sealed_header)).unwrap();
+
+            let block_body_b1 = RethBlockBody { transactions: Vec::new(), ommers: Vec::new(), withdrawals: Some(Withdrawals(Vec::new())) };
+            let sealed_block_b1 = RethSealedBlock::seal_parts(header_part_b1, block_body_b1);
+            
+            let result = consensus.validate_block_pre_execution(&sealed_block_b1);
+            // Now that parent hash and beneficiary are correct, the next expected error is BodyTransactionRootDiff.
+            match result {
+                Err(QbftConsensusError::RethConsensus(ConsensusError::BodyTransactionRootDiff(_))) => {
+                    // This is the expected error now.
+                }
+                Ok(_) => panic!("Expected BodyTransactionRootDiff, but got Ok"),
+                Err(e) => panic!("Expected BodyTransactionRootDiff, but got other error: {:?}", e),
+            }
+        }
+
+        #[test]
+        fn test_validate_body_against_header_valid() {
+            let (consensus, _node_key, local_address, qbft_config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let header = create_sealed_header_with_validators(
+                1, B256::random(), &validators, &extra_data_codec, &qbft_config, qbft_config.difficulty,
+            ); 
+
+            let body = RethBlockBody { // Body matches default header roots
+                transactions: Vec::new(),
+                ommers: Vec::new(),
+                withdrawals: None,
+            };
+
+            let result = consensus.validate_body_against_header(&body, &header);
+            assert!(result.is_ok(), "Expected valid body against header, got {:?}", result);
+        }
+
+        #[test]
+        fn test_validate_body_against_header_ommers_mismatch() {
+            let (consensus, _node_key, local_address, qbft_config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let alloy_header_with_ommers = AlloyConsensusHeader {
+                ommers_hash: B256::random(), // Non-empty ommers hash
+                transactions_root: EMPTY_TRANSACTIONS, // Keep tx_root matching for this test
+                number: 1,
+                parent_hash: B256::random(), 
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                receipts_root: EMPTY_RECEIPTS, 
+                logs_bloom: Default::default(),
+                difficulty: qbft_config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: 1,
+                extra_data: test_utils::create_valid_bft_extra_data_bytes(&validators, &extra_data_codec, 0),
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None, 
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_alloy_h = alloy_header_with_ommers.seal_slow();
+            let (h_part, h_hash) = sealed_alloy_h.into_parts();
+            let header = SealedHeader::new(h_part, h_hash);
+
+            let body = RethBlockBody { // Body implies empty ommers (calculate_ommers_root would be EMPTY_OMMER_ROOT_HASH)
+                transactions: Vec::new(),
+                ommers: Vec::new(),
+                withdrawals: None,
+            };
+
+            let result = consensus.validate_body_against_header(&body, &header);
+            assert!(matches!(result, Err(QbftConsensusError::RethConsensus(ConsensusError::BodyOmmersHashDiff(_)))));
+        }
+
+        #[test]
+        fn test_validate_body_against_header_tx_root_mismatch() {
+            let (consensus, _node_key, local_address, qbft_config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let alloy_header_with_tx = AlloyConsensusHeader {
+                ommers_hash: EMPTY_OMMER_ROOT_HASH, // Keep ommers matching
+                transactions_root: B256::random(),  // Non-empty tx root in header
+                number: 1,
+                parent_hash: B256::random(), 
+                beneficiary: RethAddress::random(),
+                state_root: B256::random(),
+                receipts_root: EMPTY_RECEIPTS, 
+                logs_bloom: Default::default(),
+                difficulty: qbft_config.difficulty,
+                gas_limit: 30_000_000,
+                gas_used: 0,
+                timestamp: 1,
+                extra_data: test_utils::create_valid_bft_extra_data_bytes(&validators, &extra_data_codec, 0),
+                mix_hash: Default::default(),
+                nonce: alloy_primitives::FixedBytes::ZERO, 
+                base_fee_per_gas: Some(1_000_000_000), 
+                withdrawals_root: None, 
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_hash: None,
+            };
+            let sealed_alloy_h = alloy_header_with_tx.seal_slow();
+            let (h_part, h_hash) = sealed_alloy_h.into_parts();
+            let header = SealedHeader::new(h_part, h_hash);
+
+            let body = RethBlockBody { // Body has empty txs, so its root will be EMPTY_TRANSACTIONS
+                transactions: Vec::new(),
+                ommers: Vec::new(),
+                withdrawals: None,
+            };
+
+            let result = consensus.validate_body_against_header(&body, &header);
+            assert!(matches!(result, Err(QbftConsensusError::RethConsensus(ConsensusError::BodyTransactionRootDiff(_)))));
+        }
+
+        #[test]
+        fn test_validate_body_against_header_empty_block_non_genesis() {
+            let (consensus, _node_key, local_address, qbft_config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let header = create_sealed_header_with_validators(
+                1, // Non-genesis block number
+                B256::random(), &validators, &extra_data_codec, &qbft_config, qbft_config.difficulty,
+            );
+
+            let body = RethBlockBody { // Empty body
+                transactions: Vec::new(),
+                ommers: Vec::new(),
+                withdrawals: None,
+            };
+            // This combination should be Ok as empty non-genesis blocks are allowed
+            let result = consensus.validate_body_against_header(&body, &header);
+            assert!(result.is_ok(), "Expected Ok for empty non-genesis block, got {:?}", result);
+        }
+
+        #[test]
+        fn test_validate_body_against_header_empty_block_genesis() {
+            let (consensus, _node_key, local_address, qbft_config, _test_db, _final_state_adapter) = 
+                setup_qbft_consensus_for_test();
+            let validators = vec![local_address];
+            let extra_data_codec = AlloyBftExtraDataCodec::default();
+
+            let header = create_sealed_header_with_validators(
+                0, // Genesis block number
+                B256::random(), &validators, &extra_data_codec, &qbft_config, qbft_config.difficulty,
+            );
+
+            let body = RethBlockBody { // Empty body
+                transactions: Vec::new(),
+                ommers: Vec::new(),
+                withdrawals: None,
+            };
+            // This combination should also be Ok (current logic `header.number() != 0` for special handling is fine)
+            let result = consensus.validate_body_against_header(&body, &header);
+            assert!(result.is_ok(), "Expected Ok for empty genesis block, got {:?}", result);
+        }
+
+    }
+
+    mod reth_round_timer_tests {
+        use super::*;
+        use tokio::sync::mpsc;
+        use tokio::time::{sleep, timeout, Duration};
+        use neura_qbft_core::types::{ConsensusRoundIdentifier, RoundTimer};
+
+        #[tokio::test]
+        async fn test_reth_round_timer_start_and_fire() {
+            let (tx, mut rx): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(10);
+            let timer = RethRoundTimer::new(tx);
+            let round_id = ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 };
+            
+            timer.start_timer(round_id, 50); // 50 ms timeout
+
+            match timeout(Duration::from_millis(100), rx.recv()).await {
+                Ok(Some(received_round_id)) => {
+                    assert_eq!(received_round_id, round_id, "Timer fired for the correct round");
+                }
+                Ok(None) => panic!("Timer event channel closed unexpectedly"),
+                Err(_) => panic!("Timer did not fire within the expected time"),
+            }
+        }
+
+        #[tokio::test]
+        async fn test_reth_round_timer_cancel() {
+            let (tx, mut rx): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(10);
+            let timer = RethRoundTimer::new(tx);
+            let round_id = ConsensusRoundIdentifier { sequence_number: 2, round_number: 0 };
+
+            timer.start_timer(round_id, 100); // 100 ms timeout
+            sleep(Duration::from_millis(10)).await; // Let it start
+            timer.cancel_timer(round_id);
+            sleep(Duration::from_millis(150)).await; // Wait well past original timeout
+
+            match rx.try_recv() {
+                Ok(received_round_id) => {
+                    panic!("Timer fired for {:?} despite being cancelled", received_round_id);
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    // Expected: Timer was cancelled and did not fire
+                }
+                Err(e) => panic!("Error receiving from timer channel: {:?}", e),
+            }
+        }
+
+        #[tokio::test]
+        async fn test_reth_round_timer_restart_replaces_old() {
+            let (tx, mut rx): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(10);
+            let timer = RethRoundTimer::new(tx);
+            let round_id = ConsensusRoundIdentifier { sequence_number: 3, round_number: 0 };
+
+            timer.start_timer(round_id, 200); // Original long timeout
+            sleep(Duration::from_millis(10)).await;
+            timer.start_timer(round_id, 50); // Restart with shorter timeout
+
+            // Should fire based on the shorter timeout
+            match timeout(Duration::from_millis(100), rx.recv()).await {
+                Ok(Some(received_round_id)) => {
+                    assert_eq!(received_round_id, round_id, "Timer fired for the correct round after restart");
+                }
+                Ok(None) => panic!("Timer event channel closed unexpectedly after restart"),
+                Err(_) => panic!("Timer did not fire within the expected time after restart (expected shorter one)"),
+            }
+
+            // Ensure it doesn't fire again for the old, longer timeout
+            sleep(Duration::from_millis(250)).await; // Wait past original long timeout
+            match rx.try_recv() {
+                Ok(received_round_id) => {
+                    panic!("Timer fired again for {:?} for the old, longer timeout", received_round_id);
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    // Expected
+                }
+                Err(e) => panic!("Error receiving from timer channel after long wait: {:?}", e),
+            }
+        }
+
+        #[tokio::test]
+        async fn test_reth_round_timer_multiple_independent_timers() {
+            let (tx, mut rx): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(30); // Increased channel capacity
+            let timer = RethRoundTimer::new(tx);
+
+            let round_id_a = ConsensusRoundIdentifier { sequence_number: 10, round_number: 0 };
+            let round_id_b = ConsensusRoundIdentifier { sequence_number: 10, round_number: 1 };
+            let round_id_c = ConsensusRoundIdentifier { sequence_number: 11, round_number: 0 };
+
+            timer.start_timer(round_id_a, 60); // Fires second
+            timer.start_timer(round_id_b, 30); // Fires first
+            timer.start_timer(round_id_c, 90); // Fires third
+
+            let mut received_events = Vec::new();
+
+            // Expect B, then A, then C based on timeouts
+            match timeout(Duration::from_millis(50), rx.recv()).await {
+                Ok(Some(id)) => received_events.push(id),
+                _ => panic!("Timer B did not fire or channel closed"),
+            }
+            assert_eq!(received_events.last().unwrap(), &round_id_b);
+
+            match timeout(Duration::from_millis(50), rx.recv()).await { // Remaining 10ms for A + 30ms buffer
+                Ok(Some(id)) => received_events.push(id),
+                _ => panic!("Timer A did not fire or channel closed"),
+            }
+            assert_eq!(received_events.last().unwrap(), &round_id_a);
+
+            match timeout(Duration::from_millis(50), rx.recv()).await { // Remaining 30ms for C + 30ms buffer
+                Ok(Some(id)) => received_events.push(id),
+                _ => panic!("Timer C did not fire or channel closed"),
+            }
+            assert_eq!(received_events.last().unwrap(), &round_id_c);
+
+            assert_eq!(received_events.len(), 3, "Incorrect number of timer events received");
+            // Order check
+            assert_eq!(received_events, vec![round_id_b, round_id_a, round_id_c]);
+        }
+
+        #[tokio::test]
+        async fn test_reth_round_timer_rapid_manipulation() {
+            let (tx, mut rx): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(10);
+            let timer = RethRoundTimer::new(tx);
+            let round_id = ConsensusRoundIdentifier { sequence_number: 20, round_number: 0 };
+
+            // Start, quickly cancel, restart with short, then long, then short again
+            timer.start_timer(round_id, 500);
+            timer.cancel_timer(round_id);
+            timer.start_timer(round_id, 30); // This one should fire
+            timer.start_timer(round_id, 600); // This should be cancelled by the next
+            timer.start_timer(round_id, 40);  // This one should effectively replace the 600ms one and fire
+
+            match timeout(Duration::from_millis(70), rx.recv()).await {
+                Ok(Some(received_round_id)) => {
+                    assert_eq!(received_round_id, round_id, "Timer fired for the correct round after rapid manipulation");
+                }
+                Ok(None) => panic!("Timer event channel closed unexpectedly during rapid manipulation"),
+                Err(_) => panic!("Timer did not fire within the expected time after rapid manipulation (expected ~40ms)"),
+            }
+
+            // Ensure no other timers fire
+            sleep(Duration::from_millis(700)).await;
+            match rx.try_recv() {
+                Ok(received_round_id) => {
+                    panic!("Unexpected timer event {:?} fired after rapid manipulation sequence", received_round_id);
+                }
+                Err(mpsc::error::TryRecvError::Empty) => { /* Expected */ }
+                Err(e) => panic!("Error checking channel after rapid manipulation: {:?}", e),
+            }
+        }
+
+        #[tokio::test]
+        async fn test_reth_round_timer_sender_dropped() {
+            let (_tx, rx): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(10);
+            let timer = RethRoundTimer::new(_tx.clone()); // Clone _tx for the first timer instance
+            let round_id = ConsensusRoundIdentifier { sequence_number: 30, round_number: 0 };
+
+            timer.start_timer(round_id, 20);
+
+            // Drop the receiver for the first timer
+            drop(rx);
+
+            // Allow time for the timer to fire and attempt to send.
+            // The task inside start_timer should complete silently or log a warning, but not panic.
+            sleep(Duration::from_millis(50)).await;
+
+            // Now, create a new channel and a new timer instance for the second part of the test.
+            let (new_tx, mut rx2): (mpsc::Sender<ConsensusRoundIdentifier>, mpsc::Receiver<ConsensusRoundIdentifier>) = mpsc::channel(10);
+            let timer2 = RethRoundTimer::new(new_tx);
+
+            // Start a new timer on the new timer instance for the same round_id.
+            // This should not be affected by the first timer whose receiver was dropped.
+            timer2.start_timer(round_id, 30);
+
+            match timeout(Duration::from_millis(60), rx2.recv()).await {
+                Ok(Some(received_round_id)) => {
+                    assert_eq!(received_round_id, round_id, "New timer should fire after original sender was dropped");
+                }
+                Ok(None) => panic!("New timer channel closed unexpectedly"),
+                Err(_) => panic!("New timer did not fire after original sender was dropped"),
+            }
         }
     }
 } 

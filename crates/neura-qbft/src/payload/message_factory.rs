@@ -164,6 +164,7 @@ mod tests {
             Bloom::default(), U256::from(1), block_number, 1_000_000, 0,
             1_000_000_000 + block_number, Bytes::from_static(&[0u8; 32]),
             B256::from([5; 32]), Bytes::from_static(&[0u8; 8]),
+            None, // base_fee_per_gas
         )
     }
 

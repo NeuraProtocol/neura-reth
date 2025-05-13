@@ -1,17 +1,39 @@
 
-running 12 tests
-test tests::test_reth_round_timer_integration ... ok
-test tests::reth_qbft_final_state_tests::test_new_and_basic_getters ... ok
-test tests::reth_qbft_final_state_tests::test_is_validator ... ok
+running 34 tests
+test tests::qbft_consensus_tests::test_validate_header_against_parent_valid ... ok
+test tests::qbft_consensus_tests::test_validate_header_against_parent_gas_limit_invalid ... ok
+test tests::qbft_consensus_tests::test_validate_body_against_header_tx_root_mismatch ... ok
+test tests::qbft_consensus_tests::test_validate_body_against_header_empty_block_genesis ... ok
+test tests::qbft_consensus_tests::test_validate_header_against_parent_timestamp_in_past ... ok
+test tests::qbft_consensus_tests::test_validate_body_against_header_valid ... ok
+test tests::qbft_consensus_tests::test_validate_body_against_header_empty_block_non_genesis ... ok
+test tests::qbft_consensus_tests::test_validate_body_against_header_ommers_mismatch ... ok
+test tests::qbft_consensus_tests::test_validate_block_pre_execution_body_tx_root_mismatch ... ok
+test tests::qbft_consensus_tests::test_validate_block_pre_execution_valid ... ok
+test tests::qbft_consensus_tests::test_validate_header_against_parent_block_number_mismatch ... ok
+test tests::qbft_consensus_tests::test_validate_header_invalid_difficulty ... ok
+test tests::qbft_consensus_tests::test_validate_header_invalid_extra_data ... ok
+test tests::qbft_consensus_tests::test_validate_header_invalid_nonce ... ok
+test tests::qbft_consensus_tests::test_validate_header_valid ... ok
 test tests::reth_qbft_final_state_tests::test_current_validators ... ok
 test tests::reth_qbft_final_state_tests::test_get_block_by_hash_empty_body ... ok
-test tests::reth_qbft_final_state_tests::test_validators_method ... ok
+test tests::qbft_consensus_tests::test_validate_block_pre_execution_core_validator_fails_other ... ok
 test tests::reth_qbft_final_state_tests::test_get_validator_node_key ... ok
-test tests::test_qbft_consensus_new ... ok
-test tests::reth_qbft_final_state_tests::test_byzantine_fault_tolerance_and_quorum_size ... ok
 test tests::reth_qbft_final_state_tests::test_get_block_header ... ok
-test tests::reth_qbft_final_state_tests::test_get_validators_for_block ... ok
+test tests::reth_qbft_final_state_tests::test_is_validator ... ok
+test tests::reth_qbft_final_state_tests::test_new_and_basic_getters ... ok
+test tests::reth_qbft_final_state_tests::test_byzantine_fault_tolerance_and_quorum_size ... ok
+test tests::reth_qbft_final_state_tests::test_validators_method ... ok
+test tests::test_qbft_consensus_new ... ok
 test tests::reth_qbft_final_state_tests::test_get_proposer_for_round ... ok
+test tests::reth_round_timer_tests::test_reth_round_timer_multiple_independent_timers ... ok
+test tests::reth_qbft_final_state_tests::test_get_validators_for_block ... ok
+test tests::reth_round_timer_tests::test_reth_round_timer_start_and_fire ... ok
+test tests::reth_round_timer_tests::test_reth_round_timer_cancel ... ok
+test tests::reth_round_timer_tests::test_reth_round_timer_sender_dropped ... ok
+test tests::test_reth_round_timer_integration ... ok
+test tests::reth_round_timer_tests::test_reth_round_timer_restart_replaces_old ... ok
+test tests::reth_round_timer_tests::test_reth_round_timer_rapid_manipulation ... ok
 
-test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.87s
 

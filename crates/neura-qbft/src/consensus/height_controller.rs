@@ -355,6 +355,7 @@ impl HeightController {
                                         updated_extra_data_bytes.clone(),
                                         old_header.mix_hash,
                                         old_header.nonce.clone(),
+                                        old_header.base_fee_per_gas,
                                     );
                                     let new_block_hash = block_to_finalize.header.hash();
 

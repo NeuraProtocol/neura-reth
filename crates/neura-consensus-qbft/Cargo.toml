@@ -34,4 +34,8 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 # REMOVED neura_qbft_core from here
 # Add reth-ethereum-primitives for constants
 reth-ethereum-primitives = { workspace = true, features = ["serde"] }
-reth-stages = { workspace = true, features = ["test-utils"] } 
+reth-stages = { workspace = true, features = ["test-utils"] }
+alloy-rlp = { workspace = true }
+
+[features]
+# ... existing features ... 

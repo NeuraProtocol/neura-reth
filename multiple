@@ -1,0 +1,4 @@
+let sealed_alloy_header = alloy_header.seal_slow();
+let (header_part, hash_part) = sealed_alloy_header.into_parts();
+dbg!(&header_part.transactions_root); // DEBUG PRINT
+SealedHeader::new(header_part, hash_part) 
