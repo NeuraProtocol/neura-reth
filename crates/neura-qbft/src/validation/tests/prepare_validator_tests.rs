@@ -2,7 +2,7 @@
 
 use super::common_helpers::*; // Import all common helpers
 use crate::validation::{PrepareValidator, PrepareValidatorImpl, ValidationContext}; // Import items under test
-use crate::types::{ConsensusRoundIdentifier, QbftConfig, SignedData};
+use crate::types::{ConsensusRoundIdentifier, SignedData};
 use crate::messagewrappers::Prepare;  // Import necessary types
 use crate::error::QbftError;
 use crate::payload::{PreparePayload};

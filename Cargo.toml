@@ -478,7 +478,7 @@ alloy-genesis = { version = "0.15.10", default-features = false }
 alloy-json-rpc = { version = "0.15.10", default-features = false }
 alloy-network = { version = "0.15.10", default-features = false }
 alloy-network-primitives = { version = "0.15.10", default-features = false }
-alloy-provider = { version = "0.15.10", features = ["engine-api", "reqwest-rustls-tls"], default-features = false }
+alloy-provider = { version = "0.15.10", features = ["engine-api", "reqwest-rustls-tls","reqwest"], default-features = false }
 alloy-pubsub = { version = "0.15.10", default-features = false }
 alloy-rpc-client = { version = "0.15.10", default-features = false }
 alloy-rpc-types = { version = "0.15.10", features = ["eth"], default-features = false }

@@ -1,20 +1,18 @@
 use crate::messagewrappers::bft_message::BftMessage;
 use crate::payload::{RoundChangePayload, PreparePayload};
 use crate::types::{SignedData, QbftBlock};
-use alloy_rlp::{RlpEncodable, RlpDecodable}; // Encodable, Decodable were removed as per build log
+use alloy_rlp::{RlpEncodable, RlpDecodable};
 use std::ops::Deref;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-// Removed redundant imports and consolidated crate::types imports
-// use k256::ecdsa::SigningKey; // Moved to test module below
 
 /// Represents a QBFT RoundChange message, including any piggybacked prepared certificate.
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))] // Assuming it might need serde
-#[rlp(trailing)] // For Option fields
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[rlp(trailing)]
 pub struct RoundChange {
     bft_message: BftMessage<RoundChangePayload>,
-    prepared_block: Option<QbftBlock>, 
+    prepared_block: Option<QbftBlock>,
     prepares: Option<Vec<SignedData<PreparePayload>>>, 
 }
 
@@ -26,6 +24,10 @@ impl Deref for RoundChange {
 }
 
 impl RoundChange {
+    /// Creates a new RoundChange message.
+    /// Note: This constructor performs NO validation on the consistency of its arguments
+    /// (e.g., checking if `prepared_block` is present when `prepared_round_metadata` is).
+    /// Such validation is the responsibility of the `RoundChangeMessageValidator`.
     pub fn new(
         signed_payload_data: SignedData<RoundChangePayload>,
         prepared_block: Option<QbftBlock>,
@@ -33,28 +35,8 @@ impl RoundChange {
     ) -> Result<Self, crate::error::QbftError> { 
         let bft_message = BftMessage::new(signed_payload_data);
         
-        let has_metadata = bft_message.payload().prepared_round_metadata.is_some();
-        let has_block = prepared_block.is_some();
-        let has_actual_prepares = prepares.as_ref().map_or(false, |p_vec| !p_vec.is_empty());
-
-        if has_metadata {
-            if !has_block {
-                return Err(crate::error::QbftError::ValidationError(
-                    "RoundChange: prepared_block missing when payload metadata present".into()
-                ));
-            }
-        } else {
-            if has_block {
-                 return Err(crate::error::QbftError::ValidationError(
-                    "RoundChange: prepared_block present when payload metadata is None".into()
-                ));
-            }
-            if has_actual_prepares {
-                 return Err(crate::error::QbftError::ValidationError(
-                    "RoundChange: prepares present when payload metadata is None".into()
-                ));
-            }
-        }
+        // Validation checks REMOVED. Constructor just builds the struct.
+        // Validation should happen in RoundChangeMessageValidator.
 
         Ok(Self {
             bft_message,

@@ -61,7 +61,7 @@ impl CommitValidator for CommitValidatorImpl {
                 "Invalid Commit: Author {:?} is not in the current validator set for round {:?}/{:?}. Validators: {:?}",
                 author, context.current_sequence_number, context.current_round_number, context.current_validators
             );
-            return Err(QbftError::NotAValidator { sender: author });
+            return Err(QbftError::ValidationAuthorNotValidator { author });
         }
 
         // Check 4: Validate the committed_seal signature.

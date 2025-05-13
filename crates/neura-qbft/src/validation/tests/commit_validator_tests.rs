@@ -132,8 +132,9 @@ fn test_validate_commit_invalid_author_not_validator() {
     let commit_validator = CommitValidatorImpl::new();
     let result = commit_validator.validate_commit(&commit_message, &context);
 
-    // Expect ValidationAuthorNotValidator error
-    assert!(matches!(result, Err(QbftError::ValidationAuthorNotValidator { author }) if author == non_validator_address));
+    // Expect ValidationAuthorNotValidator error, comparing against the non-validator's address
+    assert!(matches!(result, Err(QbftError::ValidationAuthorNotValidator { author }) if author == non_validator_address),
+            "Expected ValidationAuthorNotValidator with author {}, got {:?}", non_validator_address, result);
 }
 
 #[test]
@@ -174,17 +175,11 @@ fn test_validate_commit_round_mismatch() {
     let commit_validator = CommitValidatorImpl::new();
     let result = commit_validator.validate_commit(&commit_message, &context);
 
-    // Expect PayloadSequenceNumberMismatch (since round is part of round_id)
-    assert!(matches!(result, Err(QbftError::PayloadSequenceNumberMismatch { .. })));
-    if let Err(QbftError::PayloadSequenceNumberMismatch { expected, actual }) = result {
-        // The error compares sequence numbers, but the mismatch was induced by round number
-        // Let's check the round numbers within the error message context implicitly
-        // The check should fail because commit_message.round_identifier().round_number != context.current_round_number
-        // The error variant PayloadSequenceNumberMismatch might need refinement or a different variant should be used.
-        // For now, confirm it catches *a* mismatch in the round identifier.
-    } else {
-        panic!("Expected PayloadSequenceNumberMismatch due to round mismatch, got {:?}", result);
-    }
+    // Expect MessageRoundMismatch when the round is incorrect
+    assert!(matches!(result, Err(QbftError::MessageRoundMismatch { message_type, expected_sequence, expected_round, actual_sequence, actual_round })
+        if message_type == "Commit" &&
+           expected_sequence == current_sequence && expected_round == context_round as u32 &&
+           actual_sequence == current_sequence && actual_round == commit_round as u32));
 }
 
 #[test]
@@ -225,9 +220,11 @@ fn test_validate_commit_sequence_mismatch() {
     let commit_validator = CommitValidatorImpl::new();
     let result = commit_validator.validate_commit(&commit_message, &context);
 
-    // Expect PayloadSequenceNumberMismatch
-    assert!(matches!(result, Err(QbftError::PayloadSequenceNumberMismatch { expected, actual }) 
-        if expected == context_sequence && actual == commit_sequence));
+    // Expect MessageRoundMismatch when the sequence is incorrect
+    assert!(matches!(result, Err(QbftError::MessageRoundMismatch { message_type, expected_sequence, expected_round, actual_sequence, actual_round })
+        if message_type == "Commit" &&
+           expected_sequence == context_sequence && expected_round == current_round as u32 &&
+           actual_sequence == commit_sequence && actual_round == current_round as u32));
 }
 
 #[test]
@@ -270,6 +267,7 @@ fn test_validate_commit_digest_mismatch() {
     let commit_validator = CommitValidatorImpl::new();
     let result = commit_validator.validate_commit(&commit_message, &context);
 
+    // Expect CommitDigestMismatch
     assert!(matches!(result, Err(QbftError::CommitDigestMismatch)));
 }
 
@@ -316,7 +314,6 @@ fn test_validate_commit_invalid_seal_signature_mismatched_author() {
     assert!(matches!(result, Err(QbftError::InvalidSignature { sender }) if sender == validator1_address));
 }
 
-
 #[test]
 fn test_validate_commit_invalid_seal_signature_recovery_fails() {
     let config = default_config();
@@ -346,19 +343,18 @@ fn test_validate_commit_invalid_seal_signature_recovery_fails() {
     
     // Create an invalid RlpSignature (e.g., by modifying a valid one)
     let valid_seal_signature = sign_digest(&validator_key, accepted_proposal_digest);
-    let mut corrupted_sig = valid_seal_signature.into_inner(); // Get alloy_primitives::Signature
-    // Corrupt 'r' value. U256 doesn't have direct byte access, convert to bytes, modify, convert back.
-    let mut r_bytes = corrupted_sig.r().to_be_bytes::<32>();
-    r_bytes[0] = r_bytes[0].wrapping_add(1);
-    let corrupted_r = U256::from_be_bytes(r_bytes);
-    let invalid_seal_signature = RlpSignature::new(
-        alloy_primitives::Signature::new(corrupted_r, corrupted_sig.s(), corrupted_sig.v())
-    );
+    let corrupted_sig = valid_seal_signature.into_inner(); // Get alloy_primitives::Signature
+    // Flip some bits (example corruption)
+    let mut corrupted_bytes = corrupted_sig.as_bytes();
+    corrupted_bytes[0] ^= 0xff;
+    let truly_corrupted_sig = alloy_primitives::Signature::from_raw(&corrupted_bytes)
+        .expect("Failed to create corrupted signature from bytes");
+    let corrupted_seal_signature = RlpSignature::from(truly_corrupted_sig);
 
     let commit_payload = CommitPayload::new(
         round_id,
         accepted_proposal_digest,
-        invalid_seal_signature, // Use the corrupted RlpSignature
+        corrupted_seal_signature, // Use the corrupted RlpSignature
     );
 
     // Sign the outer CommitPayload with the validator's key

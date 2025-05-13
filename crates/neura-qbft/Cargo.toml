@@ -9,7 +9,7 @@ edition = "2021"
 alloy-primitives = { workspace = true, features = ["rlp", "serde"] } # Removed geth-signer
 alloy-rlp = { workspace = true, features = ["derive"] }    # Use workspace version
 alloy-consensus = { workspace = true } # Corrected to hyphen
-k256 = { workspace = true, features = ["ecdsa"] } # Added "ecdsa" feature
+k256 = { workspace = true, features = ["ecdsa"] }
 ecdsa = { version = "0.16", features = ["signing", "verifying"] } # Direct, not in workspace.dependencies
 sha3 = "0.10" # Keccak256 is part of this
 chrono = "0.4"

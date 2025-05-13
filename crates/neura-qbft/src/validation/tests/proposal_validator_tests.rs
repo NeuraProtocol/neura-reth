@@ -1,9 +1,10 @@
 //! Tests for the ProposalValidator implementation.
 
 use super::common_helpers::*; // Import all common helpers
-use crate::validation::{ProposalValidator, ProposalValidatorImpl, ValidationContext}; // Import items under test
-use crate::types::{ConsensusRoundIdentifier, QbftConfig, QbftBlockHeader}; // Import necessary types, added QbftBlockHeader
 use crate::error::QbftError;
+use crate::messagewrappers::Proposal;
+use crate::validation::{ProposalValidator, ProposalValidatorImpl}; // Removed ValidationContext
+use crate::types::{ConsensusRoundIdentifier, QbftConfig, QbftBlockHeader}; // Import necessary types, added QbftBlockHeader
 use std::sync::Arc;
 use std::collections::HashSet;
 use alloy_primitives::{Address, B256, U256}; // Import primitives

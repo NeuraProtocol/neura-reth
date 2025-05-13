@@ -479,11 +479,13 @@ dependencies = [
  "lru 0.13.0",
  "parking_lot",
  "pin-project",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "url",
  "wasmtimer",
 ]
 
@@ -8824,6 +8826,7 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "alloy-provider",
+ "alloy-rpc-client",
  "alloy-rpc-types-beacon",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",

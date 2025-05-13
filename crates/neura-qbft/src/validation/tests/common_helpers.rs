@@ -243,36 +243,21 @@ pub fn mock_round_change_message_validator_factory(
 
 // Helper to sign a digest (B256) with a NodeKey, returning RlpSignature
 pub fn sign_digest(key: &NodeKey, digest: B256) -> RlpSignature {
-    // Create a SigningKey from the SecretKey inside NodeKey
-    // Assuming NodeKey allows access to the inner k256::SecretKey.
-    // If NodeKey doesn't deref, we might need key.inner() or similar.
-    // Let's assume direct conversion or access for now:
-    let signing_key = k256::ecdsa::SigningKey::from(key.secret_key()); // Assuming secret_key() accessor
-
-    let secp_signature: k256::ecdsa::recoverable::Signature = signing_key
+    // NodeKey is an alias for k256::ecdsa::SigningKey, so use `key` directly.
+    
+    // Corrected: sign_prehash_recoverable returns (Signature, RecoveryId)
+    let (secp_signature, recovery_id): (k256::ecdsa::Signature, k256::ecdsa::RecoveryId) = key // Use key directly
         .sign_prehash_recoverable(digest.as_slice())
-        .expect("ECDSA signing failed");
+        .expect("ECDSA recoverable signing failed");
 
-    // Recover the public key to verify the signature and find the recovery ID / parity (v)
-    let verifying_key = signing_key.verifying_key(); // Use verifying_key from SigningKey
-    let (r, s) = secp_signature.split_rs();
+    // The recovery_id is now obtained directly from the signing call
+    let v_parity_bool = recovery_id.is_y_odd();
 
-    let mut v_parity_bool = None;
-    for v_byte in 0u8..=1 {
-        if let Ok(rec_id) = k256::ecdsa::RecoveryId::from_byte(v_byte) {
-            if let Ok(recovered_key) = VerifyingKey::recover_from_prehash(digest.as_slice(), &secp_signature, rec_id) {
-                if &recovered_key == verifying_key { // Compare verifying keys
-                    v_parity_bool = Some(v_byte == 1);
-                    break;
-                }
-            }
-        }
-    }
-    let v_parity_bool = v_parity_bool.expect("Failed to recover public key and determine v parity");
+    let (r, s) = secp_signature.split_bytes(); // Use split_bytes for raw components
 
-    // Convert r and s to U256
-    let r_u256 = U256::from_be_slice(r.to_bytes().as_slice());
-    let s_u256 = U256::from_be_slice(s.to_bytes().as_slice());
+    // Convert r and s FieldBytes directly to U256
+    let r_u256 = U256::from_be_slice(r.as_slice());
+    let s_u256 = U256::from_be_slice(s.as_slice());
 
     // Create the alloy signature
     let alloy_sig = AlloySignature::new(r_u256, s_u256, v_parity_bool);

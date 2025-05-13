@@ -1,15 +1,15 @@
 // This file should now ONLY contain ValidationContext, ProposalValidator trait, and ProposalValidatorImpl struct/impl.
 // The old struct ProposalValidator and its impl block have been removed.
 
-use crate::messagewrappers::Proposal;
-use crate::types::{QbftBlockHeader, QbftFinalState, BftExtraDataCodec, QbftConfig};
 use crate::error::QbftError;
-// use crate::payload::QbftPayload; // Removed unused import
-use alloy_primitives::{Address, B256 as Hash}; // Added Hash import
-use std::collections::{HashSet, HashMap}; // Added HashMap for duplicate author check
+use crate::messagewrappers::{Proposal, RoundChange};
+use crate::payload::{PreparedRoundMetadata, QbftPayload};
+use crate::types::{QbftBlockHeader, QbftConfig, QbftFinalState, BftExtraDataCodec, ConsensusRoundIdentifier};
+use alloy_primitives::{Address, B256 as Hash};
+use std::collections::HashSet; // Removed HashMap
 use std::sync::Arc;
-use crate::types::SignedData; 
-use crate::payload::ProposalPayload; // Add SignedData to imports if not already present
+// Removed unused crate::types::SignedData;
+// Removed unused crate::payload::ProposalPayload;
 
 // Bring in specific validator traits it will need
 use crate::validation::{RoundChangeMessageValidatorFactory,MessageValidatorFactory};
@@ -102,10 +102,14 @@ impl ProposalValidatorImpl {
         // 1. Author is the expected proposer for this round/sequence.
         let author = proposal.author()?;
         if author != context.expected_proposer {
+            // --- DEBUG LOGGING START ---
+            let mut sorted_context_validators: Vec<Address> = context.current_validators.iter().cloned().collect();
+            sorted_context_validators.sort();
             log::warn!(
-                "Invalid Proposal: Author {:?} is not the expected proposer {:?} for round {:?}/{:?}", 
-                author, context.expected_proposer, context.current_sequence_number, context.current_round_number
+                "Invalid Proposal: Author mismatch for round {:?}/{:?}. Expected Proposer: {:?}, Actual Author: {:?}. Context Validators (Sorted): {:?}", 
+                context.current_sequence_number, context.current_round_number, context.expected_proposer, author, sorted_context_validators
             );
+            // --- DEBUG LOGGING END ---
             return Err(QbftError::ProposalNotFromProposer);
         }
 
