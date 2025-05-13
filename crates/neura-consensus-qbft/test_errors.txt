@@ -1,0 +1,17 @@
+
+running 12 tests
+test tests::test_reth_round_timer_integration ... ok
+test tests::reth_qbft_final_state_tests::test_new_and_basic_getters ... ok
+test tests::reth_qbft_final_state_tests::test_is_validator ... ok
+test tests::reth_qbft_final_state_tests::test_current_validators ... ok
+test tests::reth_qbft_final_state_tests::test_get_block_by_hash_empty_body ... ok
+test tests::reth_qbft_final_state_tests::test_validators_method ... ok
+test tests::reth_qbft_final_state_tests::test_get_validator_node_key ... ok
+test tests::test_qbft_consensus_new ... ok
+test tests::reth_qbft_final_state_tests::test_byzantine_fault_tolerance_and_quorum_size ... ok
+test tests::reth_qbft_final_state_tests::test_get_block_header ... ok
+test tests::reth_qbft_final_state_tests::test_get_validators_for_block ... ok
+test tests::reth_qbft_final_state_tests::test_get_proposer_for_round ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+

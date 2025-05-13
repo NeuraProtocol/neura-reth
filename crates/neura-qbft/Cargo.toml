@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-alloy-primitives = { workspace = true, features = ["rlp", "serde"] } # Removed geth-signer
+alloy-primitives = { workspace = true, features = ["rlp", "serde", "getrandom"] } # Removed geth-signer
 alloy-rlp = { workspace = true, features = ["derive"] }    # Use workspace version
 alloy-consensus = { workspace = true } # Corrected to hyphen
 k256 = { workspace = true, features = ["ecdsa"] }
@@ -38,6 +38,7 @@ test-log = "0.2.14"
 [features]
 default = []
 serde = ["dep:serde", "alloy-primitives/serde"] # Enable serde for this crate and alloy-primitives    
+mocks = [] # Added mocks feature
 
 # Example feature for integration tests or specific configurations
 # integration-tests = []

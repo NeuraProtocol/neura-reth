@@ -177,15 +177,21 @@ The below sections of this implementation plan which consists of completed work 
         *   The previous TODO regarding `self.controller.validate_header_for_proposal` was re-evaluated. The current implementation, which performs QBFT-specific nonce checks and `BftExtraData` decode checks, is considered the correct approach for this standalone header validation. This item is now resolved.
     *   **Overall:** The `neura-consensus-qbft` crate is in a much more stable state. The core structures and adaptations are largely in place.
 
+**Date: 2024-05-26 - `neura-consensus-qbft` - `RethQbftFinalState` Unit Tests Completed**
+    ***Build Status:*** The `neura_consensus_qbft` crate compiles successfully and all its tests, including comprehensive unit tests for `RethQbftFinalState`, are passing.
+    *   **`RethQbftFinalState` Testing:**
+        *   All public methods of `RethQbftFinalState` (`node_key`, `local_address`, `get_validators_for_block`, `get_block_header`, `get_proposer_for_round`, `current_validators`, `validators`, `is_validator`, `byzantine_fault_tolerance_f`, `quorum_size`, `is_proposer_for_round`, `get_validator_node_key`, `get_block_by_hash`) now have corresponding unit tests in the `reth_qbft_final_state_tests` module.
+        *   Tests cover various scenarios, including interactions with a `TestStageDB` for block and header retrieval, validator set calculations, and proposer selection logic.
+        *   Issues related to `TestStageDB` setup (inserting full blocks vs. headers only) and type mismatches (especially for `Withdrawal` types and `SealedBlock` construction) were resolved.
+
 ### Next Steps:
 
 1.  **Complete `neura_consensus_qbft` Implementation & Testing:**
     *   **Current Focus:** Add comprehensive unit tests and refine existing code.
         *   **Testing:**
             *   Add unit tests for `QbftConsensus` (covering `validate_header`, `validate_header_against_parent`, `validate_body_against_header`, `validate_block_pre_execution`).
-            *   Add unit tests for `RethQbftFinalState` (covering all implemented methods, mocking provider interactions where necessary).
+            *   Add unit tests for `RethQbftFinalState` (covering all implemented methods, mocking provider interactions where necessary). - **COMPLETED**
             *   Add unit tests for `RethRoundTimer`.
-            *   Verify proper error handling and edge cases in all components.
         *   **Refinement & Review:**
             *   Review the existing implementations in `QbftConsensus` and `RethQbftFinalState` for any further improvements, particularly in error propagation, logging, and the clarity of interactions with `neura_qbft_core`.
             *   Ensure all necessary conversions between Reth types and QBFT core types are robust.

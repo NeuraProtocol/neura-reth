@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 # Workspace dependencies
-neura_qbft_core = { path = "../neura-qbft" }
+neura_qbft_core = { path = "../neura-qbft", features = ["mocks"] }
 
 # Reth dependencies
 reth-consensus = { workspace = true }
@@ -28,5 +28,10 @@ thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
-k256 = { workspace = true }
-rand_08 = { package = "rand", version = "0.8.5" } 
+k256 = { workspace = true, features = ["ecdsa"] }
+rand_08 = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+# REMOVED neura_qbft_core from here
+# Add reth-ethereum-primitives for constants
+reth-ethereum-primitives = { workspace = true, features = ["serde"] }
+reth-stages = { workspace = true, features = ["test-utils"] } 

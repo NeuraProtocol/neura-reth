@@ -1,12 +1,20 @@
    Compiling neura_consensus_qbft v0.1.0 (/home/peastew/src/neura-reth/crates/neura-consensus-qbft)
-warning: unused import: `reth_node_api::NodeTypes`
-  --> crates/neura-consensus-qbft/src/lib.rs:30:5
-   |
-30 | use reth_node_api::NodeTypes; // Re-adding for get_block_by_hash (and its trait bounds)
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: `#[warn(unused_imports)]` on by default
+warning: field `provider_factory` is never read
+   --> crates/neura-consensus-qbft/src/lib.rs:835:13
+    |
+831 |         struct TestFinalStateSetup {
+    |                ------------------- field in this struct
+...
+835 |             provider_factory: ProviderFactory<MockNodeTypesWithDB>,
+    |             ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
 
-warning: `neura_consensus_qbft` (lib) generated 1 warning (run `cargo fix --lib -p neura_consensus_qbft` to apply 1 suggestion)
-warning: `neura_consensus_qbft` (lib test) generated 1 warning (1 duplicate)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.23s
+warning: function `create_sealed_header_with_validators` is never used
+   --> crates/neura-consensus-qbft/src/lib.rs:860:12
+    |
+860 |         fn create_sealed_header_with_validators(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `neura_consensus_qbft` (lib test) generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.18s
