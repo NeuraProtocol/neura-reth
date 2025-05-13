@@ -121,18 +121,43 @@ The below sections of this implementation plan which consists of completed work 
         *   Core data structures (`SignedData`, `QbftBlockHeader`, `CommitPayload`, `RoundChangePayload`, etc.) are stable and used throughout the tests.
         *   RLP encoding/decoding for these types is implicitly tested via the validation logic that relies on correct message construction and parsing.
 
+**Date: 2024-05-22 - `neura_consensus_qbft` Initial Implementation**
+    ***Build Status:** The `neura_consensus_qbft` crate compiles with a few `dead_code` warnings, which have been addressed with `#[allow(dead_code)]` attributes.
+    *   **Core Implementation:**
+        *   Successfully implemented `QbftConsensus` struct with `HeaderValidator` and `Consensus` trait implementations.
+        *   Implemented `RethQbftFinalState` adapter for QBFT state management.
+        *   Implemented `RethRoundTimer` for handling round timeouts.
+        *   Fixed type resolution issues with `SealedBlock` and `SealedHeader` in validation methods.
+        *   Added proper error handling with `QbftConsensusError`.
+    *   **Next Focus:** Integration with `neura_qbft_core` components and implementation of remaining QBFT consensus logic.
+
 ### Next Steps:
 
-1.  **Integrate `neura_qbft_core` with `neura_consensus_qbft`:**
-    *   **Current Focus:** Begin replacing mock implementations and placeholder logic within the `neura_consensus_qbft` crate (and its sub-modules like `neura_synchronizer_qbft`) with the actual, tested components from `neura_qbft_core`.
-    *   This will involve:
-        *   Updating `use` statements to point to `neura_qbft_core` types and validators.
-        *   Instantiating and using the real validator implementations.
-        *   Ensuring the `MessageFactory` from `neura_qbft_core` is used for creating QBFT messages.
-        *   Adapting the main QBFT state machine and message handling logic in `neura_consensus_qbft` to work with the `neura_qbft_core` components.
-    *   Run tests within `neura_consensus_qbft` and address any resulting compilation errors or test failures. This will likely be an iterative process.
+1. **Complete `neura_consensus_qbft` Implementation:**
+    *   **Current Focus:** Implement remaining QBFT consensus logic:
+        *   Complete the `validate_body_against_header` implementation.
+        *   Implement block proposal and validation logic.
+        *   Integrate with `neura_qbft_core`'s message handling and state machine.
+        *   Add proper error handling and logging.
+    *   **Testing:**
+        *   Add unit tests for `QbftConsensus` and its components.
+        *   Test integration with `neura_qbft_core` components.
+        *   Verify proper error handling and edge cases.
 
-2.  **Address Remaining `TODOs` and `FIXMEs`:**
+2. **Integration with Reth Node Builder:**
+    *   Create QBFT-specific configuration types.
+    *   Implement node builder integration for QBFT consensus.
+    *   Add configuration validation and error handling.
+
+3. **Block Import and Finalization:**
+    *   Implement block import logic for QBFT consensus.
+    *   Add proper finalization handling.
+    *   Integrate with Reth's block processing pipeline.
+
+4. **Testing and Documentation:**
+    *   Add comprehensive tests for the entire QBFT consensus implementation.
+    *   Document the implementation details and configuration options.
+    *   Add examples and usage instructions.
 
 ## Next Steps
 

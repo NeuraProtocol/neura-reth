@@ -382,13 +382,27 @@ where
         body: &<NT::Primitives as NodePrimitives>::BlockBody, 
         header: &SealedHeader<<NT::Primitives as NodePrimitives>::BlockHeader>,
     ) -> Result<(), Self::Error> {
-        let _ = body;
+        // QBFT doesn't use ommers, so verify ommers hash is empty
         if header.ommers_hash() != EMPTY_OMMER_ROOT_HASH {
             return Err(QbftConsensusError::RethConsensus(reth_consensus::ConsensusError::BodyOmmersHashDiff(
                 reth_primitives_traits::GotExpectedBoxed(Box::new(GotExpected::new(header.ommers_hash(), EMPTY_OMMER_ROOT_HASH)))
             )));
         }
-        warn!("QBFT validate_body_against_header is a TODO");
+
+        // Verify transactions root matches header
+        let transactions_root = body.transactions_root();
+        if transactions_root != header.transactions_root() {
+            return Err(QbftConsensusError::RethConsensus(reth_consensus::ConsensusError::BodyTransactionsRootDiff(
+                reth_primitives_traits::GotExpectedBoxed(Box::new(GotExpected::new(transactions_root, header.transactions_root())))
+            )));
+        }
+
+        // QBFT-specific: Allow empty blocks if not genesis
+        if body.transactions().is_empty() && header.number() != 0 {
+            debug!(target: "consensus::qbft", "Empty block allowed for non-genesis block {}", header.number());
+        }
+
+        debug!(target: "consensus::qbft", "Validated QBFT block body against header: {}", header.hash());
         Ok(())
     }
 
