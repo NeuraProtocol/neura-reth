@@ -1,10 +1,8 @@
 // This file should now ONLY contain ValidationContext, ProposalValidator trait, and ProposalValidatorImpl struct/impl.
-// The old struct ProposalValidator and its impl block have been removed.
 
 use crate::error::QbftError;
-use crate::messagewrappers::{Proposal, RoundChange};
-use crate::payload::{PreparedRoundMetadata, QbftPayload};
-use crate::types::{QbftBlockHeader, QbftConfig, QbftFinalState, BftExtraDataCodec, ConsensusRoundIdentifier};
+use crate::messagewrappers::Proposal;
+use crate::types::{QbftBlockHeader, QbftConfig, QbftFinalState, BftExtraDataCodec};
 use alloy_primitives::{Address, B256 as Hash};
 use std::collections::HashSet; // Removed HashMap
 use std::sync::Arc;

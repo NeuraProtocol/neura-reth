@@ -2,12 +2,11 @@
 
 use super::common_helpers::*; // Import all common helpers
 use crate::error::QbftError;
-use crate::messagewrappers::Proposal;
-use crate::validation::{ProposalValidator, ProposalValidatorImpl}; // Removed ValidationContext
-use crate::types::{ConsensusRoundIdentifier, QbftConfig, QbftBlockHeader}; // Import necessary types, added QbftBlockHeader
-use std::sync::Arc;
-use std::collections::HashSet;
+use crate::types::{ConsensusRoundIdentifier, QbftConfig, QbftBlockHeader};
+use crate::validation::{ProposalValidator, ProposalValidatorImpl};
 use alloy_primitives::{Address, B256, U256}; // Import primitives
+use std::collections::HashSet;
+use std::sync::Arc;
 
 #[test]
 fn test_placeholder_proposal_validator() {

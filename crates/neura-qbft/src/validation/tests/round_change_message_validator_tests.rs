@@ -1,14 +1,13 @@
 //! Tests for RoundChangeMessageValidatorImpl.
 
 use super::common_helpers::*;
-use crate::messagewrappers::{RoundChange, Prepare, Proposal,BftMessage};
+use crate::messagewrappers::{RoundChange,BftMessage};
 use crate::payload::{RoundChangePayload, PreparePayload, ProposalPayload, PreparedRoundMetadata};
-use crate::types::{ConsensusRoundIdentifier, SignedData, QbftConfig, QbftBlockHeader, NodeKey, BftExtraData, QbftBlock, RlpSignature, BftExtraDataCodec, QbftFinalState};
-use crate::validation::{RoundChangeMessageValidator, RoundChangeMessageValidatorImpl, ValidationContext, MessageValidatorFactoryImpl, MessageValidatorFactory, ProposalValidatorImpl, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl, CommitValidatorImpl, PrepareValidatorImpl};
+use crate::types::{ConsensusRoundIdentifier, SignedData, QbftConfig, QbftBlockHeader, NodeKey, QbftBlock, BftExtraDataCodec, QbftFinalState};
+use crate::validation::{RoundChangeMessageValidator, ValidationContext, MessageValidatorFactoryImpl, MessageValidatorFactory, ProposalValidatorImpl, RoundChangeMessageValidatorFactory, RoundChangeMessageValidatorFactoryImpl};
 use crate::error::QbftError;
 use crate::mocks::MockQbftFinalState;
-use alloy_primitives::{Address, B256, Bytes, U256};
-use alloy_consensus::Sealable;
+use alloy_primitives::{Address, B256};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -19,7 +18,7 @@ fn create_rc_validator(
     validators: HashSet<Address>,
     parent_header_to_add: Option<Arc<QbftBlockHeader>>, // Add optional parent header
 ) -> (Arc<dyn RoundChangeMessageValidator + Send + Sync>, Arc<dyn QbftFinalState + Send + Sync>) {
-    let codec = testing_extradata_codec();
+    let _codec = testing_extradata_codec();
     let mut final_state = MockQbftFinalState::new(local_node_key.clone(), validators); // Make mutable
     
     // Add the header if provided
@@ -36,7 +35,7 @@ fn create_rc_validator(
     // Create a ProposalValidator instance.
     // It needs a RoundChangeMessageValidatorFactory. We provide a mock one here to break the cycle,
     let mock_rc_factory_for_proposal_validator = mock_round_change_message_validator_factory(false); // false = not failing
-    let proposal_validator = Arc::new(ProposalValidatorImpl::new(
+    let _proposal_validator = Arc::new(ProposalValidatorImpl::new(
         message_validator_factory.clone(),
         mock_rc_factory_for_proposal_validator,
         config.clone()
@@ -62,7 +61,7 @@ fn create_basic_signed_rc(
     target_round: u32, // Use u64
     signer_key: &NodeKey,
 ) -> RoundChange {
-    let round_id = ConsensusRoundIdentifier { sequence_number: sequence, round_number: round };
+    let _round_id = ConsensusRoundIdentifier { sequence_number: sequence, round_number: round };
     let target_round_id = ConsensusRoundIdentifier { sequence_number: sequence, round_number: target_round };
     let payload = RoundChangePayload::new(target_round_id, None, None);
     let signed_payload = SignedData::sign(payload, signer_key).expect("Signing failed"); // Use signer_key directly
@@ -77,7 +76,7 @@ fn create_valid_prepared_round_metadata(
     validator_keys: &[Arc<NodeKey>],
     validators: &HashSet<Address>,
     parent_header: &QbftBlockHeader,
-    config: &QbftConfig,
+    _config: &QbftConfig,
     codec: Arc<dyn BftExtraDataCodec>,
     timestamp: u64,
     gas_limit: u64,
@@ -120,7 +119,7 @@ fn create_valid_prepared_round_metadata(
 // Helper to create a signed RoundChange with prepared data
 fn create_signed_rc_with_prepared(
     sequence: u64,
-    round: u64, // Use u64
+    _round: u64, // Use u64 - Prefixed with underscore
     target_round: u64, // Use u64
     prepared_metadata: PreparedRoundMetadata,
     prepared_block: QbftBlock,

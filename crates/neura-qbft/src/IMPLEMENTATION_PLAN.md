@@ -95,6 +95,20 @@ The below sections of this implementation plan which consists of completed work 
     ***Next Focus:** Implementing the actual validation rules within each validator `Impl` struct.
     *   **Update (Current):** `ProposalValidatorImpl` has been significantly implemented with comprehensive unit tests. The core validation logic and unit tests for `PrepareValidatorImpl` are also now complete. The primary focus is now shifting to implementing `CommitValidatorImpl` and its unit tests.
 
+**Date: 2024-05-21 - `round_change_message_validator_tests.rs` Passing**
+    ***Build Status:** The `neura_qbft_core` crate compiles with numerous warnings (mostly unused code), but all tests within `validation::tests::commit_validator_tests.rs` and `validation::tests::round_change_message_validator_tests.rs` are now passing.
+    *   **Validation Module:**
+        *   All core validation logic for Proposal, Prepare, Commit, and RoundChange messages is implemented.
+        *   Extensive unit tests for CommitValidator and RoundChangeMessageValidator have been debugged and are now passing. This involved fixing issues related to:
+            *   Incorrect error variants being returned or asserted.
+            *   Panics during test setup (e.g., premature validation in constructors).
+            *   Missing parent headers in mock state causing panics during proposer calculation.
+            *   Incorrect proposer calculation logic used in tests compared to the mock implementation.
+            *   Mistakes in wrapping inner validation errors (e.g., Proposal/Prepare errors within RoundChange validation).
+            *   Mismatches between expected and actual error message strings in assertions.
+            *   Borrow checker errors related to test setup.
+    ***Current Focus:** All `neura_qbft_core` tests are passing. Next is to decide on addressing warnings or proceeding to state machine implementation.
+
 ## Next Steps
 
 **Continue Phase 2: Crate Scaffolding and Core Logic (`neura_qbft_core` crate)**
@@ -104,16 +118,21 @@ The below sections of this implementation plan which consists of completed work 
     - Ensure `QbftRound` correctly signals block finalization to `QbftBlockHeightManager`. - **COMPLETED**
     - Integrate `locked_block` handling into the main proposal flow in `QbftRound` and `QbftBlockHeightManager`. - **COMPLETED**
 
-2. **Refine Validator Logic (Message Validation Logic):**
+2. **Refine Validator Logic (Message Validation Logic):** - **COMPLETED**
     - The structural refactoring of the validation module (individual validators, factories, `ValidationContext`) is complete.
     - `ProposalValidatorImpl` is now largely implemented with extensive tests.
     - The core validation logic for `PrepareValidatorImpl` is implemented, and its unit tests are passing.
     - `CommitValidatorImpl` is implemented, and its unit tests are passing.
-    - **Current Focus:** Implementing `RoundChangeMessageValidatorImpl` and resolving associated compilation errors across dependent crates (including `ProposalValidatorImpl`, `QbftBlockHeightManager`, `RoundChangeManager`, and factory implementations). Significant debugging effort has been applied to address issues like private constructors, incorrect function arguments, missing trait implementations, and logic errors in tests.
-    - **Immediate Next Step:** Verify the recent code changes by running `cargo test --package neura_qbft_core --lib` to check if the compilation errors related to `RoundChangeMessageValidatorImpl` and its usage have been resolved.
-    - Complete the implementation of `MessageValidatorFactoryImpl` and `RoundChangeMessageValidatorFactoryImpl` to correctly instantiate the validator implementations (ongoing adjustments based on debugging).
+    - `RoundChangeMessageValidatorImpl` is implemented, and its unit tests are passing after significant debugging.
 
-3. **Implement QBFT State Machine Logic (Continued):**
+3. **Verify Crate-Level Test Suite:** - **COMPLETED**
+    - **Immediate Next Step:** Run all tests for the `neura_qbft_core` crate (`cargo test -p neura_qbft_core --lib | cat`) to ensure no regressions or previously unnoticed failures exist in other test suites (e.g., `prepare_validator_tests`, `proposal_validator_tests`, state machine tests). - **COMPLETED (All tests passing)**
+    - Analyze and address any failures found in the full crate test run. - **COMPLETED (No failures found)**
+
+4. **Address Compiler Warnings (Optional):** - **PENDING DECISION**
+    - Manually review and fix the remaining compiler warnings (unused imports, variables, functions).
+
+5. **Implement QBFT State Machine Logic (Continued):** - **NEXT MAJOR STEP**
     - Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`. This involves:
         - Handling incoming messages (Proposals, Prepares, Commits, RoundChanges) by dispatching them to the appropriate round and state.
         - Implementing the state transition logic within `RoundState` and `QbftRound` based on message validation and quorum achievement.
@@ -122,15 +141,15 @@ The below sections of this implementation plan which consists of completed work 
         - Interacting with placeholder traits for block creation, validation, and networking (`QbftBlockCreator`, `QbftBlockImporter`, `ValidatorMulticaster`, `RoundTimer`, `BlockTimer`).
     - Address `// TODO:` comments within the `neura_qbft_core` codebase.
 
-4. **Complete Placeholder Trait Definitions:**
+6. **Complete Placeholder Trait Definitions:**
     - Solidify the definitions of traits in `types/qbft_final_state.rs` and elsewhere (e.g., `QbftFinalState`, `RoundTimer`, `BlockTimer`, `QbftBlockCreatorFactory`, `ValidatorMulticaster`, `QbftBlockImporter`, `QbftMinedBlockObserver`). Ensure they accurately represent the interactions needed with the external Reth environment.
 
-5. **Comprehensive Unit & Integration Testing for `neura_qbft_core`:**
+7. **Comprehensive Unit & Integration Testing for `neura_qbft_core`:**
     - Write unit tests for all critical components:
         - RLP serialization/deserialization of all message types and payloads. - **COMPLETED**
         - `MessageFactory` operations. - **COMPLETED (Initial Tests)**
         - Signature creation and verification in `SignedData`. - **COMPLETED**
-        - Individual validator logic. - **IN PROGRESS (ProposalValidator, PrepareValidator, CommitValidator tests passing; `RoundChangeMessageValidatorImpl` implementation and debugging ongoing)**
+        - Individual validator logic. - **COMPLETED (All validator test suites passing)**
         - `RoundState` transitions.
         - `QbftRound` message handling and state changes.
         - `RoundChangeManager` logic.
@@ -191,4 +210,4 @@ The below sections of this implementation plan which consists of completed work 
 
 ## Summary
 
-The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles without warnings. RLP encoding/decoding for all message types has been implemented and unit tested. The validation module has been refactored with individual validator components and factories. `ProposalValidatorImpl`, `PrepareValidatorImpl`, and `CommitValidatorImpl` have seen significant implementation and testing. The current major effort involves implementing and testing `RoundChangeMessageValidatorImpl`, which has required significant debugging across related components to resolve compilation errors. The immediate next step is to verify these fixes. Subsequent phases will focus on completing the state machine behaviors, creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.
+The project aims to integrate QBFT consensus into Reth. The `neura_qbft_core` crate, encapsulating the core QBFT logic, now successfully compiles (with warnings) and **passes all its unit tests**, including all individual validator test suites (`ProposalValidator`, `PrepareValidator`, `CommitValidator`, `RoundChangeMessageValidator`). This marks the completion of the core validation logic implementation and its initial verification. The next decision point is whether to address compiler warnings or proceed directly to implementing the QBFT state machine logic. Subsequent phases will focus on completing the state machine behaviors, creating an adapter layer to bridge `neura_qbft_core` with Reth's systems, integrating it into the Reth client, and performing end-to-end testing.

@@ -1,8 +1,5 @@
 use std::sync::Arc;
 use crate::types::QbftConfig;
-// Removed unused imports: QbftBlockHeader, QbftFinalState, BftExtraDataCodec
-// Removed unused import: RoundChangeMessageValidatorFactory
-// Removed unused import: QbftError
 
 // Import the validator traits and impls that this factory will create.
 use crate::validation::{ProposalValidator, ProposalValidatorImpl};
