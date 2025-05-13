@@ -7,15 +7,25 @@ edition = "2021"
 # Workspace dependencies
 neura_qbft_core = { path = "../neura-qbft" }
 
-# Reth dependencies (Add more as needed)
-reth_consensus = { workspace = true }
-reth_primitives = { workspace = true }
-reth_provider = { workspace = true }
-reth_interfaces = { workspace = true }
+# Reth dependencies
+reth-consensus = { workspace = true }
+reth-consensus-common = { workspace = true }
+reth-primitives = { workspace = true, default-features = true }
+reth-primitives-traits = { workspace = true }
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-db = { workspace = true }
+reth-db-api = { workspace = true }
+reth-node-api = { workspace = true }
+reth-node-builder = { workspace = true }
+alloy-primitives = { workspace = true }
+alloy-consensus = { workspace = true }
+reth-chainspec = { workspace = true }
 
-# Other common dependencies (Add more as needed)
+# Other common dependencies
 tracing = "0.1"
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 
-[dev-dependencies] 
+[dev-dependencies]
+k256 = { workspace = true }
+rand_08 = { package = "rand", version = "0.8.5" } 

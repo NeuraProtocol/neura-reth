@@ -5758,6 +5758,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "neura_consensus_qbft"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "k256",
+ "neura_qbft_core",
+ "rand 0.8.5",
+ "reth-chainspec",
+ "reth-consensus",
+ "reth-consensus-common",
+ "reth-db",
+ "reth-db-api",
+ "reth-node-api",
+ "reth-node-builder",
+ "reth-primitives",
+ "reth-primitives-traits",
+ "reth-provider",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "neura_qbft_core"
 version = "0.1.0"
 dependencies = [

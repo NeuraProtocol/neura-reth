@@ -164,6 +164,7 @@ members = [
     "testing/ef-tests/",
     "testing/testing-utils",
     "crates/neura-qbft/",
+    "crates/neura-consensus-qbft/",
 ]
 default-members = ["bin/reth"]
 exclude = ["book/sources", "book/cli"]

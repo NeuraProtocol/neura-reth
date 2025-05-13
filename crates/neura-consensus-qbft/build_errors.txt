@@ -1,0 +1,213 @@
+   Compiling num-traits v0.2.19
+   Compiling regex-syntax v0.8.5
+   Compiling libm v0.2.15
+   Compiling arbitrary v1.4.1
+   Compiling linux-raw-sys v0.9.4
+   Compiling fastrand v2.3.0
+   Compiling wait-timeout v0.2.1
+   Compiling bit-vec v0.8.0
+   Compiling quick-error v1.2.3
+   Compiling crunchy v0.2.2
+   Compiling rand_xorshift v0.3.0
+   Compiling unarray v0.1.4
+   Compiling tiny-keccak v2.0.2
+   Compiling c-kzg v2.1.1
+   Compiling hash-db v0.15.2
+   Compiling bit-set v0.8.0
+   Compiling plain_hasher v0.2.3
+   Compiling rustc-hex v2.1.0
+   Compiling futures-utils-wasm v0.1.0
+   Compiling alloy-sol-macro-expander v1.1.0
+   Compiling uint v0.10.0
+   Compiling reth-nippy-jar v1.3.12 (/home/peastew/src/neura-reth/crates/storage/nippy-jar)
+   Compiling rlp v0.5.2
+   Compiling rustix v1.0.7
+   Compiling triehash v0.8.4
+   Compiling smallvec v1.15.0
+   Compiling parity-scale-codec v3.7.4
+   Compiling parking_lot_core v0.9.10
+   Compiling icu_normalizer v2.0.0
+   Compiling parking_lot v0.12.3
+   Compiling dashmap v6.1.0
+   Compiling tokio v1.45.0
+   Compiling moka v0.12.10
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.0.3
+   Compiling num-integer v0.1.46
+   Compiling ark-std v0.5.0
+   Compiling num-complex v0.4.6
+   Compiling chrono v0.4.41
+   Compiling regex-automata v0.4.9
+   Compiling url v2.5.4
+   Compiling num-bigint v0.4.6
+   Compiling tempfile v3.19.1
+   Compiling num-iter v0.1.45
+   Compiling rusty-fork v0.3.0
+   Compiling multiaddr v0.18.2
+   Compiling proptest v1.6.0
+   Compiling rolling-file v0.2.0
+   Compiling alloy-sol-macro v1.1.0
+   Compiling ark-serialize v0.5.0
+   Compiling num-rational v0.4.2
+   Compiling simple_asn1 v0.6.3
+   Compiling regex v1.11.1
+   Compiling jsonwebtoken v9.3.1
+   Compiling ark-ff v0.5.0
+   Compiling num v0.4.3
+   Compiling aurora-engine-modexp v1.2.0
+   Compiling tracing-subscriber v0.3.19
+   Compiling bindgen v0.70.1
+   Compiling vergen v9.0.6
+   Compiling metrics-derive v0.1.0
+   Compiling vergen-git2 v1.0.7
+   Compiling reth-node-core v1.3.12 (/home/peastew/src/neura-reth/crates/node/core)
+   Compiling tracing-journald v0.3.1
+   Compiling tracing-logfmt v0.3.5
+   Compiling tracing-appender v0.2.3
+   Compiling reth-tracing v1.3.12 (/home/peastew/src/neura-reth/crates/tracing)
+   Compiling tokio-util v0.7.15
+   Compiling hyper v1.6.0
+   Compiling tower v0.5.2
+   Compiling hickory-proto v0.25.2
+   Compiling ruint v1.14.0
+   Compiling nybbles v0.3.4
+   Compiling proptest-arbitrary-interop v0.1.0
+   Compiling alloy-primitives v1.1.0
+   Compiling reth-metrics v1.3.12 (/home/peastew/src/neura-reth/crates/metrics)
+   Compiling tokio-stream v0.1.17
+   Compiling reth-tasks v1.3.12 (/home/peastew/src/neura-reth/crates/tasks)
+   Compiling delay_map v0.4.1
+   Compiling hyper-util v0.1.11
+   Compiling discv5 v0.9.1
+   Compiling reth-tokio-util v1.3.12 (/home/peastew/src/neura-reth/crates/tokio-util)
+   Compiling alloy-eip2930 v0.2.1
+   Compiling alloy-eip7702 v0.6.0
+   Compiling alloy-eip2124 v0.2.0
+   Compiling alloy-serde v0.15.10
+   Compiling alloy-trie v0.8.1
+   Compiling revm-primitives v18.0.0
+   Compiling alloy-sol-types v1.1.0
+   Compiling alloy-eips v0.15.10
+   Compiling revm-bytecode v3.0.0
+   Compiling alloy-chains v0.2.0
+   Compiling reth-network-peers v1.3.12 (/home/peastew/src/neura-reth/crates/net/peers)
+   Compiling reth-static-file-types v1.3.12 (/home/peastew/src/neura-reth/crates/static-file/types)
+   Compiling alloy-signer v0.15.10
+   Compiling reth-net-banlist v1.3.12 (/home/peastew/src/neura-reth/crates/net/banlist)
+   Compiling reth-mdbx-sys v1.3.12 (/home/peastew/src/neura-reth/crates/storage/libmdbx-rs/mdbx-sys)
+   Compiling alloy-hardforks v0.2.0
+   Compiling revm-state v3.0.0
+   Compiling reth-network-types v1.3.12 (/home/peastew/src/neura-reth/crates/net/network-types)
+   Compiling reqwest v0.12.15
+   Compiling reth-ethereum-forks v1.3.12 (/home/peastew/src/neura-reth/crates/ethereum/hardforks)
+   Compiling hickory-resolver v0.25.2
+   Compiling revm-database-interface v3.0.0
+   Compiling alloy-consensus v0.15.10
+   Compiling alloy-genesis v0.15.10
+   Compiling revm-database v3.0.0
+   Compiling revm-context-interface v3.0.0
+   Compiling ark-poly v0.5.0
+   Compiling reth-net-nat v1.3.12 (/home/peastew/src/neura-reth/crates/net/nat)
+   Compiling alloy-rpc-types-admin v0.15.10
+   Compiling reth-ecies v1.3.12 (/home/peastew/src/neura-reth/crates/net/ecies)
+   Compiling revm-context v3.0.1
+   Compiling revm-interpreter v18.0.0
+   Compiling reth-dns-discovery v1.3.12 (/home/peastew/src/neura-reth/crates/net/dns)
+   Compiling ark-ec v0.5.0
+   Compiling reth-discv4 v1.3.12 (/home/peastew/src/neura-reth/crates/net/discv4)
+   Compiling reth-cli-util v1.3.12 (/home/peastew/src/neura-reth/crates/cli/util)
+   Compiling reth-codecs v1.3.12 (/home/peastew/src/neura-reth/crates/storage/codecs)
+   Compiling alloy-network-primitives v0.15.10
+   Compiling alloy-consensus-any v0.15.10
+   Compiling alloy-rpc-types-engine v0.15.10
+   Compiling ark-bls12-381 v0.5.0
+   Compiling ark-bn254 v0.5.0
+   Compiling revm-precompile v19.0.0
+   Compiling reth-primitives-traits v1.3.12 (/home/peastew/src/neura-reth/crates/primitives-traits)
+   Compiling reth-prune-types v1.3.12 (/home/peastew/src/neura-reth/crates/prune/types)
+   Compiling revm-handler v3.0.1
+   Compiling reth-ethereum-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/ethereum/primitives)
+   Compiling reth-trie-common v1.3.12 (/home/peastew/src/neura-reth/crates/trie/common)
+   Compiling reth-storage-errors v1.3.12 (/home/peastew/src/neura-reth/crates/storage/errors)
+   Compiling reth-db-models v1.3.12 (/home/peastew/src/neura-reth/crates/storage/db-models)
+   Compiling revm-inspector v3.0.1
+   Compiling reth-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/primitives)
+   Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura-qbft)
+   Compiling revm v22.0.1
+   Compiling reth-stages-types v1.3.12 (/home/peastew/src/neura-reth/crates/stages/types)
+   Compiling reth-db-api v1.3.12 (/home/peastew/src/neura-reth/crates/storage/db-api)
+   Compiling reth-config v1.3.12 (/home/peastew/src/neura-reth/crates/config)
+   Compiling alloy-evm v0.6.0
+   Compiling alloy-rpc-types-eth v0.15.10
+   Compiling alloy-json-rpc v0.15.10
+   Compiling reth-chainspec v1.3.12 (/home/peastew/src/neura-reth/crates/chainspec)
+   Compiling reth-execution-types v1.3.12 (/home/peastew/src/neura-reth/crates/evm/execution-types)
+   Compiling reth-execution-errors v1.3.12 (/home/peastew/src/neura-reth/crates/evm/execution-errors)
+   Compiling reth-trie-sparse v1.3.12 (/home/peastew/src/neura-reth/crates/trie/sparse)
+   Compiling reth-consensus v1.3.12 (/home/peastew/src/neura-reth/crates/consensus/consensus)
+   Compiling reth-errors v1.3.12 (/home/peastew/src/neura-reth/crates/errors)
+   Compiling reth-eth-wire-types v1.3.12 (/home/peastew/src/neura-reth/crates/net/eth-wire-types)
+   Compiling reth-discv5 v1.3.12 (/home/peastew/src/neura-reth/crates/net/discv5)
+   Compiling reth-consensus-common v1.3.12 (/home/peastew/src/neura-reth/crates/consensus/common)
+   Compiling reth-trie v1.3.12 (/home/peastew/src/neura-reth/crates/trie/trie)
+   Compiling reth-libmdbx v1.3.12 (/home/peastew/src/neura-reth/crates/storage/libmdbx-rs)
+   Compiling alloy-rpc-types-any v0.15.10
+   Compiling alloy-rpc-types-trace v0.15.10
+   Compiling reth-rpc-types-compat v1.3.12 (/home/peastew/src/neura-reth/crates/rpc/rpc-types-compat)
+   Compiling alloy-rpc-types v0.15.10
+   Compiling alloy-network v0.15.10
+   Compiling reth-db v1.3.12 (/home/peastew/src/neura-reth/crates/storage/db)
+   Compiling alloy-signer-local v0.15.10
+   Compiling reth-trie-db v1.3.12 (/home/peastew/src/neura-reth/crates/trie/db)
+   Compiling reth-network-p2p v1.3.12 (/home/peastew/src/neura-reth/crates/net/p2p)
+   Compiling reth-eth-wire v1.3.12 (/home/peastew/src/neura-reth/crates/net/eth-wire)
+   Compiling reth-storage-api v1.3.12 (/home/peastew/src/neura-reth/crates/storage/storage-api)
+   Compiling reth-network-api v1.3.12 (/home/peastew/src/neura-reth/crates/net/network-api)
+   Compiling revm-inspectors v0.20.1
+   Compiling reth-rpc-server-types v1.3.12 (/home/peastew/src/neura-reth/crates/rpc/rpc-server-types)
+   Compiling reth-chain-state v1.3.12 (/home/peastew/src/neura-reth/crates/chain-state)
+   Compiling reth-evm v1.3.12 (/home/peastew/src/neura-reth/crates/evm/evm)
+   Compiling reth-revm v1.3.12 (/home/peastew/src/neura-reth/crates/revm)
+   Compiling reth-payload-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/payload/primitives)
+   Compiling reth-transaction-pool v1.3.12 (/home/peastew/src/neura-reth/crates/transaction-pool)
+   Compiling reth-payload-builder-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/payload/builder-primitives)
+   Compiling reth-engine-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/engine/primitives)
+   Compiling reth-ethereum-engine-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/ethereum/engine-primitives)
+   Compiling reth-node-types v1.3.12 (/home/peastew/src/neura-reth/crates/node/types)
+   Compiling reth-payload-builder v1.3.12 (/home/peastew/src/neura-reth/crates/payload/builder)
+   Compiling reth-provider v1.3.12 (/home/peastew/src/neura-reth/crates/storage/provider)
+   Compiling reth-basic-payload-builder v1.3.12 (/home/peastew/src/neura-reth/crates/payload/basic)
+   Compiling reth-network v1.3.12 (/home/peastew/src/neura-reth/crates/net/network)
+   Compiling reth-rpc-eth-types v1.3.12 (/home/peastew/src/neura-reth/crates/rpc/rpc-eth-types)
+   Compiling reth-node-api v1.3.12 (/home/peastew/src/neura-reth/crates/node/api)
+   Compiling neura_consensus_qbft v0.1.0 (/home/peastew/src/neura-reth/crates/neura-consensus-qbft)
+error[E0432]: unresolved import `reth_provider::ProviderNodeTypes`
+  --> crates/neura-consensus-qbft/src/lib.rs:21:5
+   |
+21 |     ProviderNodeTypes, // Added for NT bounds
+   |     ^^^^^^^^^^^^^^^^^ no `ProviderNodeTypes` in the root
+   |
+   = help: consider importing this trait instead:
+           reth_provider::providers::ProviderNodeTypes
+
+error[E0432]: unresolved import `neura_qbft_core::types::MessageFactory`
+  --> crates/neura-consensus-qbft/src/lib.rs:29:65
+   |
+29 |         NodeKey, RoundTimer, AlloyBftExtraDataCodec, QbftBlock, MessageFactory, // Added MessageFactory
+   |                                                                 ^^^^^^^^^^^^^^ no `MessageFactory` in `types`
+   |
+   = help: consider importing this struct instead:
+           neura_qbft_core::payload::MessageFactory
+
+warning: unused import: `Header as RethPrimitivesHeader`
+  --> crates/neura-consensus-qbft/src/lib.rs:15:23
+   |
+15 | use reth_primitives::{Header as RethPrimitivesHeader, SealedBlock, SealedHeader};
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `neura_consensus_qbft` (lib) generated 1 warning
+error: could not compile `neura_consensus_qbft` (lib) due to 2 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...

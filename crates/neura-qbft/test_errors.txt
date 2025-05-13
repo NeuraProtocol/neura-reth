@@ -50,7 +50,7 @@ warning: function `create_bft_message_round_change` is never used
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: `neura_qbft_core` (lib test) generated 8 warnings
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.04s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.07s
      Running unittests src/lib.rs (target/debug/deps/neura_qbft_core-4533f167566adf88)
 
 running 79 tests
@@ -59,122 +59,122 @@ test messagewrappers::round_change::tests::rlp_roundtrip_rc_with_metadata_empty_
 test messagewrappers::round_change::tests::rlp_roundtrip_rc_with_prepared_data ... ignored
 test payload::message_factory::tests::test_message_factory_new_and_local_address ... ok
 test payload::prepare_payload::tests::test_prepare_payload_rlp_roundtrip ... ok
-test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_none ... ok
 test payload::proposal_payload::tests::test_proposal_payload_rlp_roundtrip ... ok
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_none ... ok
 test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_some ... ignored
 test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_some_metadata_none_block ... ignored
 test messagewrappers::prepare::tests::test_prepare_message_rlp_roundtrip ... ok
 test messagewrappers::round_change::tests::rlp_roundtrip_rc_no_prepared_data ... ok
-test payload::commit_payload::tests::test_commit_payload_qbft_payload_methods ... ok
 test payload::commit_payload::tests::test_commit_payload_rlp_encoding_decoding ... ok
+test payload::commit_payload::tests::test_commit_payload_qbft_payload_methods ... ok
 test messagewrappers::proposal::tests::test_proposal_rlp_roundtrip_no_prepared_cert ... ok
+test messagewrappers::commit::tests::test_commit_message_rlp_roundtrip ... ok
+test payload::message_factory::tests::test_create_proposal ... ok
 test state::round_state_tests::tests::test_round_state_new ... ok
 test types::extra_data::tests::test_besu_like_round_0_extra_data ... ok
-test messagewrappers::commit::tests::test_commit_message_rlp_roundtrip ... ok
-test state::round_state_tests::tests::test_add_prepare_no_proposal ... ok
 test types::extra_data::tests::test_bft_extra_data_empty_seals_validators ... ok
 test types::extra_data::tests::test_bft_extra_data_rlp_roundtrip ... ok
 test payload::message_factory::tests::test_create_prepare ... ok
+test state::round_state_tests::tests::test_add_prepare_no_proposal ... ok
 test state::round_state_tests::tests::test_round_state_set_proposal ... ok
-test payload::message_factory::tests::test_create_proposal ... ok
 test payload::message_factory::tests::test_create_commit_seal_and_commit ... ok
 test state::round_state_tests::tests::test_add_prepare_wrong_digest ... ok
-test state::round_state_tests::tests::test_add_prepare_wrong_round ... ok
 [WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Digest 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb does not match accepted proposal digest Some(0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) for round 1/0
 test validation::tests::commit_validator_tests::test_validate_commit_digest_mismatch ... ok
-test types::signed_data::tests::test_sign_and_recover_author ... ok
 test types::signed_data::tests::test_recover_author_tampered_payload ... ok
+test types::signed_data::tests::test_sign_and_recover_author ... ok
 test types::signed_data::tests::test_signed_data_rlp_roundtrip ... ok
+test state::round_state_tests::tests::test_add_prepare_wrong_round ... ok
 test types::signed_data::tests::test_sign_with_different_keys ... ok
-[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Digest 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb does not match accepted proposal digest Some(0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) for round 1/0
-[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
 test payload::message_factory::tests::test_create_round_change ... ok
 test state::round_state_tests::tests::test_add_prepare_success ... ok
-test validation::tests::prepare_validator_tests::test_validate_prepare_digest_mismatch ... ok
-test validation::tests::commit_validator_tests::test_validate_commit_round_mismatch ... ok
-test validation::tests::proposal_validator_tests::test_placeholder_proposal_validator ... ok
-[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 1/0. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f}
-test validation::tests::commit_validator_tests::test_validate_commit_invalid_author_not_validator ... ok
-[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Payload round identifier ConsensusRoundIdentifier { sequence_number: 2, round_number: 0 } does not match context round identifier 1/0
-test validation::tests::commit_validator_tests::test_validate_commit_sequence_mismatch ... ok
 [WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
 test validation::tests::prepare_validator_tests::test_validate_prepare_round_mismatch ... ok
-[WARN  neura_qbft_core::state::round_state] RoundState (ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }): Replaced existing prepare message from author: 0x8847c4b8cdfeef249bea8827e7bf6caa6b1e1267
-test state::round_state_tests::tests::test_add_prepare_duplicate ... ok
+test validation::tests::proposal_validator_tests::test_placeholder_proposal_validator ... ok
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Digest 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb does not match accepted proposal digest Some(0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) for round 1/0
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Payload round identifier ConsensusRoundIdentifier { sequence_number: 2, round_number: 0 } does not match context round identifier 1/0
 [WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Payload round identifier ConsensusRoundIdentifier { sequence_number: 2, round_number: 0 } does not match context round identifier 1/0
+test validation::tests::prepare_validator_tests::test_validate_prepare_digest_mismatch ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_round_mismatch ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_sequence_mismatch ... ok
 test validation::tests::prepare_validator_tests::test_validate_prepare_sequence_mismatch ... ok
-[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 1/0. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f}
-test validation::tests::prepare_validator_tests::test_validate_prepare_invalid_author_not_validator ... ok
-test validation::tests::prepare_validator_tests::test_validate_prepare_valid ... ok
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 1/0. Validators: {0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}
+test validation::tests::commit_validator_tests::test_validate_commit_invalid_author_not_validator ... ok
+[WARN  neura_qbft_core::state::round_state] RoundState (ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }): Replaced existing prepare message from author: 0x11858f6083a4641a86f242784f16ed2b66a9a5f6
+test state::round_state_tests::tests::test_add_prepare_duplicate ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Validators in block extra_data ({0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}) do not match context current validators ({0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f})
 [WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Commit seal signature recovery produced address 0x4b3595edcbd96e6f15aaa1c30c6f5fd193e5b810 which does not match author 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5 for round 1/0
-test validation::tests::commit_validator_tests::test_validate_commit_invalid_seal_signature_recovery_fails ... ok
-[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 4999 is below minimum 5000
-test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_below_minimum ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_extradata_validators_mismatch ... ok
+test validation::tests::prepare_validator_tests::test_validate_prepare_valid ... ok
 [WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Commit seal signature recovery produced address 0x897df33a7b3c62ade01e22c13d48f98124b4480f which does not match author 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5 for round 1/0
+test validation::tests::commit_validator_tests::test_validate_commit_invalid_seal_signature_recovery_fails ... ok
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 1/0. Validators: {0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}
 test validation::tests::commit_validator_tests::test_validate_commit_invalid_seal_signature_mismatched_author ... ok
-test validation::tests::commit_validator_tests::test_validate_commit_valid ... ok
-[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 30029297 is outside allowed delta of parent gas limit 30000000 (max_delta: 29296)
-[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 29970703 is outside allowed delta of parent gas limit 30000000 (max_delta: 29296)
-test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_too_high ... ok
-test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_too_low_outside_delta ... ok
+test validation::tests::prepare_validator_tests::test_validate_prepare_invalid_author_not_validator ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Round in block extra_data 1 does not match context round 0
 test validation::tests::proposal_validator_tests::test_validate_proposal_extradata_round_mismatch ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_valid ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas_used 30000001 exceeds gas_limit 30000000
-test validation::tests::proposal_validator_tests::test_validate_payload_and_block_valid_proposal ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 29970703 is outside allowed delta of parent gas limit 30000000 (max_delta: 29296)
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 4999 is below minimum 5000
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 30029297 is outside allowed delta of parent gas limit 30000000 (max_delta: 29296)
 test validation::tests::proposal_validator_tests::test_validate_proposal_gas_used_exceeds_gas_limit ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_too_low_outside_delta ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_below_minimum ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_too_high ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block difficulty 2 is not 1
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_difficulty ... ok
+test validation::tests::proposal_validator_tests::test_validate_payload_and_block_valid_proposal ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block number 2 does not match context sequence number 1
 test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_block_number ... ok
-[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block difficulty 2 is not 1
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Author mismatch for round 1/0. Expected Proposer: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, Actual Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f. Context Validators (Sorted): [0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5]
-test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_difficulty ... ok
-test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_author ... ok
-[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Validators in block extra_data ({0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}) do not match context current validators ({0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f})
-test validation::tests::proposal_validator_tests::test_validate_proposal_extradata_validators_mismatch ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block nonce 0x00000000000000 is not the expected 0 (must be an 8-byte zero array)
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_author ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block parent hash 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa does not match context parent hash 0xc33d4534315210cf409f716bb95f39971e8d3fe736cc5c7f153687d7eb0a8ad0
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block timestamp 1000000 is not after parent timestamp 1000000
 test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_parent_hash ... ok
 test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_timestamp_not_after_parent ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Contains prepared_block but no PreparedRoundMetadata. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
+test validation::tests::proposal_validator_tests::test_validate_proposal_round_mismatch ... ok
+test validation::tests::round_change_message_validator_tests::test_validate_rc_no_prepared_metadata_with_block ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Author 0x05c987b34c6ef74e0c7e69c6e641120c24164c2d is not in the current validator set for context round 10/1. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}
 test validation::tests::round_change_message_validator_tests::test_validate_rc_invalid_author ... ok
-[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
-test validation::tests::proposal_validator_tests::test_validate_proposal_round_mismatch ... ok
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Contains prepared_block but no PreparedRoundMetadata. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
-test validation::tests::round_change_message_validator_tests::test_validate_rc_no_prepared_metadata_with_block ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block nonce 0x0000000000000001 is not the expected 0 (must be an 8-byte zero array)
 test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_nonce ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] RoundChange proof from 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5 for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 } failed validation: ValidationError("MockRoundChangeMessageValidator failed"). Failing proposal validation.
-test validation::tests::proposal_validator_tests::test_validate_proposal_with_invalid_round_changes ... ok
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Proposal round 2 does not follow latest valid RoundChange proof round 0. Context sq/rd 1/2
+test validation::tests::proposal_validator_tests::test_validate_proposal_with_invalid_round_changes ... ok
 test validation::tests::proposal_validator_tests::test_validate_proposal_round_higher_than_latest_rc_message ... ok
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Hash of prepared_block in payload (0x3ec72f534aa4013dbaf006a57bdc00889cba51e63cd7cbe6f83c24aedaf780f5) does not match prepared_block_hash in PreparedRoundMetadata (0x8524d5355274cd2d23f5d2e91902d106b4aa6b0ce419e75090e659ae513a361f). Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
-test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_metadata_block_hash_mismatch ... ok
-test validation::tests::proposal_validator_tests::test_validate_proposal_with_valid_round_changes ... ok
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Hash of prepared_block in payload (0x8e4c84efe109acc150dbb7477a2ced947d66099dda3ea3e5acc593425ae652d6) does not match prepared_block_hash in PreparedRoundMetadata (0x63445c50b04cb00a3fa18d5232e2f0a4a7a06716e60fc2d03d1acda1a5b72b9b). Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
-test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_block_hash_mismatch ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Contains PreparedRoundMetadata but no prepared_block. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
 test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_metadata_without_block ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Hash of prepared_block in payload (0x3ec72f534aa4013dbaf006a57bdc00889cba51e63cd7cbe6f83c24aedaf780f5) does not match prepared_block_hash in PreparedRoundMetadata (0x8524d5355274cd2d23f5d2e91902d106b4aa6b0ce419e75090e659ae513a361f). Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_metadata_block_hash_mismatch ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Inner proposal round 1 does not match PreparedRoundMetadata.prepared_round 0. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Hash of prepared_block in payload (0x8e4c84efe109acc150dbb7477a2ced947d66099dda3ea3e5acc593425ae652d6) does not match prepared_block_hash in PreparedRoundMetadata (0x63445c50b04cb00a3fa18d5232e2f0a4a7a06716e60fc2d03d1acda1a5b72b9b). Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
 test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_invalid_round ... ok
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets sequence number 11 but current context sequence is 10. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
-test validation::tests::round_change_message_validator_tests::test_validate_rc_sequence_mismatch ... ok
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_block_hash_mismatch ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Inner proposal in PreparedRoundMetadata targets sequence 11 but current context is 10. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::proposal_validator_tests::test_validate_proposal_with_valid_round_changes ... ok
 test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_invalid_sequence ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets round number 1 but current context round is 1. Must be greater. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
-test validation::tests::round_change_message_validator_tests::test_validate_rc_valid ... ok
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: PreparedRoundMetadata is for round 3 which is not less than RoundChange target round 3. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
-test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_round_ge_target_round ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets sequence number 11 but current context sequence is 10. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
+test validation::tests::round_change_message_validator_tests::test_validate_rc_sequence_mismatch ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets round number 0 but current context round is 1. Must be greater. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
 test validation::tests::round_change_message_validator_tests::test_validate_rc_target_round_not_greater ... ok
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Duplicate author 0x897df33a7b3c62ade01e22c13d48f98124b4480f in prepares of PreparedRoundMetadata. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
-test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_duplicate_prepare_author ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: PreparedRoundMetadata is for round 3 which is not less than RoundChange target round 3. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_round_ge_target_round ... ok
+test validation::tests::round_change_message_validator_tests::test_validate_rc_valid ... ok
 [WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 10/0. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f}
-[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Insufficient prepares (1) for quorum (3) in PreparedRoundMetadata. Validators for inner proposal: 4. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f. Quorum required: 3
 [WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Author mismatch for round 10/0. Expected Proposer: 0x897df33a7b3c62ade01e22c13d48f98124b4480f, Actual Author: 0x05c987b34c6ef74e0c7e69c6e641120c24164c2d. Context Validators (Sorted): [0x05c987b34c6ef74e0c7e69c6e641120c24164c2d, 0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5]
-test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_insufficient_prepares ... ok
 test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_invalid_author ... ok
 [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Inner Prepare message validation failed. Prepare Author: Some(0x06967c2221507d9236f8065d6166acbdda37f998), RC Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f, Error: NotAValidator { sender: 0x06967c2221507d9236f8065d6166acbdda37f998 }
 test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_invalid_prepare_author ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Insufficient prepares (1) for quorum (3) in PreparedRoundMetadata. Validators for inner proposal: 4. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f. Quorum required: 3
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_insufficient_prepares ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Duplicate author 0x897df33a7b3c62ade01e22c13d48f98124b4480f in prepares of PreparedRoundMetadata. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_duplicate_prepare_author ... ok
 test validation::tests::round_change_message_validator_tests::test_validate_rc_valid_with_prepared ... ok
 
 test result: ok. 74 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.09s
