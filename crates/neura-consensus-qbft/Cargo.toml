@@ -1,0 +1,21 @@
+[package]
+name = "neura_consensus_qbft"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+neura_qbft_core = { path = "../neura-qbft" }
+
+# Reth dependencies (Add more as needed)
+reth_consensus = { workspace = true }
+reth_primitives = { workspace = true }
+reth_provider = { workspace = true }
+reth_interfaces = { workspace = true }
+
+# Other common dependencies (Add more as needed)
+tracing = "0.1"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies] 
