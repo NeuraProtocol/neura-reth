@@ -280,29 +280,128 @@ impl QbftRound {
     }
     
     pub fn handle_proposal_message(&mut self, proposal: Proposal) -> Result<(), QbftError> {
-        let author = proposal.author()?;
+        let author = proposal.author()?; // Fails if signature is invalid
         let block_hash = proposal.block().hash();
+        let proposal_round_id = proposal.payload().round_identifier;
+
+        // It's generally the responsibility of a higher-level manager (e.g., QbftBlockHeightManager)
+        // to route messages to the correct QbftRound instance. 
+        // However, a sanity check here can be useful for debugging or direct calls.
+        if &proposal_round_id != self.round_identifier() {
+            log::warn!(
+                "HPM: Proposal received for incorrect round {:?} (current round is {:?}). Ignoring.",
+                proposal_round_id,
+                self.round_identifier()
+            );
+            // Consider returning a specific error if this check is critical path
+            return Ok(()); 
+        }
+
         log::debug!(
-            "Handling Proposal message for round {:?} from {:?}, block hash: {:?}", 
-            self.round_identifier(), 
-            author, 
-            block_hash
+            "HPM: Handling Proposal for round {:?} from {:?}, block hash: {:?}, proposal has {} RC messages, {} prepared cert",
+            self.round_identifier(),
+            author,
+            block_hash,
+            proposal.round_change_proofs().len(),
+            if proposal.prepared_certificate().is_some() { "a" } else { "no" }
         );
 
+        // RoundState::set_proposal will perform validation using ProposalValidator.
+        // This includes checking the proposer, block validity, and any piggybacked data (like PreparedCertificate).
         match self.round_state.set_proposal(proposal.clone()) {
             Ok(_) => {
-                log::trace!("Proposal for round {:?} accepted. Sending Prepare.", self.round_identifier());
-                self.send_prepare(proposal.block().clone(), block_hash)
+                log::trace!("HPM: Proposal for round {:?} accepted by RoundState.", self.round_identifier());
+
+                // Send our PREPARE message for the validated proposal.
+                // send_prepare adds the local prepare to self.round_state.
+                match self.send_prepare(proposal.block().clone(), block_hash) {
+                    Ok(_) => {
+                        log::trace!("HPM: Successfully sent PREPARE for round {:?}, block hash {:?}.", self.round_identifier(), block_hash);
+                        // After our PREPARE is processed, check if the round is PREPARED.
+                        if self.round_state.is_prepared() {
+                            log::debug!("HPM: Round {:?} is PREPARED after local PREPARE.", self.round_identifier());
+
+                            // Update locked_block as the round is now prepared.
+                            if let (Some(proposed_block_ref), Some(proposal_message_wrapper)) = 
+                                (self.round_state.proposed_block(), self.round_state.proposal_message())
+                            {
+                                let block_clone = proposed_block_ref.clone();
+                                let original_signed_proposal_clone = proposal_message_wrapper.bft_message().clone();
+                                let prepares_clone: Vec<SignedData<PreparePayload>> = self.round_state.get_prepare_messages().into_iter().cloned().collect();
+                                let current_round_number = self.round_identifier().round_number;
+
+                                let new_locked_info = CertifiedPrepareInfo {
+                                    block: block_clone,
+                                    original_signed_proposal: original_signed_proposal_clone,
+                                    prepares: prepares_clone,
+                                    prepared_round: current_round_number, 
+                                };
+                                log::info!(
+                                    "HPM: Round {:?} became PREPARED. Updating locked_block with block {:?} prepared in round {}.", 
+                                    self.round_identifier(), new_locked_info.block.hash(), new_locked_info.prepared_round
+                                );
+                                self.locked_block = Some(new_locked_info);
+                            } else {
+                                log::warn!(
+                                    "HPM: Round {:?} is_prepared, but failed to retrieve proposed_block or proposal_message from RoundState. Cannot update locked_block.", 
+                                    self.round_identifier()
+                                );
+                            }
+                            
+                            // If PREPARED and we haven't sent a COMMIT for this proposal yet.
+                            if !self.commit_sent && !self.round_state.is_committed() {
+                                log::trace!("HPM: Round {:?} is PREPARED (by Proposal + local Prepare). Sending Commit.", self.round_identifier());
+                                // Use get_prepared_digest, or proposed_block.hash() if appropriate for prepared state.
+                                if let Some(digest_to_commit) = self.round_state.get_prepared_digest() { 
+                                    let commit_seal = self.message_factory.create_commit_seal(digest_to_commit)?;
+                                    let commit = self.message_factory.create_commit(*self.round_identifier(), digest_to_commit, commit_seal)?;
+                                    
+                                    // add_commit validates and adds the commit to RoundState.
+                                    self.round_state.add_commit(commit.clone())?; 
+                                    self.multicaster.multicast_commit(&commit);
+                                    self.commit_sent = true; // Mark that we've sent a commit for this proposal.
+            
+                                    // After sending our own Commit, check if we have reached the COMMITTED state.
+                                    if self.round_state.is_committed() {
+                                        log::trace!("HPM: Round {:?} is COMMITTED (by Proposal + local Prepare/Commit). Importing block.", self.round_identifier());
+                                        match self.import_block_to_chain() {
+                                            Ok(_imported_block) => {
+                                                log::info!("HPM: Block for round {:?} imported successfully.", self.round_identifier());
+                                                // The round is effectively complete from this node's perspective.
+                                                // import_block_to_chain already calls cancel_timers and notifies listeners.
+                                            }
+                                            Err(e) => {
+                                                log::error!("HPM: Failed to import block for round {:?} after commit: {}", self.round_identifier(), e);
+                                                return Err(e); // Propagate import error.
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    log::warn!("HPM: Round {:?} is prepared, but no prepared digest found when attempting to send Commit.", self.round_identifier());
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("HPM: Failed to send PREPARE for round {:?} after accepting proposal: {}", self.round_identifier(), e);
+                        return Err(e); // Propagate error from send_prepare.
+                    }
+                }
+                Ok(())
             }
             Err(QbftError::ProposalAlreadyReceived) => {
-                log::warn!("Duplicate Proposal received for round {:?}. Ignoring.", self.round_identifier());
+                log::warn!("HPM: Duplicate Proposal received for round {:?}. Ignoring.", self.round_identifier());
                 Ok(())
             }
             Err(e @ QbftError::ValidationError(_)) => {
-                log::warn!("Invalid Proposal for round {:?}: {}. Ignoring.", self.round_identifier(), e);
+                log::warn!("HPM: Invalid Proposal for round {:?}: {}. Ignoring.", self.round_identifier(), e);
+                // Depending on the validation error, QbftBlockHeightManager might initiate a round change.
                 Err(e) 
             }
-            Err(e) => Err(e),
+            Err(e) => {
+                log::error!("HPM: Error setting proposal in RoundState for round {:?}: {}", self.round_identifier(), e);
+                Err(e)
+            },
         }
     }
 

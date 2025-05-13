@@ -190,6 +190,14 @@ impl RoundState {
         self.is_committed
     }
 
+    pub fn get_prepared_digest(&self) -> Option<Hash> {
+        if self.is_prepared { 
+            self.accepted_proposal_digest
+        } else {
+            None
+        }
+    }
+
     pub fn proposed_block(&self) -> Option<&QbftBlock> {
         self.proposal.as_ref().map(|p| p.block())
     }
