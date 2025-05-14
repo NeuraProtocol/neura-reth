@@ -90,10 +90,10 @@ impl RoundState {
             });
 
         ValidationContext {
-            parent_header: self.parent_header.clone(),
-            final_state: self.final_state.clone(),
-            extra_data_codec: self.extra_data_codec.clone(),
-            config: self.config.clone(),
+            parent_header: Some(self.parent_header.clone()),
+            final_state: Arc::clone(&self.final_state) as Arc<dyn QbftFinalState>,
+            extra_data_codec: Arc::clone(&self.extra_data_codec),
+            config: Arc::clone(&self.config),
             current_round_number: self.round_identifier.round_number,
             current_sequence_number: self.round_identifier.sequence_number,
             accepted_proposal_digest: self.accepted_proposal_digest,

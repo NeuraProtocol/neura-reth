@@ -1,0 +1,45 @@
+[package]
+name = "neura-payload-types"
+version = "0.1.0" # Or your desired version
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Alloy
+alloy-primitives = { workspace = true }
+alloy-rpc-types = { workspace = true, features = ["eth"] }
+alloy-eips = { workspace = true } # For Requests in BuiltPayload trait
+alloy-consensus = { workspace = true } # Added dependency
+
+# Reth
+reth-ethereum-engine-primitives = { workspace = true }
+reth-payload-primitives = { workspace = true }
+reth-primitives-traits = { workspace = true }
+reth-ethereum-primitives = { workspace = true } # For EthPrimitives in BuiltPayload trait
+
+# Serde (optional, but often useful)
+serde = { workspace = true, features = ["derive"], optional = true }
+
+[features]
+default = []
+serde = [
+    "dep:serde",
+    "alloy-primitives/serde",
+    "alloy-eips/serde",
+    "reth-primitives-traits/serde",
+    "reth-ethereum-primitives/serde"
+]
+std = [
+    "alloy-primitives/std",
+    "alloy-eips/std",
+    "reth-ethereum-engine-primitives/std",
+    "reth-payload-primitives/std",
+    "reth-primitives-traits/std",
+    "reth-ethereum-primitives/std",
+] 

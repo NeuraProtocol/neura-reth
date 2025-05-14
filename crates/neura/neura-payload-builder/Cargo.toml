@@ -1,0 +1,54 @@
+[package]
+name = "neura-payload-builder"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Neura-specific payload builder that wraps a Reth payload and adds full transaction details."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Neura
+neura-payload-types = { workspace = true }
+
+# Reth - Core payload building and types
+reth-ethereum-payload-builder = { workspace = true } # The original builder we will wrap or use
+reth-payload-builder-primitives = { workspace = true } # For PayloadBuilder trait, PayloadBuilderError
+reth-payload-primitives = { workspace = true } # For PayloadBuilderAttributes, etc.
+reth-ethereum-engine-primitives = { workspace = true } # For EthBuiltPayload, EthPayloadBuilderAttributes (if not re-exported by above)
+reth-primitives-traits = { workspace = true } # For various primitive traits
+reth-ethereum-primitives = { workspace = true } # For TransactionSigned, etc.
+reth-transaction-pool = { workspace = true } # If we need to interact with pool types directly
+reth-chainspec = { workspace = true } # For ChainSpecProvider
+reth-storage-api = { workspace = true } # For StateProviderFactory
+reth-evm = { workspace = true } # Added reth-evm
+reth-evm-ethereum = { workspace = true } # For EthEvmConfig
+reth-basic-payload_builder = { workspace = true } # For BuildArguments, BuildOutcome, etc.
+
+# Alloy (mainly for transaction conversion if not handled by reth types directly)
+alloy-rpc-types = { workspace = true, features = ["eth"] }
+alloy-primitives = { workspace = true }
+alloy-consensus = { workspace = true }
+alloy-eips = { workspace = true } # Corrected spelling if necessary
+
+
+# Misc
+tracing = { workspace = true }
+
+[features]
+default = []
+std = [
+    "neura-payload-types/std",
+    "reth-ethereum-engine-primitives/std",
+    "reth-primitives-traits/std",
+    "reth-ethereum-primitives/std",
+    "reth-chainspec/std",
+    "reth-storage-api/std",
+    "reth-evm-ethereum/std",
+    "alloy-primitives/std",
+    "alloy-consensus/std",
+] 

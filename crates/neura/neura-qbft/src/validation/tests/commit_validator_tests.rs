@@ -67,10 +67,10 @@ fn test_validate_commit_valid() {
 
     let context = ValidationContext::new(
         current_sequence,
-        current_round as u32, // Context expects u32 round
+        current_round as u32,
         validators.clone(),
-        parent_h.clone(), 
-        final_state_for_context.clone(), // Pass the trait object
+        Some(parent_h.clone()), 
+        final_state_for_context.clone(),
         codec.clone(),
         config.clone(),
         Some(accepted_proposal_digest), // Context has an accepted proposal digest
@@ -114,7 +114,7 @@ fn test_validate_commit_invalid_author_not_validator() {
     let final_state_for_context: Arc<dyn QbftFinalState> = default_final_state(validator_key.clone(), validators.clone()); // Base state on a valid validator
 
     let context = ValidationContext::new(
-        current_sequence, current_round as u32, validators.clone(), parent_h.clone(), 
+        current_sequence, current_round as u32, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context.clone(), codec.clone(), config.clone(),
         Some(accepted_proposal_digest), proposer_address,
     );
@@ -157,9 +157,10 @@ fn test_validate_commit_round_mismatch() {
 
     // Context is for round 0
     let context = ValidationContext::new(
-        current_sequence, context_round as u32, validators.clone(), parent_h.clone(), 
+        current_sequence, context_round as u32, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context.clone(), codec.clone(), config.clone(),
-        Some(accepted_proposal_digest), proposer_address,
+        Some(B256::ZERO), // dummy proposal digest
+        proposer_address,
     );
 
     // Commit message is for round 1
@@ -202,9 +203,10 @@ fn test_validate_commit_sequence_mismatch() {
 
     // Context is for sequence context_sequence (1)
     let context = ValidationContext::new(
-        context_sequence, current_round as u32, validators.clone(), parent_h.clone(), 
+        context_sequence, current_round as u32, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context.clone(), codec.clone(), config.clone(),
-        Some(accepted_proposal_digest), proposer_address,
+        Some(B256::ZERO), // dummy proposal digest
+        proposer_address,
     );
 
     // Commit message is for sequence commit_sequence (2)
@@ -247,7 +249,7 @@ fn test_validate_commit_digest_mismatch() {
     let final_state_for_context: Arc<dyn QbftFinalState> = default_final_state(validator_key.clone(), validators.clone());
 
     let context = ValidationContext::new(
-        current_sequence, current_round as u32, validators.clone(), parent_h.clone(), 
+        current_sequence, current_round as u32, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context.clone(), codec.clone(), config.clone(),
         Some(context_proposal_digest), // Context expects digest AA
         proposer_address,
@@ -292,7 +294,7 @@ fn test_validate_commit_invalid_seal_signature_mismatched_author() {
     let final_state_for_context: Arc<dyn QbftFinalState> = default_final_state(validator1_key.clone(), validators.clone());
 
     let context = ValidationContext::new(
-        current_sequence, current_round as u32, validators.clone(), parent_h.clone(), 
+        current_sequence, current_round as u32, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context.clone(), codec.clone(), config.clone(),
         Some(accepted_proposal_digest), proposer_address,
     );
@@ -332,9 +334,10 @@ fn test_validate_commit_invalid_seal_signature_recovery_fails() {
     let final_state_for_context: Arc<dyn QbftFinalState> = default_final_state(validator_key.clone(), validators.clone());
 
     let context = ValidationContext::new(
-        current_sequence, current_round, validators.clone(), parent_h.clone(), 
+        current_sequence, current_round, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context.clone(), codec.clone(), config.clone(),
-        Some(accepted_proposal_digest), proposer_address,
+        Some(accepted_proposal_digest), // Use the actual digest the commit will be based on
+        proposer_address,
     );
 
     // Create the commit payload but with a deliberately invalid seal signature

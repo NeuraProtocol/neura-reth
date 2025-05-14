@@ -287,21 +287,13 @@ where
     }
 
     fn get_block_header(&self, block_hash: &B256) -> Option<QbftBlockHeader> {
-        match self.provider_factory.provider() {
-            Ok(main_provider) => {
-                match main_provider.header(block_hash) {
-                    Ok(Some(header)) => {
-                        Some(convert_reth_header_to_qbft(&header))
-                    }
-                    Ok(None) => None,
-                    Err(e) => {
-                        warn!("Error fetching header in RethQbftFinalState: {:?}", e);
-                        None
-                    }
-                }
+        match <ProviderFactory<NT> as HeaderProvider>::header(&self.provider_factory, block_hash) {
+            Ok(Some(header)) => {
+                Some(convert_reth_header_to_qbft(&header))
             }
+            Ok(None) => None,
             Err(e) => {
-                warn!("Error getting provider in RethQbftFinalState: {:?}", e);
+                warn!("Error fetching header in RethQbftFinalState: {:?}", e);
                 None
             }
         }
@@ -440,6 +432,8 @@ where
     NT: NodeTypesWithDB + ProviderNodeTypes + Send + Sync + 'static,
     NT::Primitives: NodePrimitives,
     <NT::Primitives as NodePrimitives>::BlockHeader: RethPrimitivesBlockHeaderTrait + Send + Sync + 'static + Clone,
+    neura_qbft_core::types::block::Transaction: From<<NT::Primitives as reth_primitives_traits::NodePrimitives>::SignedTx>, // ADDED MISSING BOUND
+    <NT::Primitives as reth_primitives_traits::NodePrimitives>::SignedTx: Clone, // Ensuring Clone bound is also present if relevant for the From impl or RethQbftFinalState
 {
     fn validate_header(
         &self,
@@ -471,10 +465,9 @@ where
             )));
         }
 
-        // Remove the old TODO and warning
-        // // TODO: Re-enable QBFT core header validation. Method validate_header_for_proposal not found or signature mismatch.
-        // // self.controller.validate_header_for_proposal(&_qbft_header, Arc::clone(&self.final_state_adapter))
-        // //     .map_err(|e| reth_consensus::ConsensusError::Other(format!("QBFT Core error: {}", e)))?;
+        // Re-enable QBFT core header validation.
+        self.controller.validate_header_for_proposal(&qbft_block_header, self.final_state_adapter.clone() as Arc<dyn QbftFinalState>)
+            .map_err(|e| reth_consensus::ConsensusError::Other(format!("QBFT Core error: {}", e)))?;
         // warn!(target: "consensus::qbft", "QBFT core header validation (validate_header_for_proposal) is currently disabled for header {}.", header.hash());
 
         debug!(target: "consensus::qbft", "Validated QBFT header (standalone checks): {}", header.hash());
@@ -581,7 +574,7 @@ where
             current_sequence,
             current_round,
             validators.into_iter().collect(),
-            Arc::new(parent_header),
+            Some(Arc::new(parent_header)),
             self.final_state_adapter.clone() as Arc<dyn QbftFinalState>,
             Arc::new(AlloyBftExtraDataCodec::default()), // Use a default codec for now
             Arc::clone(&self.config),

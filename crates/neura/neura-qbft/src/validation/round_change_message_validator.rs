@@ -164,7 +164,7 @@ impl RoundChangeMessageValidator for RoundChangeMessageValidatorImpl {
                 inner_proposal_round_id.sequence_number,
                 inner_proposal_round_id.round_number,
                 validators_for_inner_proposal.iter().cloned().collect(),
-                Arc::new(parent_header_for_inner_proposal),
+                Some(Arc::new(parent_header_for_inner_proposal)),
                 context.final_state.clone(),
                 context.extra_data_codec.clone(),
                 self.config.clone(),

@@ -526,7 +526,7 @@ impl QbftBlockHeightManager {
             self.height, // current_sequence_number
             self.current_round.as_ref().map_or(0, |cr| cr.round_identifier().round_number), // current_round_number
             self.final_state.get_validators_for_block(self.height).unwrap_or_default().into_iter().collect::<HashSet<Address>>(), // current_validators for this height
-            self.parent_header.clone(),
+            Some(self.parent_header.clone()),
             self.final_state.clone(),
             self.extra_data_codec.clone(),
             self.config.clone(),
@@ -673,6 +673,79 @@ impl QbftBlockHeightManager {
 
     // TODO: Implement methods for:
     // - handle_block_timer_event()
+
+    pub fn handle_block_timer_expiry(&mut self) -> Result<(), QbftError> {
+        log::info!(
+            "QbftBlockHeightManager (height {}): Block timer expired. Current round: {:?}",
+            self.height,
+            self.current_round.as_ref().map(|cr| cr.round_identifier())
+        );
+
+        // Logic for handling block timer expiry:
+        // 1. If this node is the proposer for the *current_round*:
+        //    - It might mean it's time to create and propose a block if it hasn't already.
+        //    - Or, if a proposal was made but consensus isn't progressing, this might be a trigger
+        //      to try proposing again in the same round (if allowed) or to initiate a round change.
+        //      Besu: If proposer and round is active, it attempts to send a proposal.
+        //            If current_round has expired (roundTimer has fired), then it initiates a round change.
+        // 2. If not the proposer, this event might be ignored or log that the proposer is late.
+
+        if let Some(round) = self.current_round.as_mut() {
+            let round_id = *round.round_identifier();
+            if self.final_state.is_local_node_proposer_for_round(&round_id) {
+                log::info!(
+                    "BHM (height {}): Block timer expired. Node is proposer for current round {:?}. Considering action.",
+                    self.height, round_id
+                );
+                // Option A: Re-evaluate proposing if not already done / successful.
+                // This might involve checking round.is_proposal_sent() or similar state.
+                // For now, let's assume if a proposal wasn't made or didn't lead to progress,
+                // the round timer would eventually fire and trigger a round change.
+                // Besu seems to link block timer more to *starting* a proposal if it's our turn.
+
+                // If the round itself has NOT timed out (i.e., round_timer for this round is still pending or never started by this BHM for this round)
+                // and we are the proposer, it could be an indication to try and propose.
+                // However, QbftRound.create_and_propose_block is typically called when advancing to a new round.
+
+                // Let's check if the current round has a proposal. If not, and we are proposer, this is odd.
+                // Perhaps the block timer is more about ensuring *some* block gets proposed if the designated
+                // proposer for a round is silent.
+                if round.round_state().proposal_message().is_none() {
+                    log::warn!("BHM (height {}): Block timer expired for proposer of round {:?}, but no proposal has been set in the round. This might indicate an issue or a specific protocol behavior.", self.height, round_id);
+                    // Potentially try to create and propose now if certain conditions met.
+                    // E.g., if this implies the initial proposal attempt failed or was delayed.
+                    let block_creation_timestamp = self.block_timer.get_timestamp_for_future_block(
+                        &round_id, 
+                        self.parent_header.timestamp
+                    );
+                    // This would be similar to the logic in advance_to_new_round when self is proposer.
+                    // round.create_and_propose_block(block_creation_timestamp)?;
+                    log::info!("BHM (height {}): Proposer for round {:?}. Block timer expired. (Further proposal logic TBD here)", self.height, round_id);
+                } else {
+                    log::debug!("BHM (height {}): Block timer expired for proposer of round {:?}. Proposal already exists.", self.height, round_id);
+                }
+
+            } else {
+                log::debug!(
+                    "BHM (height {}): Block timer expired. Node is NOT proposer for current round {:?}. No action taken by BHM directly.",
+                    self.height, round_id
+                );
+            }
+        } else {
+            log::warn!(
+                "BHM (height {}): Block timer expired, but no current round is active.", self.height
+            );
+        }
+
+        // Important: The BlockTimer in Besu is often a global timer that fires periodically for all potential future blocks.
+        // The BHM then filters if it's relevant.
+        // The action might be to check if it's time to *start* a round if one hasn't begun and this node is proposer.
+        // Or if the current round seems stuck for the proposer.
+
+        // For now, this is mostly a placeholder. The interaction between BlockTimer, RoundTimer,
+        // and round progression needs to be carefully mapped from Besu or defined for this implementation.
+        Ok(())
+    }
 
     fn on_block_finalized(&self, block: &QbftBlock) {
         for observer in self.mined_block_observers.iter() { // Iter over Vec<Arc<dyn QbftMinedBlockObserver>>

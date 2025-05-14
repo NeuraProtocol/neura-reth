@@ -1,0 +1,255 @@
+    Updating crates.io index
+     Locking 920 packages to latest compatible versions
+      Adding alloy-consensus v0.15.11 (available: v1.0.1)
+      Adding alloy-contract v0.15.11 (available: v1.0.1)
+      Adding alloy-eips v0.15.11 (available: v1.0.1)
+      Adding alloy-evm v0.6.0 (available: v0.8.0)
+      Adding alloy-genesis v0.15.11 (available: v1.0.1)
+      Adding alloy-json-rpc v0.15.11 (available: v1.0.1)
+      Adding alloy-network v0.15.11 (available: v1.0.1)
+      Adding alloy-op-evm v0.6.0 (available: v0.8.0)
+      Adding alloy-provider v0.15.11 (available: v1.0.1)
+      Adding alloy-pubsub v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-client v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-admin v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-anvil v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-beacon v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-debug v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-engine v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-eth v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-mev v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-trace v0.15.11 (available: v1.0.1)
+      Adding alloy-rpc-types-txpool v0.15.11 (available: v1.0.1)
+      Adding alloy-serde v0.15.11 (available: v1.0.1)
+      Adding alloy-signer v0.15.11 (available: v1.0.1)
+      Adding alloy-signer-local v0.15.11 (available: v1.0.1)
+      Adding alloy-transport v0.15.11 (available: v1.0.1)
+      Adding alloy-transport-http v0.15.11 (available: v1.0.1)
+      Adding alloy-transport-ipc v0.15.11 (available: v1.0.1)
+      Adding alloy-transport-ws v0.15.11 (available: v1.0.1)
+      Adding bincode v1.3.3 (available: v2.0.1)
+      Adding bindgen v0.70.1 (available: v0.71.1)
+      Adding cc v1.2.15 (available: v1.2.22)
+      Adding convert_case v0.7.1 (available: v0.8.0)
+      Adding crossterm v0.28.1 (available: v0.29.0)
+      Adding crunchy v0.2.2 (available: v0.2.3)
+      Adding generic-array v0.14.7 (available: v1.2.0)
+      Adding hash-db v0.15.2 (available: v0.16.0)
+      Adding jsonrpsee v0.24.9 (available: v0.25.1)
+      Adding jsonrpsee-core v0.24.9 (available: v0.25.1)
+      Adding jsonrpsee-http-client v0.24.9 (available: v0.25.1)
+      Adding jsonrpsee-server v0.24.9 (available: v0.25.1)
+      Adding jsonrpsee-types v0.24.9 (available: v0.25.1)
+      Adding metrics-exporter-prometheus v0.16.2 (available: v0.17.0)
+      Adding modular-bitfield v0.11.2 (available: v0.12.0)
+      Adding op-alloy-consensus v0.15.7 (available: v0.16.0)
+      Adding op-alloy-network v0.15.7 (available: v0.16.0)
+      Adding op-alloy-rpc-jsonrpsee v0.15.7 (available: v0.16.0)
+      Adding op-alloy-rpc-types v0.15.7 (available: v0.16.0)
+      Adding op-alloy-rpc-types-engine v0.15.7 (available: v0.16.0)
+      Adding op-revm v3.0.2 (available: v4.0.2)
+      Adding rand v0.8.5 (available: v0.9.1)
+      Adding revm v22.0.1 (available: v23.1.0)
+      Adding revm-bytecode v3.0.0 (available: v4.0.0)
+      Adding revm-database v3.0.0 (available: v4.0.0)
+      Adding revm-database-interface v3.0.0 (available: v4.0.0)
+      Adding revm-inspectors v0.20.1 (available: v0.22.0)
+      Adding revm-interpreter v18.0.0 (available: v19.1.0)
+      Adding revm-primitives v18.0.0 (available: v19.0.0)
+      Adding revm-state v3.0.0 (available: v4.0.0)
+      Adding rstest v0.24.0 (available: v0.25.0)
+      Adding secp256k1 v0.28.2 (available: v0.31.0)
+      Adding secp256k1 v0.30.0 (available: v0.31.0)
+      Adding sysinfo v0.33.1 (available: v0.35.1)
+      Adding thiserror v1.0.69 (available: v2.0.12)
+      Adding tower v0.4.13 (available: v0.5.2)
+ Downloading crates ...
+  Downloaded alloy-serde v0.15.11
+  Downloaded tempfile v3.20.0
+  Downloaded alloy-eips v0.15.11
+  Downloaded alloy-genesis v0.15.11
+  Downloaded alloy-consensus v0.15.11
+  Downloaded op-alloy-consensus v0.15.7
+   Compiling alloy-serde v0.15.11
+   Compiling alloy-eips v0.15.11
+   Compiling alloy-genesis v0.15.11
+   Compiling alloy-consensus v0.15.11
+   Compiling reth-primitives-traits v1.3.12 (/home/peastew/src/neura-reth/crates/primitives-traits)
+   Compiling reth-ethereum-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/ethereum/primitives)
+   Compiling reth-primitives v1.3.12 (/home/peastew/src/neura-reth/crates/primitives)
+   Compiling neura_qbft_core v0.1.0 (/home/peastew/src/neura-reth/crates/neura/neura-qbft)
+warning: unreachable pattern
+   --> crates/neura/neura-qbft/src/statemachine/qbft_controller.rs:351:21
+    |
+351 |                     _ => {
+    |                     ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> crates/neura/neura-qbft/src/statemachine/qbft_controller.rs:351:21
+    |
+292 |                     ControllerEvent::StartConsensus(parent_header) => {
+    |                     ---------------------------------------------- matches some of the same values
+...
+297 |                     ControllerEvent::ReceivedProposal(proposal) => {
+    |                     ------------------------------------------- matches some of the same values
+...
+302 |                     ControllerEvent::ReceivedPrepare(prepare) => {
+    |                     ----------------------------------------- matches some of the same values
+...
+307 |                     ControllerEvent::ReceivedCommit(commit) => {
+    |                     --------------------------------------- matches some of the same values
+...
+351 |                     _ => {
+    |                     ^ ...and 4 other patterns collectively make this unreachable
+    = note: `#[warn(unreachable_patterns)]` on by default
+
+warning: unused variable: `block_creation_timestamp`
+   --> crates/neura/neura-qbft/src/statemachine/qbft_block_height_manager.rs:717:25
+    |
+717 |                     let block_creation_timestamp = self.block_timer.get_timestamp_for_future_block(
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_block_creation_timestamp`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: field `event_queue` is never read
+  --> crates/neura/neura-qbft/src/statemachine/qbft_controller.rs:51:5
+   |
+32 | pub struct QbftController {
+   |            -------------- field in this struct
+...
+51 |     event_queue: VecDeque<ControllerEvent>, // Internal event queue
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `neura_qbft_core` (lib test) generated 3 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.96s
+     Running unittests src/lib.rs (target/debug/deps/neura_qbft_core-0395130ef25a88e3)
+
+running 79 tests
+test messagewrappers::proposal::tests::test_proposal_rlp_roundtrip_with_prepared_cert ... ignored
+test messagewrappers::round_change::tests::rlp_roundtrip_rc_with_metadata_empty_prepares_in_wrapper ... ignored
+test messagewrappers::round_change::tests::rlp_roundtrip_rc_with_prepared_data ... ignored
+test payload::prepare_payload::tests::test_prepare_payload_rlp_roundtrip ... ok
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_some ... ignored
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_some_metadata_none_block ... ignored
+test payload::round_change_payload::tests::rlp_roundtrip_round_change_payload_none ... ok
+test payload::proposal_payload::tests::test_proposal_payload_rlp_roundtrip ... ok
+test payload::message_factory::tests::test_message_factory_new_and_local_address ... ok
+test state::round_state_tests::tests::test_round_state_new ... ok
+test messagewrappers::prepare::tests::test_prepare_message_rlp_roundtrip ... ok
+test messagewrappers::round_change::tests::rlp_roundtrip_rc_no_prepared_data ... ok
+test types::extra_data::tests::test_besu_like_round_0_extra_data ... ok
+test types::extra_data::tests::test_bft_extra_data_empty_seals_validators ... ok
+test types::extra_data::tests::test_bft_extra_data_rlp_roundtrip ... ok
+test payload::commit_payload::tests::test_commit_payload_qbft_payload_methods ... ok
+test messagewrappers::proposal::tests::test_proposal_rlp_roundtrip_no_prepared_cert ... ok
+test payload::commit_payload::tests::test_commit_payload_rlp_encoding_decoding ... ok
+test state::round_state_tests::tests::test_add_prepare_no_proposal ... ok
+test state::round_state_tests::tests::test_round_state_set_proposal ... ok
+test messagewrappers::commit::tests::test_commit_message_rlp_roundtrip ... ok
+test payload::message_factory::tests::test_create_prepare ... ok
+test payload::message_factory::tests::test_create_proposal ... ok
+test state::round_state_tests::tests::test_add_prepare_wrong_digest ... ok
+test state::round_state_tests::tests::test_add_prepare_wrong_round ... ok
+test payload::message_factory::tests::test_create_commit_seal_and_commit ... ok
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Digest 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb does not match accepted proposal digest Some(0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) for round 1/0
+test validation::tests::commit_validator_tests::test_validate_commit_digest_mismatch ... ok
+test types::signed_data::tests::test_sign_and_recover_author ... ok
+test types::signed_data::tests::test_recover_author_tampered_payload ... ok
+test types::signed_data::tests::test_signed_data_rlp_roundtrip ... ok
+test validation::tests::proposal_validator_tests::test_placeholder_proposal_validator ... ok
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Digest 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb does not match accepted proposal digest Some(0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) for round 1/0
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Payload round identifier ConsensusRoundIdentifier { sequence_number: 2, round_number: 0 } does not match context round identifier 1/0
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
+test types::signed_data::tests::test_sign_with_different_keys ... ok
+test validation::tests::prepare_validator_tests::test_validate_prepare_digest_mismatch ... ok
+test validation::tests::prepare_validator_tests::test_validate_prepare_round_mismatch ... ok[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 1/0. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f}
+
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Payload round identifier ConsensusRoundIdentifier { sequence_number: 2, round_number: 0 } does not match context round identifier 1/0
+test validation::tests::prepare_validator_tests::test_validate_prepare_sequence_mismatch ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_round_mismatch ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_invalid_author_not_validator ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_sequence_mismatch ... ok
+test state::round_state_tests::tests::test_add_prepare_success ... ok
+test payload::message_factory::tests::test_create_round_change ... ok
+test validation::tests::prepare_validator_tests::test_validate_prepare_valid ... ok
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 1/0. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f}
+test validation::tests::prepare_validator_tests::test_validate_prepare_invalid_author_not_validator ... ok
+[WARN  neura_qbft_core::state::round_state] RoundState (ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }): Replaced existing prepare message from author: 0x5144ba46b6988495d6be5ba06c70cfb0a151d527
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Commit seal signature recovery produced address 0x897df33a7b3c62ade01e22c13d48f98124b4480f which does not match author 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5 for round 1/0
+test state::round_state_tests::tests::test_add_prepare_duplicate ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_invalid_seal_signature_mismatched_author ... ok
+test validation::tests::commit_validator_tests::test_validate_commit_valid ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Round in block extra_data 1 does not match context round 0
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 29970703 is outside allowed delta of parent gas limit 30000000 (max_delta: 29296)
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 4999 is below minimum 5000
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block number 2 does not match context sequence number 1
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas limit 30029297 is outside allowed delta of parent gas limit 30000000 (max_delta: 29296)
+test validation::tests::proposal_validator_tests::test_validate_proposal_extradata_round_mismatch ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_too_low_outside_delta ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_below_minimum ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_block_number ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block gas_used 30000001 exceeds gas_limit 30000000
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_limit_too_high ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_gas_used_exceeds_gas_limit ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Validators in block extra_data ({0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}) do not match context current validators ({0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, 0x897df33a7b3c62ade01e22c13d48f98124b4480f})
+test validation::tests::proposal_validator_tests::test_validate_proposal_extradata_validators_mismatch ... ok
+[WARN  neura_qbft_core::validation::commit_validator] Invalid Commit: Commit seal signature recovery produced address 0x4b3595edcbd96e6f15aaa1c30c6f5fd193e5b810 which does not match author 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5 for round 1/0
+test validation::tests::commit_validator_tests::test_validate_commit_invalid_seal_signature_recovery_fails ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block difficulty 2 is not 1
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_difficulty ... ok
+test validation::tests::proposal_validator_tests::test_validate_payload_and_block_valid_proposal ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block nonce 0x00000000000000 is not the expected 0 (must be an 8-byte zero array)
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block parent hash 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa does not match context parent hash Some(0xd3fa5d00b7a1845f4f4372424f9896882941c5cefb721f4b30dd0c453da57036)
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Author mismatch for round 1/0. Expected Proposer: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5, Actual Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f. Context Validators (Sorted): [0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5]
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block timestamp 1000000 is not after parent timestamp Some(1000000)
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Payload round identifier ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } does not match context round identifier 1/0
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_parent_hash ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_author ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_timestamp_not_after_parent ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_round_mismatch ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Author 0x05c987b34c6ef74e0c7e69c6e641120c24164c2d is not in the current validator set for context round 10/1. Validators: {0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}
+test validation::tests::round_change_message_validator_tests::test_validate_rc_invalid_author ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Contains prepared_block but no PreparedRoundMetadata. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
+test validation::tests::round_change_message_validator_tests::test_validate_rc_no_prepared_metadata_with_block ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Block nonce 0x0000000000000001 is not the expected 0 (must be an 8-byte zero array)
+test validation::tests::proposal_validator_tests::test_validate_proposal_invalid_nonce ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Contains PreparedRoundMetadata but no prepared_block. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_metadata_without_block ... [WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets round number 1 but current context round is 1. Must be greater. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
+ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Hash of prepared_block in payload (0x850463f1be01226614d16531714441641cbfd83f9c7d6c90ba4ef69e2e64cfd2) does not match prepared_block_hash in PreparedRoundMetadata (0xe8dc5ca2ff6f27dc6f89afe3aaa2d862fd726b1cb73954c34ff1028cf53fe3c8). Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_metadata_block_hash_mismatch ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] RoundChange proof from 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5 for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 } failed validation: ValidationError("MockRoundChangeMessageValidator failed"). Failing proposal validation.
+test validation::tests::proposal_validator_tests::test_validate_proposal_with_invalid_round_changes ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets sequence number 11 but current context sequence is 10. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Proposal round 2 does not follow latest valid RoundChange proof round 0. Context sq/rd 1/2
+test validation::tests::round_change_message_validator_tests::test_validate_rc_sequence_mismatch ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_round_higher_than_latest_rc_message ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Hash of prepared_block in payload (0x2ce0faa94ababba8f46d597c98d52179129895903a45a620ba1b60d524c80127) does not match prepared_block_hash in PreparedRoundMetadata (0xf4112d8b2a28c7f48b98f55fb0dba8e7743344488513a0612f00d261d381b3b1). Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_block_hash_mismatch ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Inner proposal round 1 does not match PreparedRoundMetadata.prepared_round 0. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: PreparedRoundMetadata is for round 3 which is not less than RoundChange target round 3. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_invalid_round ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Inner proposal in PreparedRoundMetadata targets sequence 11 but current context is 10. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_round_ge_target_round ... ok
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_invalid_sequence ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Targets round number 0 but current context round is 1. Must be greater. Author: 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5
+test validation::tests::round_change_message_validator_tests::test_validate_rc_target_round_not_greater ... ok
+test validation::tests::round_change_message_validator_tests::test_validate_rc_valid ... ok
+test validation::tests::proposal_validator_tests::test_validate_proposal_with_valid_round_changes ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Insufficient prepares (1) for quorum (3) in PreparedRoundMetadata. Validators for inner proposal: 4. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f. Quorum required: 3
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_insufficient_prepares ... ok
+[WARN  neura_qbft_core::validation::proposal_validator] Invalid Proposal: Author mismatch for round 10/0. Expected Proposer: 0x897df33a7b3c62ade01e22c13d48f98124b4480f, Actual Author: 0x05c987b34c6ef74e0c7e69c6e641120c24164c2d. Context Validators (Sorted): [0x05c987b34c6ef74e0c7e69c6e641120c24164c2d, 0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5]
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_proposal_invalid_author ... ok
+[WARN  neura_qbft_core::validation::prepare_validator] Invalid Prepare: Author 0x06967c2221507d9236f8065d6166acbdda37f998 is not in the current validator set for round 10/0. Validators: {0x897df33a7b3c62ade01e22c13d48f98124b4480f, 0xdc5b20847f43d67928f49cd4f85d696b5a7617b5}
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Inner Prepare message validation failed. Prepare Author: Some(0x06967c2221507d9236f8065d6166acbdda37f998), RC Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f, Error: NotAValidator { sender: 0x06967c2221507d9236f8065d6166acbdda37f998 }
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_invalid_prepare_author ... ok
+[WARN  neura_qbft_core::validation::round_change_message_validator] Invalid RoundChange: Duplicate author 0x897df33a7b3c62ade01e22c13d48f98124b4480f in prepares of PreparedRoundMetadata. Author: 0x897df33a7b3c62ade01e22c13d48f98124b4480f
+test validation::tests::round_change_message_validator_tests::test_validate_rc_prepared_duplicate_prepare_author ... ok
+test validation::tests::round_change_message_validator_tests::test_validate_rc_valid_with_prepared ... ok
+
+test result: ok. 74 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

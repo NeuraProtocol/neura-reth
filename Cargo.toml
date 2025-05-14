@@ -163,8 +163,10 @@ members = [
     "examples/custom-beacon-withdrawals",
     "testing/ef-tests/",
     "testing/testing-utils",
-    "crates/neura-qbft/",
-    "crates/neura-consensus-qbft/",
+    "crates/neura/neura-qbft/",
+    "crates/neura/neura-consensus-qbft/",
+    "crates/neura/neura-payload-builder/",
+    "crates/neura/neura-payload-types/",
 ]
 default-members = ["bin/reth"]
 exclude = ["book/sources", "book/cli"]
@@ -444,6 +446,12 @@ reth-trie-sparse = { path = "crates/trie/sparse", default-features = false }
 reth-zstd-compressors = { path = "crates/storage/zstd-compressors", default-features = false }
 reth-ress-protocol = { path = "crates/ress/protocol" }
 reth-ress-provider = { path = "crates/ress/provider" }
+
+# Neura - Add these
+neura-payload-types = { path = "crates/neura/neura-payload-types" }
+neura-payload-builder = { path = "crates/neura/neura-payload-builder" }
+neura-consensus-qbft = { path = "crates/neura/neura-consensus-qbft" }
+neura_qbft_core = { path = "crates/neura/neura-qbft" }
 
 # revm
 revm = { version = "22.0.1", default-features = false }

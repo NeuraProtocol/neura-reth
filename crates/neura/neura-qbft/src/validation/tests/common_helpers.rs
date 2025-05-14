@@ -1,7 +1,7 @@
 //! Common helper functions, structs, and mocks for validation tests.
 
 use crate::messagewrappers::{Proposal, RoundChange, BftMessage, PreparedCertificateWrapper, Prepare, Commit};
-use crate::payload::{ProposalPayload, RoundChangePayload, PreparePayload, CommitPayload,PreparedRoundMetadata}; // Added CommitPayload, SignedData, and RoundChangePayload
+use crate::payload::{ProposalPayload, RoundChangePayload, PreparePayload, PreparedRoundMetadata}; // Removed unused CommitPayload
 use crate::types::{NodeKey, QbftBlock, QbftBlockHeader, ConsensusRoundIdentifier, QbftConfig, BftExtraData, QbftFinalState, BftExtraDataCodec, RlpSignature, SignedData}; // Removed SignedData, Added RlpSignature
 use crate::mocks::MockQbftFinalState;
 use crate::validation::{ValidationContext, MessageValidatorFactory, ProposalValidator, PrepareValidator, CommitValidator,  RoundChangeMessageValidator}; // Added RoundChangeMessageValidator
@@ -139,7 +139,7 @@ pub fn default_validation_context(
 ) -> ValidationContext {
     let final_state = final_state_opt.unwrap_or_else(|| default_final_state(local_node_key_for_final_state, validators.clone()));
     ValidationContext::new(
-        sequence, round, validators, parent_header, final_state,
+        sequence, round, validators, Some(parent_header), final_state,
         extra_data_codec, config, None, expected_proposer,
     )
 }
@@ -151,6 +151,19 @@ pub struct MockProposalValidator { pub fail_on_validate: bool }
 impl ProposalValidator for MockProposalValidator {
     fn validate_proposal(&self, _proposal: &Proposal, _context: &ValidationContext) -> Result<(), QbftError> {
         if self.fail_on_validate { Err(QbftError::ValidationError("MockProposalValidator failed".to_string())) } else { Ok(()) }
+    }
+
+    fn validate_block_header_for_proposal(
+        &self,
+        _header: &QbftBlockHeader, 
+        _context: &ValidationContext,
+    ) -> Result<(), QbftError> {
+        // For now, mirror the behavior of validate_proposal
+        if self.fail_on_validate {
+            Err(QbftError::ValidationError("MockProposalValidator header error".to_string()))
+        } else {
+            Ok(())
+        }
     }
 }
 

@@ -1,0 +1,18 @@
+error: failed to load manifest for workspace member `/home/peastew/src/neura-reth/bin/reth-bench`
+referenced by workspace at `/home/peastew/src/neura-reth/Cargo.toml`
+
+Caused by:
+  failed to load manifest for dependency `reth-node-api`
+
+Caused by:
+  failed to load manifest for dependency `reth-basic-payload-builder`
+
+Caused by:
+  failed to load manifest for dependency `reth-payload-builder`
+
+Caused by:
+  failed to parse manifest at `/home/peastew/src/neura-reth/crates/payload/builder/Cargo.toml`
+
+Caused by:
+  feature `test-utils` includes `alloy-primitives`, but `alloy-primitives` is not an optional dependency
+  A non-optional dependency of the same name is defined; consider adding `optional = true` to its definition.

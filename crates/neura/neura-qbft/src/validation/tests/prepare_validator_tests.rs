@@ -39,7 +39,7 @@ fn test_validate_prepare_valid() {
         current_sequence,
         current_round,
         validators.clone(),
-        parent_h.clone(), 
+        Some(parent_h.clone()), 
         final_state_for_context,
         codec.clone(),
         config.clone(),
@@ -99,7 +99,7 @@ fn test_validate_prepare_invalid_author_not_validator() {
     let final_state_for_context = default_final_state(validator_key.clone(), validators.clone()); // Context uses a valid validator key
 
     let context = ValidationContext::new(
-        current_sequence, current_round, validators.clone(), parent_h.clone(), 
+        current_sequence, current_round, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context, codec.clone(), config.clone(),
         Some(proposal_digest), proposer_address,
     );
@@ -139,7 +139,7 @@ fn test_validate_prepare_round_mismatch() {
 
     // Context is for round 0
     let context = ValidationContext::new(
-        current_sequence, context_round, validators.clone(), parent_h.clone(), 
+        current_sequence, context_round, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context, codec.clone(), config.clone(),
         Some(proposal_digest), proposer_address,
     );
@@ -178,7 +178,7 @@ fn test_validate_prepare_sequence_mismatch() {
 
     // Context is for sequence context_sequence (1)
     let context = ValidationContext::new(
-        context_sequence, current_round, validators.clone(), parent_h.clone(), 
+        context_sequence, current_round, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context, codec.clone(), config.clone(),
         Some(proposal_digest), proposer_address,
     );
@@ -217,7 +217,7 @@ fn test_validate_prepare_digest_mismatch() {
     let final_state_for_context = default_final_state(validator_key.clone(), validators.clone());
 
     let context = ValidationContext::new(
-        current_sequence, current_round, validators.clone(), parent_h.clone(), 
+        current_sequence, current_round, validators.clone(), Some(parent_h.clone()), 
         final_state_for_context, codec.clone(), config.clone(),
         Some(context_proposal_digest), // Context expects digest AA
         proposer_address,

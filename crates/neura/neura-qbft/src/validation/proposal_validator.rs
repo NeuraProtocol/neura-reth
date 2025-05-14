@@ -19,7 +19,7 @@ pub struct ValidationContext {
     pub current_round_number: u32,
     pub current_validators: HashSet<Address>,
     // Added fields based on RoundState usage
-    pub parent_header: Arc<QbftBlockHeader>,
+    pub parent_header: Option<Arc<QbftBlockHeader>>,
     pub final_state: Arc<dyn QbftFinalState>,
     pub extra_data_codec: Arc<dyn BftExtraDataCodec>,
     pub config: Arc<QbftConfig>,
@@ -37,7 +37,7 @@ impl ValidationContext {
         current_sequence_number: u64, 
         current_round_number: u32, 
         current_validators: HashSet<Address>,
-        parent_header: Arc<QbftBlockHeader>,
+        parent_header: Option<Arc<QbftBlockHeader>>,
         final_state: Arc<dyn QbftFinalState>,
         extra_data_codec: Arc<dyn BftExtraDataCodec>,
         config: Arc<QbftConfig>,
@@ -59,12 +59,19 @@ impl ValidationContext {
 }
 
 /// Trait for validating a Proposal message.
-pub trait ProposalValidator {
+pub trait ProposalValidator: Send + Sync {
     /// Validates the given QBFT Proposal.
     /// # Returns
     /// * `Ok(())` if the proposal is valid.
     /// * `Err(QbftError)` if the proposal is invalid.
     fn validate_proposal(&self, proposal: &Proposal, context: &ValidationContext) -> Result<(), QbftError>;
+
+    // Added missing method to the trait
+    fn validate_block_header_for_proposal(
+        &self,
+        _header: &QbftBlockHeader,
+        _context: &ValidationContext,
+    ) -> Result<(), QbftError>;
 }
 
 /// Concrete implementation of the ProposalValidator trait.
@@ -133,10 +140,10 @@ impl ProposalValidatorImpl {
         let block_header = &proposal.block().header;
 
         //    - Block header validation (parent_hash, number)
-        if block_header.parent_hash != context.parent_header.hash() {
+        if block_header.parent_hash != context.parent_header.as_ref().map(|h| h.hash()).unwrap_or_default() {
             log::warn!(
                 "Invalid Proposal: Block parent hash {:?} does not match context parent hash {:?}",
-                block_header.parent_hash, context.parent_header.hash()
+                block_header.parent_hash, context.parent_header.as_ref().map(|h| h.hash())
             );
             return Err(QbftError::ProposalInvalidParentHash);
         }
@@ -151,10 +158,10 @@ impl ProposalValidatorImpl {
 
         // Timestamp validation
         // 1. Timestamp must be greater than parent's timestamp.
-        if block_header.timestamp <= context.parent_header.timestamp {
+        if block_header.timestamp <= context.parent_header.as_ref().map(|h| h.timestamp).unwrap_or_default() {
             log::warn!(
-                "Invalid Proposal: Block timestamp {} is not after parent timestamp {}",
-                block_header.timestamp, context.parent_header.timestamp
+                "Invalid Proposal: Block timestamp {} is not after parent timestamp {:?}",
+                block_header.timestamp, context.parent_header.as_ref().map(|h| h.timestamp)
             );
             return Err(QbftError::ValidationError("Block timestamp not after parent".to_string()));
         }
@@ -239,7 +246,7 @@ impl ProposalValidatorImpl {
         }
         
         // Gas Limit Validation
-        let parent_gas_limit = context.parent_header.gas_limit;
+        let parent_gas_limit = context.parent_header.as_ref().map(|h| h.gas_limit).unwrap_or_default();
         let current_gas_limit = block_header.gas_limit;
         // Example rule: Allow delta of parent_gas_limit / gas_limit_bound_divisor (e.g., 1024)
         // This should ideally come from QbftConfig or a chain specification object.
@@ -398,7 +405,7 @@ impl ProposalValidatorImpl {
                 cert_proposal_round_id.sequence_number, 
                 cert_proposal_round_id.round_number, 
                 validators_for_cert_proposal.iter().cloned().collect(), // Validators for the cert proposal's height
-                Arc::new(parent_header_for_cert_block), // Parent of the block in the certificate
+                Some(Arc::new(parent_header_for_cert_block)), // Parent of the block in the certificate
                 outer_context.final_state.clone(),
                 outer_context.extra_data_codec.clone(),
                 self.config.clone(), // Use self.config as ProposalValidatorImpl stores it
@@ -647,6 +654,124 @@ impl ProposalValidator for ProposalValidatorImpl {
                 self.validate_block_coinbase_matches_author(proposal, context)?;
             }
         }
+        Ok(())
+    }
+
+    fn validate_block_header_for_proposal(
+        &self,
+        _header: &QbftBlockHeader,
+        _context: &ValidationContext,
+    ) -> Result<(), QbftError> {
+        // This is the implementation of the method.
+        // The previous `validate_payload_and_block` contained the logic for block header fields.
+        // We need to call that logic here, or a refactored version of it.
+        // For now, to match the previous structure where validate_payload_and_block was the core,
+        // let's re-evaluate how this method is used by QbftController.
+        // QbftController.validate_header_for_proposal calls this.
+        // It creates its own context.
+
+        // The logic from the top part of `validate_payload_and_block` should be here.
+        // Let's move the relevant parts from there, adjusting for `_header` and `_context`.
+
+        // Example: Directly using _header and _context
+        if _header.number != _context.current_sequence_number {
+            log::warn!(
+                "Invalid Header (from proposal context): Block number {} does not match context sequence number {}",
+                _header.number, _context.current_sequence_number
+            );
+            return Err(QbftError::ProposalInvalidBlockNumber);
+        }
+
+        // Timestamp validation
+        if _header.timestamp <= _context.parent_header.as_ref().map(|h| h.timestamp).unwrap_or_default() {
+            log::warn!(
+                "Invalid Header (from proposal context): Block timestamp {} is not after parent timestamp {:?}",
+                _header.timestamp, _context.parent_header.as_ref().map(|h| h.timestamp)
+            );
+            return Err(QbftError::ValidationError("Block timestamp not after parent".to_string()));
+        }
+
+        // Extra Data Validation
+        match _context.extra_data_codec.decode(&_header.extra_data) {
+            Ok(decoded_extra_data) => {
+                if decoded_extra_data.round_number != _context.current_round_number {
+                    log::warn!(
+                        "Invalid Header (from proposal context): Round in block extra_data {} does not match context round {}",
+                        decoded_extra_data.round_number, _context.current_round_number
+                    );
+                    return Err(QbftError::ValidationError("Round in block extra_data mismatch".to_string()));
+                }
+                
+                let extra_data_validators_set: HashSet<Address> = decoded_extra_data.validators.iter().cloned().collect();
+                if extra_data_validators_set != _context.current_validators {
+                    log::warn!(
+                        "Invalid Header (from proposal context): Validators in block extra_data ({:?}) do not match context current validators ({:?})", 
+                        extra_data_validators_set, _context.current_validators
+                    );
+                    return Err(QbftError::ValidationError("Validators in extra_data mismatch with context".to_string()));
+                }
+            }
+            Err(e) => {
+                log::warn!("Invalid Header (from proposal context): Failed to decode block extra_data: {:?}", e);
+                return Err(QbftError::ValidationError(format!("Failed to decode block extra_data: {}", e)));
+            }
+        }
+
+        // Difficulty Validation
+        if _header.difficulty != alloy_primitives::U256::from(1) {
+            log::warn!(
+                "Invalid Header (from proposal context): Block difficulty {} is not 1", _header.difficulty
+            );
+            return Err(QbftError::ValidationError("Block difficulty not 1".to_string()));
+        }
+
+        // Nonce Validation
+        if _header.nonce != alloy_primitives::Bytes::from_static(&[0u8; 8]) { 
+            log::warn!(
+                "Invalid Header (from proposal context): Block nonce {:?} is not the expected 0 (must be an 8-byte zero array)", 
+                _header.nonce
+            );
+            return Err(QbftError::ValidationError("Block nonce not 0".to_string()));
+        }
+        
+        // Gas Limit Validation
+        let parent_gas_limit = _context.parent_header.as_ref().map(|h| h.gas_limit).unwrap_or_default();
+        let current_gas_limit = _header.gas_limit;
+        let gas_limit_bound_divisor = _context.config.gas_limit_bound_divisor;
+        
+        if parent_gas_limit == 0 { 
+            if current_gas_limit != 0 { 
+                 log::warn!("Invalid Header (from proposal context): Parent gas limit is 0, but current block gas limit {} is not.", current_gas_limit);
+            }
+        } else {
+            let max_delta = parent_gas_limit / gas_limit_bound_divisor;
+            let min_gas_limit = _context.config.min_gas_limit;
+            if current_gas_limit < min_gas_limit {
+            log::warn!(
+                    "Invalid Header (from proposal context): Block gas limit {} is below minimum {}",
+                    current_gas_limit, min_gas_limit
+                );
+                return Err(QbftError::ValidationError(format!("Gas limit {} below minimum {}", current_gas_limit, min_gas_limit)));
+            }
+
+            if current_gas_limit > parent_gas_limit + max_delta || current_gas_limit < parent_gas_limit.saturating_sub(max_delta) {
+                 log::warn!(
+                    "Invalid Header (from proposal context): Block gas limit {} is outside allowed delta of parent gas limit {} (max_delta: {})",
+                    current_gas_limit, parent_gas_limit, max_delta
+                );
+                return Err(QbftError::ValidationError("Gas limit outside allowed delta of parent".to_string()));
+            }
+        }
+        
+        // Validate gas_used <= gas_limit
+        if _header.gas_used > _header.gas_limit {
+            log::warn!(
+                "Invalid Header (from proposal context): Block gas_used {} exceeds gas_limit {}",
+                _header.gas_used, _header.gas_limit
+            );
+            return Err(QbftError::ValidationError("Block gas_used exceeds gas_limit".to_string()));
+        }
+        
         Ok(())
     }
 }

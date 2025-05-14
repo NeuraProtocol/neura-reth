@@ -4,6 +4,7 @@ use crate::validation::{
     MessageValidatorFactory, 
     RoundChangeMessageValidator, RoundChangeMessageValidatorFactory
 };
+use crate::types::{QbftBlockHeader};
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
 use crate::validation::ValidationContext;
@@ -12,7 +13,18 @@ use crate::validation::ValidationContext;
 #[derive(Clone)] struct MockPropVal; #[derive(Clone)] struct MockPrepVal; #[derive(Clone)] struct MockCommVal; #[derive(Clone)] struct MockRCMVal;
 
 impl ProposalValidator for MockPropVal {
-    fn validate_proposal(&self, _proposal: &Proposal, _context: &ValidationContext) -> Result<(), QbftError> { Ok(()) } // Always Ok for this mock
+    fn validate_proposal(&self, _proposal: &Proposal, _context: &ValidationContext) -> Result<(), QbftError> {
+        // Mock implementation for validate_proposal
+        Ok(())
+    }
+
+    fn validate_block_header_for_proposal(
+        &self,
+        _header: &QbftBlockHeader,
+        _context: &ValidationContext,
+    ) -> Result<(), QbftError> {
+        Ok(())
+    }
 }
 impl PrepareValidator for MockPrepVal {
     fn validate_prepare(&self, _prepare: &Prepare, _context: &ValidationContext) -> Result<(), QbftError> { Ok(()) } // Always Ok
