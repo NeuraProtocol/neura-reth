@@ -53,7 +53,7 @@ impl TransactionConverter for AlloyTransaction {
             input: envelope.input().clone(),
             nonce: envelope.nonce(),
             gas_limit: envelope.gas_limit(),
-            gas_price: envelope.gas_price().map(U256::from),
+            gas_price: Some(U256::from(envelope.gas_price())),
             chain_id: envelope.chain_id(),
             
             r: signature.r(),
@@ -69,7 +69,7 @@ impl TransactionConverter for AlloyTransaction {
             }),
             transaction_type: Some(U256::from(envelope.tx_type() as u8)),
             max_fee_per_gas: Some(U256::from(envelope.max_fee_per_gas())),
-            max_priority_fee_per_gas: envelope.max_priority_fee_per_gas().map(U256::from),
+            max_priority_fee_per_gas: Some(U256::from(envelope.max_priority_fee_per_gas())),
         }
     }
 }

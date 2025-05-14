@@ -27,13 +27,14 @@ reth-chainspec = { workspace = true } # For ChainSpecProvider
 reth-storage-api = { workspace = true } # For StateProviderFactory
 reth-evm = { workspace = true } # Added reth-evm
 reth-evm-ethereum = { workspace = true } # For EthEvmConfig
-reth-basic-payload_builder = { workspace = true } # For BuildArguments, BuildOutcome, etc.
+reth-basic-payload-builder = { workspace = true } # For BuildArguments, BuildOutcome, etc.
 
 # Alloy (mainly for transaction conversion if not handled by reth types directly)
 alloy-rpc-types = { workspace = true, features = ["eth"] }
-alloy-primitives = { workspace = true }
-alloy-consensus = { workspace = true }
-alloy-eips = { workspace = true } # Corrected spelling if necessary
+alloy-primitives = { workspace = true, features = ["kzg"] }
+alloy-consensus = { workspace = true, features = ["kzg"] }
+alloy-eips = { workspace = true, features = ["kzg"] } # Corrected spelling if necessary, ADDED kzg
+alloy-rlp = { workspace = true } # Added alloy-rlp
 
 
 # Misc

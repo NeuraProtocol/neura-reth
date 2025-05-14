@@ -3,22 +3,31 @@ use reth_ethereum_payload_builder::EthereumPayloadBuilder as RethEthereumPayload
 use reth_basic_payload_builder::PayloadBuilder;
 use reth_ethereum_engine_primitives::EthPayloadBuilderAttributes;
 use reth_payload_builder_primitives::PayloadBuilderError;
-use reth_basic_payload_builder::{BuildArguments, BuildOutcome, MissingPayloadBehaviour, PayloadConfig, Payload as BasicPayloadStruct};
+use reth_basic_payload_builder::{BuildArguments, BuildOutcome, MissingPayloadBehaviour, PayloadConfig};
 use reth_ethereum_engine_primitives::EthBuiltPayload;
 use reth_ethereum_primitives::{TransactionSigned, EthPrimitives};
-use reth_chainspec::EthChainSpec;
-use reth_transaction_pool::{PoolTransaction, TransactionPool};
+use reth_transaction_pool::{TransactionPool, PoolTransaction};
 use reth_storage_api::StateProviderFactory;
 use reth_chainspec::{ChainSpecProvider, EthereumHardforks};
 use reth_evm::ConfigureEvm;
 use reth_evm_ethereum::EthEvmConfig;
-use reth_primitives_traits::{NodePrimitives, SealedHeader};
-use alloy_rpc_types::eth::{Transaction as AlloyTransaction, AccessList as AlloyAccessList, AccessListItem as AlloyAccessListItem};
-use alloy_primitives::{Signature as AlloySignature, U256, Address, Bytes, B256 };
+use reth_primitives_traits::{Header as RethHeaderTrait, NodePrimitives, Block as RethBlockTrait, SealedBlock as RethPrimitivesSealedBlock};
+use alloy_rpc_types::eth::{Transaction as AlloyTransaction, AccessList as AlloyRpcAccessList, AccessListItem as AlloyRpcAccessListItem};
+use alloy_primitives::{U256, Address, Bytes, B256, U64, TxKind as AlloyCoreTxKind, Signature as AlloyCoreSignature};
 use alloy_eips::eip7685::Requests;
-use alloy_consensus::transaction::EthereumTxEnvelope;
-use alloy_consensus::TxEip4844Variant;
+use alloy_consensus::{
+    Signed, TxLegacy, TxEip2930, TxEip1559, TxEip4844, TxEip7702, 
+    TxType as AlloyCoreTxType, 
+    EthereumTxEnvelope, TxEip4844Variant,
+    BlobTransactionSidecar as AlloyBlobTransactionSidecar,
+    SignableTransaction, 
+};
+use alloy_consensus::transaction::Recovered;
+use alloy_rlp::Encodable;
+use alloy_eips::eip2930::{AccessList as AlloyEip2930AccessList, AccessListItem as AlloyEip2930AccessListItem};
+use alloy_primitives::eip4844::{Blob, KzgCommitment, KzgProof};
 use std::sync::Arc;
+use reth_ethereum_primitives::{Transaction as RethTransactionEnum};
 
 /// A Neura-specific payload builder that wraps the standard Reth EthereumPayloadBuilder
 /// to augment its output with `FullTransaction` details.
@@ -29,10 +38,10 @@ pub struct NeuraPayloadBuilder<Pool, Client, EvmConfig = EthEvmConfig> {
 
 impl<Pool, Client, EvmConfig> NeuraPayloadBuilder<Pool, Client, EvmConfig>
 where
-    Client: StateProviderFactory + ChainSpecProvider<ChainSpec = EthChainSpec> + Clone + Send + Sync + 'static,
-    Pool: TransactionPool<Transaction = Arc<reth_transaction_pool::ValidPoolTransaction<TransactionSigned>>> + Clone + Send + Sync + 'static,
+    Client: StateProviderFactory + ChainSpecProvider + Clone + Send + Sync + 'static,
+    <Client as ChainSpecProvider>::ChainSpec: EthereumHardforks,
+    Pool: TransactionPool<Transaction = Arc<reth_transaction_pool::ValidPoolTransaction<TransactionSigned>>, Consensus = TransactionSigned> + Clone + Send + Sync + 'static,
     EvmConfig: ConfigureEvm<Primitives = EthPrimitives, NextBlockEnvCtx = reth_evm::NextBlockEnvAttributes> + Clone + Send + Sync + 'static,
-    EthChainSpec: EthereumHardforks, // Ensure EthChainSpec satisfies EthereumHardforks
 {
     pub fn new(
         client: Client,
@@ -45,31 +54,108 @@ where
         }
     }
 
-    // Placeholder: Actual conversion from EthBuiltPayload to Vec<FullTransaction> is complex
-    // and involves converting reth_primitives::TransactionSigned to alloy_rpc_types::eth::Transaction
-    // then using the TransactionConverter trait.
     fn convert_to_full_transactions(
         &self,
-        _built_payload: &EthBuiltPayload, // Parameter not used by placeholder
+        built_payload: &EthBuiltPayload,
     ) -> Vec<FullTransaction> {
-        // TODO: Implement the actual conversion logic here.
-        // This will involve:
-        // 1. Iterating through transactions in _built_payload.block().transactions().
-        // 2. For each reth_primitives::TransactionSigned:
-        //    a. Construct a valid alloy_rpc_types::eth::Transaction.
-        //       This means creating the `inner: Recovered<Signed<EthereumTxEnvelope<...>>>`
-        //       and calculating `effective_gas_price` and other top-level fields.
-        //    b. Call `.into_full_type()` on the created alloy_rpc_types::eth::Transaction.
-        vec![] // Placeholder returns an empty vector
+        let sealed_block_concrete = built_payload.block();
+        let block_header_ref: &alloy_consensus::Header = sealed_block_concrete.header();
+        let envelopes_from_block: &[EthereumTxEnvelope<TransactionSigned>] = sealed_block_concrete.body(); 
+        
+        let base_fee_per_gas: Option<u64> = block_header_ref.base_fee_per_gas();
+
+        envelopes_from_block
+            .iter() 
+            .enumerate()
+            .filter_map(|(_idx, envelope)| { 
+                let reth_tx_signed: TransactionSigned = match envelope {
+                    EthereumTxEnvelope::Legacy(s) => TransactionSigned::from(s.clone()),
+                    EthereumTxEnvelope::Eip2930(s) => TransactionSigned::from(s.clone()),
+                    EthereumTxEnvelope::Eip1559(s) => TransactionSigned::from(s.clone()),
+                    EthereumTxEnvelope::Eip4844(variant) => match variant {
+                        TxEip4844Variant::Tx(s) => TransactionSigned::from(s.clone()),
+                        _ => return None,
+                    },
+                    EthereumTxEnvelope::Eip7702(s) => TransactionSigned::from(s.clone()),
+                    _ => return None,
+                };
+
+                let alloy_signature: AlloyCoreSignature = reth_tx_signed.signature().clone();
+                let reth_tx_variant = &reth_tx_signed.transaction; 
+                let tx_hash = reth_tx_signed.hash();
+
+                let convert_reth_access_list_to_consensus =
+                    |reth_al_opt: Option<&AlloyEip2930AccessList>| -> Option<AlloyEip2930AccessList> {
+                        reth_al_opt.cloned()
+                    };
+                
+                let convert_reth_tx_kind_to_consensus =
+                    |reth_kind: &AlloyCoreTxKind| -> AlloyCoreTxKind {
+                        *reth_kind
+                    };
+
+                let inner_tx_envelope = match reth_tx_variant {
+                    RethTransactionEnum::Legacy(unsigned_tx) => {
+                        let signed_tx = Signed::new_unchecked(unsigned_tx.clone(), alloy_signature, *tx_hash);
+                        EthereumTxEnvelope::Legacy(signed_tx)
+                    }
+                    RethTransactionEnum::Eip2930(unsigned_tx) => {
+                        let signed_tx = Signed::new_unchecked(unsigned_tx.clone(), alloy_signature, *tx_hash);
+                        EthereumTxEnvelope::Eip2930(signed_tx)
+                    }
+                    RethTransactionEnum::Eip1559(unsigned_tx) => {
+                        let signed_tx = Signed::new_unchecked(unsigned_tx.clone(), alloy_signature, *tx_hash);
+                        EthereumTxEnvelope::Eip1559(signed_tx)
+                    }
+                    RethTransactionEnum::Eip4844(unsigned_tx) => {
+                        let signed_tx = Signed::new_unchecked(unsigned_tx.clone(), alloy_signature, *tx_hash);
+                        EthereumTxEnvelope::Eip4844(TxEip4844Variant::Tx(signed_tx))
+                    }
+                    RethTransactionEnum::Eip7702(unsigned_tx) => {
+                        let signed_tx = Signed::new_unchecked(unsigned_tx.clone(), alloy_signature, *tx_hash);
+                        EthereumTxEnvelope::Eip7702(signed_tx)
+                    }
+                    _ => return None,
+                };
+                
+                let inner_recovered_tx = Recovered::new_unchecked(inner_tx_envelope.clone(), reth_tx_signed.signer());
+
+                let calculated_effective_gas_price = {
+                    let base_fee = base_fee_per_gas.map(U256::from).unwrap_or_default();
+                    U256::from(reth_tx_variant.effective_gas_price(base_fee_per_gas))
+                };
+                
+                let rpc_access_list = reth_tx_variant.access_list().map(|al_ref| {
+                    AlloyRpcAccessList(
+                        al_ref.0.iter().map(|item: &AlloyEip2930AccessListItem| {
+                            AlloyRpcAccessListItem {
+                                address: item.address,
+                                storage_keys: item.storage_keys.clone(),
+                            }
+                        }).collect::<Vec<_>>()
+                    )
+                });
+
+                let alloy_tx = AlloyTransaction {
+                    inner: inner_recovered_tx,
+                    effective_gas_price: Some(calculated_effective_gas_price.to::<u128>()),
+                    block_hash: None,
+                    block_number: None,
+                    transaction_index: None,
+                };
+
+                Some(alloy_tx.into_full_type())
+            })
+            .collect()
     }
 }
 
 impl<Pool, Client, EvmConfig> PayloadBuilder for NeuraPayloadBuilder<Pool, Client, EvmConfig>
 where
     EvmConfig: ConfigureEvm<Primitives = EthPrimitives, NextBlockEnvCtx = reth_evm::NextBlockEnvAttributes> + Clone + Send + Sync + 'static,
-    Client: StateProviderFactory + ChainSpecProvider<ChainSpec = EthChainSpec> + Clone + Unpin + Send + Sync + 'static,
-    Pool: TransactionPool<Transaction = Arc<reth_transaction_pool::ValidPoolTransaction<TransactionSigned>>> + Clone + Send + Sync + 'static,
-    EthChainSpec: EthereumHardforks,
+    Client: StateProviderFactory + ChainSpecProvider + Clone + Unpin + Send + Sync + 'static,
+    <Client as ChainSpecProvider>::ChainSpec: EthereumHardforks,
+    Pool: TransactionPool<Transaction = Arc<reth_transaction_pool::ValidPoolTransaction<TransactionSigned>>, Consensus = TransactionSigned> + Clone + Send + Sync + 'static,
 {
     type Attributes = EthPayloadBuilderAttributes;
     type BuiltPayload = NeuraBuiltPayloadWithDetails;
@@ -91,33 +177,20 @@ where
         };
 
         match self.inner_builder.try_build(inner_args) {
-            Ok(reth_basic_payload_builder::BuildOutcome::Better(inner_payload_struct)) => {
-                let eth_payload_arc = inner_payload_struct.payload; // This is Arc<EthBuiltPayload>
-                let full_transactions = self.convert_to_full_transactions(&eth_payload_arc);
-                let neura_payload = NeuraBuiltPayloadWithDetails::new((*eth_payload_arc).clone(), full_transactions);
-
-                let neura_payload_data = BasicPayloadStruct {
-                    parent_block: inner_payload_struct.parent_block,
-                    payload: Arc::new(neura_payload), // Payload struct expects Arc<P>
-                    fees: inner_payload_struct.fees,
-                    cached_reads: inner_payload_struct.cached_reads,
-                };
-                Ok(reth_basic_payload_builder::BuildOutcome::Better(neura_payload_data))
+            Ok(reth_basic_payload_builder::BuildOutcome::Better { payload: eth_payload, cached_reads }) => {
+                let full_transactions = self.convert_to_full_transactions(&eth_payload);
+                let neura_payload = NeuraBuiltPayloadWithDetails::new((*eth_payload).clone(), full_transactions);
+                Ok(reth_basic_payload_builder::BuildOutcome::Better { payload: neura_payload, cached_reads })
             }
-            Ok(reth_basic_payload_builder::BuildOutcome::Aborted(inner_payload_struct)) => {
-                let eth_payload_arc = inner_payload_struct.payload; // This is Arc<EthBuiltPayload>
-                let full_transactions = self.convert_to_full_transactions(&eth_payload_arc);
-                let neura_payload = NeuraBuiltPayloadWithDetails::new((*eth_payload_arc).clone(), full_transactions);
-                
-                let neura_payload_data = BasicPayloadStruct {
-                    parent_block: inner_payload_struct.parent_block,
-                    payload: Arc::new(neura_payload), // Payload struct expects Arc<P>
-                    fees: inner_payload_struct.fees,
-                    cached_reads: inner_payload_struct.cached_reads,
-                };
-                Ok(reth_basic_payload_builder::BuildOutcome::Aborted(neura_payload_data))
+            Ok(reth_basic_payload_builder::BuildOutcome::Aborted { fees, cached_reads }) => {
+                Ok(reth_basic_payload_builder::BuildOutcome::Aborted { fees, cached_reads })
             }
             Ok(reth_basic_payload_builder::BuildOutcome::Cancelled) => Ok(reth_basic_payload_builder::BuildOutcome::Cancelled),
+            Ok(reth_basic_payload_builder::BuildOutcome::Freeze(eth_payload)) => {
+                let full_transactions = self.convert_to_full_transactions(&eth_payload);
+                let neura_payload = NeuraBuiltPayloadWithDetails::new((*eth_payload).clone(), full_transactions);
+                Ok(reth_basic_payload_builder::BuildOutcome::Freeze(neura_payload))
+            }
             Err(e) => Err(e),
         }
     }
@@ -138,12 +211,15 @@ where
         };
 
         match self.inner_builder.on_missing_payload(inner_args) {
-            reth_basic_payload_builder::MissingPayloadBehaviour::RaceEmptyPayload => reth_basic_payload_builder::MissingPayloadBehaviour::RaceEmptyPayload,
-            reth_basic_payload_builder::MissingPayloadBehaviour::AwaitInProgress => reth_basic_payload_builder::MissingPayloadBehaviour::AwaitInProgress,
-            reth_basic_payload_builder::MissingPayloadBehaviour::BuildBest(eth_payload_arc) => { // This is Arc<EthBuiltPayload>
-                 let full_transactions = self.convert_to_full_transactions(&eth_payload_arc);
-                 let neura_payload = NeuraBuiltPayloadWithDetails::new((*eth_payload_arc).clone(), full_transactions);
-                 reth_basic_payload_builder::MissingPayloadBehaviour::BuildBest(Arc::new(neura_payload)) // Expects Arc<P>
+            MissingPayloadBehaviour::RaceEmptyPayload => MissingPayloadBehaviour::RaceEmptyPayload,
+            MissingPayloadBehaviour::AwaitInProgress => MissingPayloadBehaviour::AwaitInProgress,
+            MissingPayloadBehaviour::RacePayload(job_fn) => {
+                MissingPayloadBehaviour::RacePayload(Box::new(move || {
+                    job_fn().map(|eth_payload_arc| {
+                        let full_transactions = self.convert_to_full_transactions(&eth_payload_arc);
+                        NeuraBuiltPayloadWithDetails::new((*eth_payload_arc).clone(), full_transactions)
+                    })
+                }))
             }
         }
     }
@@ -153,7 +229,7 @@ where
         config: reth_basic_payload_builder::PayloadConfig<Self::Attributes>,
     ) -> Result<Self::BuiltPayload, PayloadBuilderError> {
         match self.inner_builder.build_empty_payload(config) {
-            Ok(eth_payload_arc) => { // This is Arc<EthBuiltPayload>
+            Ok(eth_payload_arc) => {
                 let full_transactions = self.convert_to_full_transactions(&eth_payload_arc);
                 Ok(NeuraBuiltPayloadWithDetails::new((*eth_payload_arc).clone(), full_transactions))
             }

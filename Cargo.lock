@@ -5879,7 +5879,9 @@ name = "neura-payload-builder"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus 0.15.11",
+ "alloy-eips 0.15.11",
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-rpc-types",
  "neura-payload-types",
  "reth-basic-payload-builder",
