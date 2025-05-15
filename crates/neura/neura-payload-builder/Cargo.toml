@@ -31,7 +31,7 @@ reth-basic-payload-builder = { workspace = true } # For BuildArguments, BuildOut
 
 # Alloy (mainly for transaction conversion if not handled by reth types directly)
 alloy-rpc-types = { workspace = true, features = ["eth"] }
-alloy-primitives = { workspace = true, features = ["kzg"] }
+alloy-primitives = { workspace = true }
 alloy-consensus = { workspace = true, features = ["kzg"] }
 alloy-eips = { workspace = true, features = ["kzg"] } # Corrected spelling if necessary, ADDED kzg
 alloy-rlp = { workspace = true } # Added alloy-rlp
