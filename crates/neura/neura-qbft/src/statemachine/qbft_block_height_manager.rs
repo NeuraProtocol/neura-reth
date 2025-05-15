@@ -714,7 +714,7 @@ impl QbftBlockHeightManager {
                     log::warn!("BHM (height {}): Block timer expired for proposer of round {:?}, but no proposal has been set in the round. This might indicate an issue or a specific protocol behavior.", self.height, round_id);
                     // Potentially try to create and propose now if certain conditions met.
                     // E.g., if this implies the initial proposal attempt failed or was delayed.
-                    let block_creation_timestamp = self.block_timer.get_timestamp_for_future_block(
+                    let _block_creation_timestamp = self.block_timer.get_timestamp_for_future_block(
                         &round_id, 
                         self.parent_header.timestamp
                     );
