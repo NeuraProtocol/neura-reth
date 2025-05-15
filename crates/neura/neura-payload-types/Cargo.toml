@@ -14,6 +14,7 @@ workspace = true
 # Alloy
 alloy-primitives = { workspace = true }
 alloy-rpc-types = { workspace = true, features = ["eth"] }
+alloy-rpc-types-engine = { workspace = true }
 alloy-eips = { workspace = true } # For Requests in BuiltPayload trait
 alloy-consensus = { workspace = true } # Added dependency
 
@@ -31,12 +32,14 @@ default = []
 serde = [
     "dep:serde",
     "alloy-primitives/serde",
+    "alloy-rpc-types-engine/serde",
     "alloy-eips/serde",
     "reth-primitives-traits/serde",
     "reth-ethereum-primitives/serde"
 ]
 std = [
     "alloy-primitives/std",
+    "alloy-rpc-types-engine/std",
     "alloy-eips/std",
     "reth-ethereum-engine-primitives/std",
     "reth-payload-primitives/std",
