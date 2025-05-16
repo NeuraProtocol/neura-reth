@@ -22,6 +22,14 @@ pub struct BftExtraData {
     // Besu also has vote: Option<BftVote> - not included for now for simplicity
 }
 
+impl BftExtraData {
+    /// Creates a new `BftExtraData` instance with updated commit seals.
+    pub fn with_commit_seals(mut self, seals: Vec<alloy_primitives::Signature>) -> Self {
+        self.committed_seals = seals.into_iter().map(RlpSignature).collect();
+        self
+    }
+}
+
 // The BftExtraDataCodec trait might not be needed if BftExtraData itself is RLP-aware
 // and QbftBlockHeader simply stores the raw extra_data: Bytes, and decodes it on demand.
 // For now, we'll assume the header stores raw Bytes and we might have a codec helper.

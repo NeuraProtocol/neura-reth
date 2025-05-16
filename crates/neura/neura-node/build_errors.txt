@@ -1,0 +1,72 @@
+warning: use of deprecated method `tempfile::dir::TempDir::into_path`: use TempDir::keep()
+  --> crates/storage/provider/src/test_utils/mod.rs:62:51
+   |
+62 |         StaticFileProvider::read_write(static_dir.into_path()).expect("static file provider"),
+   |                                                   ^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: `reth-provider` (lib) generated 1 warning
+warning: missing documentation for the crate
+  --> crates/neura/neura-engine-types/src/lib.rs:2:1
+   |
+2  | / #![doc(html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png")]
+3  | | #![doc(html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256")]
+4  | | #![doc(issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/")]
+5  | | #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+...  |
+51 | |     type ExecutionPayloadEnvelopeV4 = ExecutionPayloadEnvelopeV4;
+52 | | }
+   | |_^
+   |
+   = note: requested on the command line with `-W missing-docs`
+
+warning: `neura-engine-types` (lib) generated 1 warning
+   Compiling neura-node v0.1.0 (/home/peastew/src/neura-reth/crates/neura/neura-node)
+error[E0432]: unresolved import `reth_db::test_utils::create_test_db`
+   --> crates/neura/neura-node/src/lib.rs:132:13
+    |
+132 |         use reth_db::test_utils::create_test_db;
+    |             ^^^^^^^^^^^^^^^^^^^^^--------------
+    |             |                    |
+    |             |                    help: a similar name exists in the module: `create_test_rw_db`
+    |             no `create_test_db` in `test_utils`
+
+warning: extern crate `reth_primitives` is unused in crate `neura_node`
+  |
+  = help: remove the dependency or add `use reth_primitives as _;` to the crate root
+note: the lint level is defined here
+ --> crates/neura/neura-node/src/lib.rs:4:29
+  |
+4 | #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+  |                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: extern crate `tempdir` is unused in crate `neura_node`
+  |
+  = help: remove the dependency or add `use tempdir as _;` to the crate root
+
+warning: extern crate `testcontainers` is unused in crate `neura_node`
+  |
+  = help: remove the dependency or add `use testcontainers as _;` to the crate root
+
+warning: extern crate `tokio_test` is unused in crate `neura_node`
+  |
+  = help: remove the dependency or add `use tokio_test as _;` to the crate root
+
+warning: unused import: `DatabaseProviderFactory`
+  --> crates/neura/neura-node/src/lib.rs:14:21
+   |
+14 | use reth_provider::{DatabaseProviderFactory, FullProvider, EthStorage, StaticFileProviderFactory};
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `FixedBytes`
+  --> crates/neura/neura-node/src/lib.rs:49:32
+   |
+49 | use alloy_primitives::{Address,FixedBytes};
+   |                                ^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `neura-node` (lib) generated 6 warnings
+error: could not compile `neura-node` (lib) due to 1 previous error; 6 warnings emitted

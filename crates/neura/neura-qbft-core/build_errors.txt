@@ -1,0 +1,39 @@
+   Compiling neura-qbft-core v0.1.0 (/home/peastew/src/neura-reth/crates/neura/neura-qbft-core)
+warning: unreachable pattern
+   --> crates/neura/neura-qbft-core/src/statemachine/qbft_controller.rs:351:21
+    |
+351 |                     _ => {
+    |                     ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> crates/neura/neura-qbft-core/src/statemachine/qbft_controller.rs:351:21
+    |
+292 |                     ControllerEvent::StartConsensus(parent_header) => {
+    |                     ---------------------------------------------- matches some of the same values
+...
+297 |                     ControllerEvent::ReceivedProposal(proposal) => {
+    |                     ------------------------------------------- matches some of the same values
+...
+302 |                     ControllerEvent::ReceivedPrepare(prepare) => {
+    |                     ----------------------------------------- matches some of the same values
+...
+307 |                     ControllerEvent::ReceivedCommit(commit) => {
+    |                     --------------------------------------- matches some of the same values
+...
+351 |                     _ => {
+    |                     ^ ...and 4 other patterns collectively make this unreachable
+    = note: `#[warn(unreachable_patterns)]` on by default
+
+warning: field `event_queue` is never read
+  --> crates/neura/neura-qbft-core/src/statemachine/qbft_controller.rs:51:5
+   |
+32 | pub struct QbftController {
+   |            -------------- field in this struct
+...
+51 |     event_queue: VecDeque<ControllerEvent>, // Internal event queue
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `neura-qbft-core` (lib) generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.47s

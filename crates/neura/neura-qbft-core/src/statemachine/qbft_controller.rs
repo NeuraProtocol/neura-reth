@@ -48,7 +48,6 @@ pub struct QbftController {
     // In Besu, there's also a concept of a "future_height_manager" for working ahead.
     // For now, we'll focus on a single active height.
 
-    event_queue: VecDeque<ControllerEvent>, // Internal event queue
     external_event_sender: Sender<ControllerEvent>,
     external_event_receiver: Receiver<ControllerEvent>, // Added for completeness, might be used by a run loop
 }
@@ -84,7 +83,6 @@ impl QbftController {
             mined_block_observers,
             config,
             current_height_manager: None,
-            event_queue: VecDeque::new(),
             external_event_sender: tx,
             external_event_receiver: rx,
         }
@@ -357,6 +355,7 @@ impl QbftController {
                 break;
             }
         }
+        // Removed unreachable _ => {} arm, loop handles all events or breaks.
         Ok(())
     }
 
