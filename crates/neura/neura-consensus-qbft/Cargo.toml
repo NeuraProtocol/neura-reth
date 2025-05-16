@@ -1,11 +1,11 @@
 [package]
-name = "neura-consensus-qbft"
+name = "neura_consensus_qbft"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 # Workspace dependencies
-neura-qbft-core = { workspace = true, features = ["mocks"] }
+neura_qbft_core = { workspace = true, features = ["mocks"] }
 
 # Reth dependencies
 reth-consensus = { workspace = true }
@@ -31,7 +31,7 @@ tokio = { version = "1", features = ["full"] }
 k256 = { workspace = true, features = ["ecdsa"] }
 rand_08 = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
-# REMOVED neura-qbft-core from here
+# REMOVED neura_qbft_core from here
 # Add reth-ethereum-primitives for constants
 reth-ethereum-primitives = { workspace = true, features = ["serde"] }
 reth-stages = { workspace = true, features = ["test-utils"] }

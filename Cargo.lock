@@ -5875,72 +5875,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "neura-consensus-qbft"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus 0.15.11",
- "alloy-eips 0.15.11",
- "alloy-primitives",
- "alloy-rlp",
- "k256",
- "neura-qbft-core",
- "rand 0.8.5",
- "reth-chainspec",
- "reth-consensus",
- "reth-consensus-common",
- "reth-db",
- "reth-db-api",
- "reth-ethereum-primitives",
- "reth-node-api",
- "reth-node-builder",
- "reth-primitives",
- "reth-primitives-traits",
- "reth-provider",
- "reth-stages",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "neura-engine-types"
-version = "0.1.0"
-dependencies = [
- "alloy-eips 0.15.11",
- "alloy-rpc-types-engine",
- "alloy-rpc-types-eth 0.15.11",
- "neura-payload-types",
- "reth-engine-primitives",
- "reth-ethereum-engine-primitives",
- "reth-ethereum-primitives",
- "reth-payload-primitives",
- "reth-primitives-traits",
- "serde",
-]
-
-[[package]]
-name = "neura-node"
-version = "0.1.0"
-dependencies = [
- "eyre",
- "k256",
- "neura-consensus-qbft",
- "neura-engine-types",
- "neura-payload-builder",
- "neura-payload-types",
- "rand 0.9.1",
- "reth-chainspec",
- "reth-ethereum-payload-builder",
- "reth-ethereum-primitives",
- "reth-evm",
- "reth-node-api",
- "reth-node-builder",
- "reth-provider",
- "reth-transaction-pool",
- "reth-trie-db",
-]
-
-[[package]]
 name = "neura-payload-builder"
 version = "0.1.0"
 dependencies = [
@@ -5973,7 +5907,6 @@ dependencies = [
  "alloy-eips 0.15.11",
  "alloy-primitives",
  "alloy-rpc-types",
- "alloy-rpc-types-engine",
  "reth-ethereum-engine-primitives",
  "reth-ethereum-primitives",
  "reth-payload-primitives",
@@ -5982,7 +5915,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "neura-qbft-core"
+name = "neura_consensus_qbft"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus 0.15.11",
+ "alloy-eips 0.15.11",
+ "alloy-primitives",
+ "alloy-rlp",
+ "k256",
+ "neura_qbft_core",
+ "rand 0.8.5",
+ "reth-chainspec",
+ "reth-consensus",
+ "reth-consensus-common",
+ "reth-db",
+ "reth-db-api",
+ "reth-ethereum-primitives",
+ "reth-node-api",
+ "reth-node-builder",
+ "reth-primitives",
+ "reth-primitives-traits",
+ "reth-provider",
+ "reth-stages",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "neura_qbft_core"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus 0.15.11",

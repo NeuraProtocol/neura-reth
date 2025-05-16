@@ -163,10 +163,8 @@ members = [
     "examples/custom-beacon-withdrawals",
     "testing/ef-tests/",
     "testing/testing-utils",
-    "crates/neura/neura-qbft-core/",
+    "crates/neura/neura-qbft/",
     "crates/neura/neura-consensus-qbft/",
-    "crates/neura/neura-engine-types/",
-    "crates/neura/neura-node/",
     "crates/neura/neura-payload-builder/",
     "crates/neura/neura-payload-types/",
 ]
@@ -453,9 +451,7 @@ reth-ress-provider = { path = "crates/ress/provider" }
 neura-payload-types = { path = "crates/neura/neura-payload-types" }
 neura-payload-builder = { path = "crates/neura/neura-payload-builder" }
 neura-consensus-qbft = { path = "crates/neura/neura-consensus-qbft" }
-neura-qbft-core = { path = "crates/neura/neura-qbft-core" }
-neura-engine-types = { path = "crates/neura/neura-engine-types" }
-neura-node = { path = "crates/neura/neura-node" }
+neura_qbft_core = { path = "crates/neura/neura-qbft" }
 
 # revm
 revm = { version = "22.0.1", default-features = false }

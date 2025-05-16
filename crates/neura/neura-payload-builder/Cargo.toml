@@ -43,6 +43,7 @@ tracing = { workspace = true }
 [features]
 default = []
 std = [
+    "neura-payload-types/std",
     "reth-ethereum-engine-primitives/std",
     "reth-primitives-traits/std",
     "reth-ethereum-primitives/std",

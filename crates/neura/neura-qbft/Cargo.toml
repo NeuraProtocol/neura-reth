@@ -1,5 +1,5 @@
 [package]
-name = "neura-qbft-core"
+name = "neura_qbft_core"
 version = "0.1.0"
 edition = "2021"
 

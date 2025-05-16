@@ -225,39 +225,4 @@ impl BuiltPayload for NeuraBuiltPayloadWithDetails {
     fn requests(&self) -> Option<Requests> {
         self.original_payload.requests()
     }
-}
-
-// Add necessary imports for TryInto implementations
-use alloy_rpc_types_engine::{
-    ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
-    ExecutionPayloadV1,
-};
-use std::convert::TryInto;
-
-impl TryInto<ExecutionPayloadV1> for NeuraBuiltPayloadWithDetails {
-    type Error = <EthBuiltPayload as TryInto<ExecutionPayloadV1>>::Error;
-    fn try_into(self) -> Result<ExecutionPayloadV1, Self::Error> {
-        self.original_payload.try_into()
-    }
-}
-
-impl TryInto<ExecutionPayloadEnvelopeV2> for NeuraBuiltPayloadWithDetails {
-    type Error = <EthBuiltPayload as TryInto<ExecutionPayloadEnvelopeV2>>::Error;
-    fn try_into(self) -> Result<ExecutionPayloadEnvelopeV2, Self::Error> {
-        self.original_payload.try_into()
-    }
-}
-
-impl TryInto<ExecutionPayloadEnvelopeV3> for NeuraBuiltPayloadWithDetails {
-    type Error = <EthBuiltPayload as TryInto<ExecutionPayloadEnvelopeV3>>::Error;
-    fn try_into(self) -> Result<ExecutionPayloadEnvelopeV3, Self::Error> {
-        self.original_payload.try_into()
-    }
-}
-
-impl TryInto<ExecutionPayloadEnvelopeV4> for NeuraBuiltPayloadWithDetails {
-    type Error = <EthBuiltPayload as TryInto<ExecutionPayloadEnvelopeV4>>::Error;
-    fn try_into(self) -> Result<ExecutionPayloadEnvelopeV4, Self::Error> {
-        self.original_payload.try_into()
-    }
 } 
