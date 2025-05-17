@@ -1,20 +1,150 @@
-   Compiling neura_consensus_qbft v0.1.0 (/home/peastew/src/neura-reth/crates/neura-consensus-qbft)
-warning: field `provider_factory` is never read
-   --> crates/neura-consensus-qbft/src/lib.rs:835:13
-    |
-831 |         struct TestFinalStateSetup {
-    |                ------------------- field in this struct
-...
-835 |             provider_factory: ProviderFactory<MockNodeTypesWithDB>,
-    |             ^^^^^^^^^^^^^^^^
-    |
-    = note: `#[warn(dead_code)]` on by default
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `reth_interfaces`
+ --> crates/neura/neura-consensus-qbft/src/consensus.rs:2:5
+  |
+2 | use reth_interfaces::consensus::Consensus;
+  |     ^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `reth_interfaces`
+  |
+  = help: if you wanted to use a crate named `reth_interfaces`, use `cargo add reth_interfaces` to add it to your `Cargo.toml`
 
-warning: function `create_sealed_header_with_validators` is never used
-   --> crates/neura-consensus-qbft/src/lib.rs:860:12
-    |
-860 |         fn create_sealed_header_with_validators(
-    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+error[E0432]: unresolved imports `reth_primitives::ChainSpec`, `reth_primitives::BlockNumber`, `reth_primitives::B256`, `reth_primitives::ForkchoiceState`, `reth_primitives::ForkchoiceUpdated`
+ --> crates/neura/neura-consensus-qbft/src/consensus.rs:3:23
+  |
+3 | use reth_primitives::{ChainSpec, Header, BlockNumber, SealedHeader, B256, Block, SealedBlock, ForkchoiceState, ForkchoiceUpdated}; // Added Block, SealedBlock, Forkcho...
+  |                       ^^^^^^^^^          ^^^^^^^^^^^                ^^^^                      ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^ no `ForkchoiceUpdated` in the root
+  |                       |                  |                          |                         |
+  |                       |                  |                          |                         no `ForkchoiceState` in the root
+  |                       |                  |                          no `B256` in the root
+  |                       |                  no `BlockNumber` in the root
+  |                       no `ChainSpec` in the root
+  |
+  = help: consider importing one of these structs instead:
+          crate::ChainSpec
+          reth_chainspec::ChainSpec
+  = help: consider importing one of these type aliases instead:
+          crate::BlockNumber
+          alloy_primitives::BlockNumber
+  = help: consider importing one of these type aliases instead:
+          crate::B256
+          alloy_primitives::B256
+  = help: consider importing one of these variants instead:
+          reth_node_api::BeaconConsensusEngineEvent::ForkchoiceUpdated
+          reth_node_api::BeaconEngineMessage::ForkchoiceUpdated
+          reth_node_builder::BeaconConsensusEngineEvent::ForkchoiceUpdated
+          reth_node_builder::BeaconEngineMessage::ForkchoiceUpdated
 
-warning: `neura_consensus_qbft` (lib test) generated 2 warnings
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.18s
+error[E0432]: unresolved import `reth_interfaces`
+ --> crates/neura/neura-consensus-qbft/src/consensus.rs:5:5
+  |
+5 | use reth_interfaces::Error as RethInterfacesError; // For Consensus trait error type
+  |     ^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `reth_interfaces`
+  |
+  = help: if you wanted to use a crate named `reth_interfaces`, use `cargo add reth_interfaces` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `reth_interfaces`
+ --> crates/neura/neura-consensus-qbft/src/error.rs:2:5
+  |
+2 | use reth_interfaces::Error as RethInterfacesError;
+  |     ^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `reth_interfaces`
+  |
+  = help: if you wanted to use a crate named `reth_interfaces`, use `cargo add reth_interfaces` to add it to your `Cargo.toml`
+
+error[E0412]: cannot find type `U256` in crate `reth_primitives`
+  --> crates/neura/neura-consensus-qbft/src/consensus.rs:34:45
+   |
+34 |         _total_difficulty: reth_primitives::U256,
+   |                                             ^^^^ not found in `reth_primitives`
+   |
+help: consider importing one of these type aliases
+   |
+2  + use crate::U256;
+   |
+2  + use alloy_primitives::U256;
+   |
+help: if you import `U256`, refer to it directly
+   |
+34 -         _total_difficulty: reth_primitives::U256,
+34 +         _total_difficulty: U256,
+   |
+
+error[E0412]: cannot find type `U256` in crate `reth_primitives`
+  --> crates/neura/neura-consensus-qbft/src/consensus.rs:54:45
+   |
+54 |         _total_difficulty: reth_primitives::U256,
+   |                                             ^^^^ not found in `reth_primitives`
+   |
+help: consider importing one of these type aliases
+   |
+2  + use crate::U256;
+   |
+2  + use alloy_primitives::U256;
+   |
+help: if you import `U256`, refer to it directly
+   |
+54 -         _total_difficulty: reth_primitives::U256,
+54 +         _total_difficulty: U256,
+   |
+
+error[E0433]: failed to resolve: could not find `U256` in `reth_primitives`
+  --> crates/neura/neura-consensus-qbft/src/consensus.rs:68:87
+   |
+68 |         self.validate_header_with_total_difficulty(&_block.header(), reth_primitives::U256::ZERO) // Placeholder TTD
+   |                                                                                       ^^^^ could not find `U256` in `reth_primitives`
+   |
+help: consider importing one of these type aliases
+   |
+2  + use crate::U256;
+   |
+2  + use alloy_primitives::U256;
+   |
+help: if you import `U256`, refer to it directly
+   |
+68 -         self.validate_header_with_total_difficulty(&_block.header(), reth_primitives::U256::ZERO) // Placeholder TTD
+68 +         self.validate_header_with_total_difficulty(&_block.header(), U256::ZERO) // Placeholder TTD
+   |
+
+error[E0412]: cannot find type `Address` in crate `reth_primitives`
+  --> crates/neura/neura-consensus-qbft/src/consensus.rs:74:38
+   |
+74 |         _senders: &[reth_primitives::Address],
+   |                                      ^^^^^^^ not found in `reth_primitives`
+   |
+help: consider importing this struct
+   |
+2  + use alloy_primitives::Address;
+   |
+help: if you import `Address`, refer to it directly
+   |
+74 -         _senders: &[reth_primitives::Address],
+74 +         _senders: &[Address],
+   |
+
+error[E0433]: failed to resolve: could not find `U256` in `reth_primitives`
+   --> crates/neura/neura-consensus-qbft/src/consensus.rs:127:90
+    |
+127 |             self.validate_header_with_total_difficulty(&block.header(), reth_primitives::U256::ZERO) // Placeholder TTD
+    |                                                                                          ^^^^ could not find `U256` in `reth_primitives`
+    |
+help: consider importing one of these type aliases
+    |
+2   + use crate::U256;
+    |
+2   + use alloy_primitives::U256;
+    |
+help: if you import `U256`, refer to it directly
+    |
+127 -             self.validate_header_with_total_difficulty(&block.header(), reth_primitives::U256::ZERO) // Placeholder TTD
+127 +             self.validate_header_with_total_difficulty(&block.header(), U256::ZERO) // Placeholder TTD
+    |
+
+warning: unused import: `crate::error::QbftConsensusError`
+ --> crates/neura/neura-consensus-qbft/src/consensus.rs:8:5
+  |
+8 | use crate::error::QbftConsensusError; // Assuming error module will define this
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+Some errors have detailed explanations: E0412, E0432, E0433.
+For more information about an error, try `rustc --explain E0412`.
+warning: `neura-consensus-qbft` (lib) generated 1 warning
+error: could not compile `neura-consensus-qbft` (lib) due to 9 previous errors; 1 warning emitted

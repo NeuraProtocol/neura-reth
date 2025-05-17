@@ -54,6 +54,17 @@ use std::fmt;
 #[cfg(test)]
 mod test_utils; // MOVED and ADDED: Declare test_utils module here for crate visibility during tests
 
+pub mod consensus;
+pub mod error;
+pub mod services;
+
+// Potentially later:
+// pub mod message_handler;
+// pub mod network;
+
+// Re-export key components if needed, e.g.:
+// pub use consensus::QbftConsensus;
+
 #[derive(Debug, Error)]
 pub enum QbftConsensusError {
     #[error("Provider error: {0}")]
