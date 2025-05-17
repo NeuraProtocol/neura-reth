@@ -2411,4 +2411,126 @@ mod tests {
         assert_eq!(mock_multicaster_v1.commits.lock().unwrap().len(), 1);
     }
 
+    #[test]
+    fn test_bhm_round_timeout_initiates_round_change_does_not_advance_without_quorum() {
+        // Setup: N=4 (V1 local, V2, V3, V4). F=1. RC Quorum = F+1 = 2.
+        // V1 is in round 0. Round 0 times out. V1 sends RC for R1.
+        // With only its own RC, V1 should not advance to R1.
+
+        let key_v1_local = deterministic_node_key(21);
+        let addr_v1_local = address_from_arc_key(&key_v1_local);
+        let key_v2 = deterministic_node_key(22);
+        let addr_v2 = address_from_arc_key(&key_v2);
+        let key_v3 = deterministic_node_key(23);
+        let addr_v3 = address_from_arc_key(&key_v3);
+        let key_v4 = deterministic_node_key(24);
+        let addr_v4 = address_from_arc_key(&key_v4);
+
+        let mut all_addresses_for_sort = vec![addr_v1_local, addr_v2, addr_v3, addr_v4];
+        all_addresses_for_sort.sort();
+        let validators: HashSet<Address> = all_addresses_for_sort.iter().cloned().collect();
+        assert_eq!(validators.len(), 4);
+
+        let parent_block_num = 0u64;
+        let sequence_number = parent_block_num + 1;
+        let round_0_num = 0u32;
+        let round_0_id = ConsensusRoundIdentifier::new(sequence_number, round_0_num);
+        let round_1_num = 1u32;
+        let round_1_id = ConsensusRoundIdentifier::new(sequence_number, round_1_num);
+
+        let parent_h = simple_parent_header(parent_block_num, B256::random());
+        let arc_parent_h = Arc::new(parent_h.clone());
+        let config = default_test_qbft_config();
+        let test_codec = Arc::new(AlloyBftExtraDataCodec::default());
+
+        let mock_final_state_v1 = Arc::new(MockQbftFinalState::new(key_v1_local.clone(), validators.clone()));
+        // F = (4-1)/3 = 1. RoundChangeManager quorum = F+1 = 2.
+        assert_eq!(mock_final_state_v1.get_byzantine_fault_tolerance(), 1, "F should be 1 for N=4");
+        // The RoundChangeManager is created with quorum final_state.get_byzantine_fault_tolerance() + 1
+
+        let local_mf_v1 = Arc::new(MessageFactory::new(key_v1_local.clone()).unwrap());
+        
+        // Determine proposer for R0 to set up block creator correctly
+        let proposer_addr_r0 = mock_final_state_v1.get_proposer_for_round(&round_0_id).unwrap();
+        let key_for_proposer_r0 = if proposer_addr_r0 == addr_v1_local { key_v1_local.clone() }
+                                else if proposer_addr_r0 == addr_v2 { key_v2.clone() }
+                                else if proposer_addr_r0 == addr_v3 { key_v3.clone() }
+                                else { key_v4.clone() };
+        let block_creator_final_state_r0 = Arc::new(MockQbftFinalState::new(key_for_proposer_r0.clone(), validators.clone()));
+        let mock_block_creator_r0 = Arc::new(MockQbftBlockCreator::new(arc_parent_h.clone(), block_creator_final_state_r0, test_codec.clone()));
+
+        let mock_block_importer_v1 = Arc::new(MockQbftBlockImporter::default());
+        let mock_multicaster_v1 = Arc::new(MockValidatorMulticaster::default());
+        let mock_block_timer_v1 = Arc::new(MockBlockTimer::new(config.block_period_seconds));
+        let mock_round_timer_v1 = Arc::new(MockRoundTimer::new()); // Round timer for BHM
+        
+        // Actual MessageValidatorFactory for BHM's internal RoundChangeMessageValidatorImpl
+        let actual_msg_validator_factory = Arc::new(ConfigurableMockMessageValidatorFactory::new());
+        // Mock RoundChangeMessageValidatorFactory for BHM constructor (panics if create_round_change_message_validator is called)
+        // We will be calling add_round_change_message directly to RoundChangeManager which uses its own validator.
+        let mock_rc_msg_val_factory = Arc::new(MockRoundChangeMessageValidatorFactory);
+
+
+        let proposal_validator = actual_msg_validator_factory.clone().create_proposal_validator();
+        let prepare_validator = actual_msg_validator_factory.clone().create_prepare_validator();
+        let commit_validator = actual_msg_validator_factory.clone().create_commit_validator();
+        
+        let mut bhm_v1 = setup_bhm(
+            arc_parent_h.clone(), mock_final_state_v1.clone(), mock_block_creator_r0.clone(), 
+            mock_block_importer_v1.clone(), local_mf_v1.clone(), mock_multicaster_v1.clone(), 
+            mock_block_timer_v1.clone(), mock_round_timer_v1.clone(), test_codec.clone(), config.clone(),
+            proposal_validator, prepare_validator, commit_validator, 
+            actual_msg_validator_factory.clone(), // Pass the actual factory
+            mock_rc_msg_val_factory.clone(),    // Pass the mock factory for the BHM constructor param
+            vec![Arc::new(MockObserver::default())],
+        );
+
+        // V1 starts consensus for R0.
+        // If V1 is proposer, it will propose and send Prepare. If not, it just starts the round.
+        bhm_v1.start_consensus().expect("BHM start_consensus failed for V1");
+        assert_eq!(*bhm_v1.current_round.as_ref().unwrap().round_identifier(), round_0_id, "BHM should be in R0");
+        
+        // Round 0 was not prepared (at most V1's own prepare if it was proposer).
+        // So, get_prepared_round_metadata_for_round_change should return None.
+        let metadata_before_timeout = bhm_v1.current_round.as_ref().unwrap().get_prepared_round_metadata_for_round_change();
+        assert!(metadata_before_timeout.is_none(), "Round 0 should not have prepared metadata before timeout");
+
+        // Action: Round 0 times out
+        let timeout_result = bhm_v1.handle_round_timeout_event(round_0_id);
+        assert!(timeout_result.is_ok(), "handle_round_timeout_event failed: {:?}", timeout_result.err());
+
+        // Assertions
+        // 1. V1 should have multicast a RoundChange message for round_1_id
+        let sent_round_changes = mock_multicaster_v1.round_changes.lock().unwrap();
+        assert_eq!(sent_round_changes.len(), 1, "V1 should have sent one RoundChange message");
+        let round_change_msg = sent_round_changes.get(0).unwrap();
+        assert_eq!(*round_change_msg.round_identifier(), round_1_id, "Sent RoundChange has incorrect target round ID");
+        assert_eq!(round_change_msg.author().unwrap(), addr_v1_local, "Sent RoundChange author mismatch");
+        assert!(round_change_msg.payload().prepared_round_metadata.is_none(), "Sent RoundChange should not have prepared metadata");
+        assert!(round_change_msg.payload().prepared_block.is_none(), "Sent RoundChange should not have prepared block");
+
+        // 2. V1's RoundChangeManager should contain this message
+        let rcm_messages_for_r1 = bhm_v1.round_change_manager.get_round_change_messages_for_target_round(&round_1_id);
+        assert!(rcm_messages_for_r1.is_some(), "RoundChangeManager should have messages for R1");
+        assert_eq!(rcm_messages_for_r1.unwrap().len(), 1, "RoundChangeManager should have 1 message for R1");
+
+        // 3. BHM should NOT have advanced to Round 1 yet (quorum for RC is 2, only has 1)
+        assert_eq!(*bhm_v1.current_round.as_ref().unwrap().round_identifier(), round_0_id, "BHM should still be in Round 0 as quorum not met");
+        
+        // 4. Timer for Round 0 should have been cancelled by advance_to_new_round (called by start_consensus)
+        //    And timer for Round 1 should have been started by `create_round_change` -> `add_round_change` -> `advance_to_new_round` (if it advanced)
+        //    Since it didn't advance, only R0 timer started by QbftRound::new and then cancelled by itself if timeout logic was internal to round
+        //    OR cancelled by BHM.advance_to_new_round when it created R0.
+        //    The handle_round_timeout_event does NOT start a new timer for R1 unless it advances.
+        //    The previous R0 timer was started by QbftRound::new(). It should now be cancelled by BHM.advance_to_new_round when it created R0.
+        //    Let's verify current_round (R0) timer is active (started by its own constructor) and round_1_timer is NOT (because no advance)
+        //    Actually, when R0 is created by advance_to_new_round, its timer is started.
+        //    When handle_round_timeout_event is called for R0, and advance_to_new_round is NOT called for R1,
+        //    the R0 timer should still be conceptually "timed out" but not explicitly cancelled by BHM *unless* BHM advanced to R1.
+        //    What we *can* check is that a timer for R1 was *not* started.
+        let active_timers = mock_round_timer_v1.get_active_timers();
+        assert!(active_timers.contains(&round_0_id), "Timer for Round 0 should have been started"); // It might still be "active" in mock until explicitly cancelled
+        assert!(!active_timers.contains(&round_1_id), "Timer for Round 1 should NOT have been started as BHM did not advance");
+    }
+
 } 
