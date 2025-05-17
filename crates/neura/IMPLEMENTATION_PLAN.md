@@ -31,15 +31,15 @@ The below sections of this implementation plan which consists of completed work 
 
 *   **Deep Dive into Besu's QBFT:**
     *   Analyzed QBFT implementation in `neura-chain` (Besu fork) Java codebase.
-    *   Focused on core logic in `neura-chain/consensus/qbft-core/` and adaptor classes in `neura-chain/consensus/qbft/adaptor/`.
+    *   Focused on core logic in `neura-chain/neura-qbft-core/` and adaptor classes in `neura-chain/consensus/qbft/adaptor/`.
     *   Key Java classes and their roles identified across `statemachine/`, `validation/`, `types/`, `messagedata/`, `messagewrappers/`, `payload/` directories.
     *   Studied the official QBFT specification (entethalliance.github.io) and EIP-650.
 *   **Library/Crate Review:**
-    *   Relevant dependencies from `neura-reth` root `Cargo.toml` (e.g., `alloy-primitives`, `k256`) incorporated into `neura_qbft_core`.
+    *   Relevant dependencies from `neura-reth` root `Cargo.toml` (e.g., `alloy-primitives`, `k256`) incorporated into `neura-qbft-core`.
 
 **Phase 2: Core Crates Implementation**
 
-1.  **`neura_qbft_core` Crate - COMPLETED**
+1.  **`neura-qbft-core` Crate - COMPLETED**
     *   **Crate Setup & Module Structure:** Completed.
     *   **Core Data Structures & Logic Translation:** Completed. Includes QBFT messages, payloads, types, state machine components. RLP encoding/decoding and ECDSA logic implemented.
     *   **Validation Module:** All core validation logic (Proposal, Prepare, Commit, RoundChange) implemented and unit tested. Refactored into individual validator files.
@@ -60,11 +60,11 @@ The below sections of this implementation plan which consists of completed work 
         *   `QbftConsensus<NT>` struct defined.
         *   Implemented `reth_consensus::HeaderValidator` trait.
         *   Implemented `reth_consensus::Consensus` trait (methods `validate_block_pre_execution`, `validate_body_against_header`).
-        *   `RethQbftFinalState<NT>`: Adapter struct implementing `neura_qbft_core::types::QbftFinalState` using Reth's provider. All methods implemented and unit tested.
-        *   `RethRoundTimer`: Adapter struct implementing `neura_qbft_core::types::RoundTimer` using Tokio. All methods implemented and unit tested.
+        *   `RethQbftFinalState<NT>`: Adapter struct implementing `neura-qbft-core::types::QbftFinalState` using Reth's provider. All methods implemented and unit tested.
+        *   `RethRoundTimer`: Adapter struct implementing `neura-qbft-core::types::RoundTimer` using Tokio. All methods implemented and unit tested.
     *   **Build Status:** Compiles without errors or warnings. All unit tests reported as passing. Linter warnings resolved.
 
-3.  **Implement QBFT State Machine Logic (`neura_qbft_core`):** - **IN PROGRESS (QbftRound core logic complete, QbftBlockHeightManager next)**
+3.  **Implement QBFT State Machine Logic (`neura-qbft-core`):** - **IN PROGRESS (QbftRound core logic complete, QbftBlockHeightManager next)**
     *   Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`.
     *   **`QbftRound` Core Logic & Testing (Execution Client Focus):** - **COMPLETED**
         *   Implemented `handle_proposal_message`, `handle_prepare_message`, `handle_commit_message`, `send_prepare`, `send_commit`, `import_block_to_chain`.
@@ -72,21 +72,21 @@ The below sections of this implementation plan which consists of completed work 
         *   Comprehensive unit tests for `QbftRound` completed and passing.
     *   **Next:** Implement and test `QbftBlockHeightManager` message handlers and event processing.
 
-4.  **Complete Placeholder Trait Definitions (`neura_qbft_core`):**
+4.  **Complete Placeholder Trait Definitions (`neura-qbft-core`):**
     *   Solidify the definitions of traits in `types/` (e.g., `QbftBlockCreatorFactory`, `ValidatorMulticaster`, `QbftBlockImporter`, `QbftMinedBlockObserver`). Ensure they accurately represent the interactions needed with the external Reth environment. This will be refined as state machine and adapter implementations progress.
 
-5.  **Comprehensive Unit & Integration Testing for `neura_qbft_core` State Machine:**
+5.  **Comprehensive Unit & Integration Testing for `neura-qbft-core` State Machine:**
     *   Write unit tests for all critical state machine components:
         *   `RoundState` transitions.
         *   `QbftRound` message handling and state changes (largely covered).
         *   `RoundChangeManager` logic.
         *   `QbftBlockHeightManager` event and message handling.
-    *   Develop integration tests within `neura_qbft_core` to test interactions between state machine components (e.g., a sequence of messages leading to round changes, block production across heights).
+    *   Develop integration tests within `neura-qbft-core` to test interactions between state machine components (e.g., a sequence of messages leading to round changes, block production across heights).
 
 **Phase 3: Adapter Layer (`neura_consensus_qbft` - Completing Implementations)**
 
-*   This phase now focuses on completing the implementations within `neura_consensus_qbft` that bridge `neura_qbft_core` traits to Reth components, beyond the already completed `RethQbftFinalState` and `RethRoundTimer`.
-1.  **Implement Remaining `neura_qbft_core` Service Traits:**
+*   This phase now focuses on completing the implementations within `neura_consensus_qbft` that bridge `neura-qbft-core` traits to Reth components, beyond the already completed `RethQbftFinalState` and `RethRoundTimer`.
+1.  **Implement Remaining `neura-qbft-core` Service Traits:**
     *   Provide concrete implementations in `neura_consensus_qbft/src/services.rs` for:
         *   `BlockTimer` (as `RethBlockTimer`): **COMPLETED**. Uses Tokio tasks and event sender.
         *   `QbftBlockCreatorFactory` and `QbftBlockCreator` (as `RethBlockCreatorFactory` and `RethBlockCreator`): **COMPLETED** for creating empty blocks. Correctly formats `BftExtraData`.
@@ -100,7 +100,7 @@ The below sections of this implementation plan which consists of completed work 
 **Phase 4: Integration with Reth Node**
 
 1.  **Consensus Engine Integration:**
-    *   Ensure the `QbftConsensus<NT>` struct in `neura_consensus_qbft/src/lib.rs` correctly utilizes the `QbftController` from `neura_qbft_core` and the fully implemented service adapters (from Phase 3) to drive the consensus process.
+    *   Ensure the `QbftConsensus<NT>` struct in `neura_consensus_qbft/src/lib.rs` correctly utilizes the `QbftController` from `neura-qbft-core` and the fully implemented service adapters (from Phase 3) to drive the consensus process.
 2.  **Node Builder Integration:**
     *   Modify Reth's `NodeBuilder` to allow selection and instantiation of the QBFT consensus engine.
     *   Handle QBFT-specific configurations (e.g., genesis validators, block period).
@@ -141,9 +141,9 @@ The below sections of this implementation plan which consists of completed work 
 
 The project aims to integrate QBFT consensus into Reth, with an initial focus on an execution client capable of syncing with Besu QBFT nodes, deferring full validator functionality.
 
-**`neura_qbft_core` Crate:** This crate is now **COMPLETED**. It encapsulates the core QBFT data structures, validation logic, RLP encoding, and the state machine (`QbftRound`, `QbftBlockHeightManager`, `QbftController`). All service trait definitions in `types/` have been reviewed. The crate compiles without errors or warnings, and all unit tests are passing.
+**`neura-qbft-core` Crate:** This crate is now **COMPLETED**. It encapsulates the core QBFT data structures, validation logic, RLP encoding, and the state machine (`QbftRound`, `QbftBlockHeightManager`, `QbftController`). All service trait definitions in `types/` have been reviewed. The crate compiles without errors or warnings, and all unit tests are passing.
 
-**`neura_consensus_qbft` Crate:** This crate is **IN PROGRESS** and adapts `neura_qbft_core` to Reth's interfaces.
+**`neura_consensus_qbft` Crate:** This crate is **IN PROGRESS** and adapts `neura-qbft-core` to Reth's interfaces.
 *   It includes foundational implementations for `QbftConsensus<NT>` (implementing `reth_consensus::Consensus` and `reth_consensus::HeaderValidator`), with methods currently stubbed.
 *   Service implementations in `services.rs`:
     *   `RethQbftFinalState<NT>`: Completed and tested.
