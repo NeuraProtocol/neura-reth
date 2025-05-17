@@ -8,7 +8,6 @@ use crate::payload::MessageFactory;
 use crate::validation::{ValidationContext, MessageValidatorFactory, RoundChangeMessageValidatorFactory};
 use crate::error::QbftError;
 use crate::messagewrappers::{Proposal, Prepare, Commit, RoundChange};
-use std::collections::VecDeque;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tracing::{info, warn, trace};
 
@@ -202,23 +201,22 @@ impl QbftController {
     pub fn handle_block_timer_event(&mut self, sequence_number: u64) -> Result<(), QbftError> {
         if let Some(manager) = self.current_height_manager.as_mut() {
             if sequence_number == manager.height() {
-                // Assuming QbftBlockHeightManager will have a method like handle_block_timer_event
-                // For now, let's log or decide if this event directly triggers something in BHM or if BHM's BlockTimer handles it.
-                // Besu's BlockTimer.executeForAllTimersMatching triggers BlockTimeout, which calls BHM.blockClockFuture(),
-                // which in turn calls BHM.handleBlockTimerExpiry().
-                // So the QbftBlockHeightManager needs a method like `handle_block_timer_expiry()`.
-                // manager.handle_block_timer_expiry()?; // Placeholder for the actual method call
-                log::debug!("QbftController: Received BlockTimerFired for height {}, passing to BHM if method exists.", sequence_number);
-                // For now, this might be handled by QbftBlockHeightManager's internal timer logic if it sets up its own block timer.
-                // Or, the BlockTimer might directly call a method on BHM.
-                // If this event is indeed sent to the controller, the BHM needs a public method.
-                 if let Some(current_manager) = self.current_height_manager.as_mut() {
-                    if current_manager.height() == sequence_number {
-                        // current_manager.handle_block_timer_expiry(sequence_number)?; // Assuming such a method exists or will be added
-                         log::warn!("QbftController: BlockTimerFired for height {} - BHM needs handler.", sequence_number);
-                    }
-                }
+                log::debug!(
+                    "QbftController: Received BlockTimerFired for height {}, passing to BHM to handle expiry.", 
+                    sequence_number
+                );
+                return manager.handle_block_timer_expiry();
+            } else {
+                log::trace!(
+                    "QbftController: Discarding BlockTimerFired for height {} as current manager is for height {}.",
+                    sequence_number, manager.height()
+                );
             }
+        } else {
+            log::trace!(
+                "QbftController: Discarding BlockTimerFired for height {} as no current BHM is active.",
+                sequence_number
+            );
         }
         Ok(())
     }
@@ -346,9 +344,9 @@ impl QbftController {
                         }
                     }
                     // Placeholder for other events
-                    _ => {
+                    /* _ => {
                         log::warn!("QbftController: Unhandled event: {:?}", event);
-                    }
+                    } */
                 }
             } else {
                 log::info!("QbftController: Event channel closed. Shutting down.");

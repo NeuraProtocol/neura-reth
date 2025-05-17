@@ -191,11 +191,7 @@ impl RoundState {
     }
 
     pub fn get_prepared_digest(&self) -> Option<Hash> {
-        if self.is_prepared { 
-            self.accepted_proposal_digest
-        } else {
-            None
-        }
+        self.accepted_proposal_digest
     }
 
     pub fn proposed_block(&self) -> Option<&QbftBlock> {

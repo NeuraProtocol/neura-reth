@@ -40,6 +40,10 @@ impl RoundChangeManager {
         }
     }
 
+    pub fn quorum_size(&self) -> usize {
+        self.round_change_quorum_size
+    }
+
     pub fn add_round_change_message(&mut self, message: RoundChange, context: &ValidationContext) -> Result<bool, QbftError> {
         let author = message.author()?;
         let target_round = *message.round_identifier();

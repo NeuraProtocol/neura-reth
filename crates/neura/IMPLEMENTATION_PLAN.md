@@ -57,7 +57,7 @@ The below sections of this implementation plan which consists of completed work 
     - Implemented ECDSA signature creation and recovery logic.
     - **Current State:** The `neura_qbft_core` crate compiles successfully without errors or warnings. All core message types and payloads have RLP serialization/deserialization unit tests. Key functionalities like `SignedData` and `MessageFactory` also have initial unit tests. The validation module structure (validators, factories) has been refactored and placeholder implementations are in place.
 
-**Date: 2024-05-16 - Addressing Build Warnings and Refining State Machine**
+**Date: 2025-05-16 - Addressing Build Warnings and Refining State Machine**
     ***Build Status:** The `neura_qbft_core` crate compiles with several `dead_code` warnings in `qbft_round.rs`, `qbft_block_height_manager.rs`, and `qbft_controller.rs`.
     *   **Analysis & Plan for Warnings:**
         *`QbftRound`: Unused fields (`locked_block`, `proposal_sent`, `prepare_sent`) and methods (`get_block_to_propose`, etc.) related to an alternative proposal flow will be marked with `#[allow(dead_code)]`. The integration of `locked_block` into the main proposal path is noted as a future task. The `final_state` field usage via `RoundState` is considered acceptable.
@@ -65,7 +65,7 @@ The below sections of this implementation plan which consists of completed work 
         *`QbftController`: Redundant `create_height_manager` helper method will be removed.
     *   **Progress:** Actively working on applying these changes to resolve warnings and improve code structure. - **COMPLETED**
 
-**Date: 2024-05-17 - Integrated Locked Block Handling & Achieved Clean Build**
+**Date: 2025-05-17 - Integrated Locked Block Handling & Achieved Clean Build**
     ***Build Status:** The `neura_qbft_core` crate now compiles without any errors or warnings.
     *   **Locked Block Integration:**
         *Modified `QbftRound` to store `locked_block` as `Option<CertifiedPrepareInfo>`.
@@ -78,12 +78,12 @@ The below sections of this implementation plan which consists of completed work 
         *   `QbftBlockHeightManager::process_round_state_change` now clears its `locked_block` upon block finalization for the height.
     *   **Overall:** The core mechanism for handling locked blocks and re-proposals, along with their propagation between round and height managers, is now in place. - **COMPLETED**
 
-**Date: 2024-05-19 - RLP Testing Completed**
+**Date: 2025-05-19 - RLP Testing Completed**
     ***Build Status:** The `neura_qbft_core` crate compiles without any errors or warnings.
     *   **RLP Testing:** Completed unit tests for RLP serialization and deserialization for all core QBFT message types and their payloads (`ProposalPayload`, `Proposal`, `PreparePayload`, `Prepare`, `CommitPayload`, `Commit`, `RoundChangePayload`, `RoundChange`). `MessageFactory` and `SignedData` also have foundational tests.
     *   **Next Focus:** Message Validation Logic.
 
-**Date: 2024-05-20 - Validation Module Refactoring Completed & Clean Build**
+**Date: 2025-05-20 - Validation Module Refactoring Completed & Clean Build**
     ***Build Status:** The `neura_qbft_core` crate compiles without any errors or warnings.
     *   **Validation Module:**
         *Successfully refactored the validation module into individual validator files (`proposal_validator.rs`, `prepare_validator.rs`, `commit_validator.rs`, `round_change_message_validator.rs`) and their respective factory files (`message_validator_factory.rs`, `round_change_message_validator_factory.rs`).
@@ -95,7 +95,7 @@ The below sections of this implementation plan which consists of completed work 
     ***Next Focus:** Implementing the actual validation rules within each validator `Impl` struct.
     *   **Update (Current):** `ProposalValidatorImpl` has been significantly implemented with comprehensive unit tests. The core validation logic and unit tests for `PrepareValidatorImpl` are also now complete. The primary focus is now shifting to implementing `CommitValidatorImpl` and its unit tests.
 
-**Date: 2024-05-21 - `round_change_message_validator_tests.rs` Passing**
+**Date: 2025-05-21 - `round_change_message_validator_tests.rs` Passing**
     ***Build Status:** The `neura_qbft_core` crate compiles with numerous warnings (mostly unused code), but all tests within `validation::tests::commit_validator_tests.rs` and `validation::tests::round_change_message_validator_tests.rs` are now passing.
     *   **Validation Module:**
         *   All core validation logic for Proposal, Prepare, Commit, and RoundChange messages is implemented.
@@ -109,7 +109,7 @@ The below sections of this implementation plan which consists of completed work 
             *   Borrow checker errors related to test setup.
     ***Current Focus:** All `neura_qbft_core` tests are passing. Next is to decide on addressing warnings or proceeding to state machine implementation.
 
-**Date: 2024-05-22 - `neura_qbft_core` All Tests Passing & Warnings Reduced**
+**Date: 2025-05-22 - `neura_qbft_core` All Tests Passing & Warnings Reduced**
     ***Build Status:*** All tests in the `neura_qbft_core` crate are passing. Compiler warnings have been addressed, reducing them from 37 to 8 (remaining warnings are for unused helper functions in test code, which can be addressed later or as part of a general cleanup pass).
     *   **Validation Module:**
         *   All core validation logic for Proposal, Prepare, Commit, and RoundChange messages is implemented and tested.
@@ -122,7 +122,7 @@ The below sections of this implementation plan which consists of completed work 
         *   RLP encoding/decoding for these types is implicitly tested via the validation logic that relies on correct message construction and parsing.
     *   **Overall:** The `neura-consensus-qbft` crate is in a much more stable state. The core structures and adaptations are largely in place.
 
-**Date: 2024-05-22 - `neura_consensus_qbft` Initial Implementation**
+**Date: 2025-05-22 - `neura_consensus_qbft` Initial Implementation**
     ***Build Status:** The `neura_consensus_qbft` crate compiles with a few `dead_code` warnings, which have been addressed with `#[allow(dead_code)]` attributes.
     *   **Core Implementation:**
         *   Successfully implemented `QbftConsensus` struct with `HeaderValidator` and `Consensus` trait implementations.
@@ -132,7 +132,7 @@ The below sections of this implementation plan which consists of completed work 
         *   Added proper error handling with `QbftConsensusError`.
     *   **Next Focus:** Integration with `neura_qbft_core` components and implementation of remaining QBFT consensus logic.
 
-**Date: 2024-05-23 - `neura-consensus-qbft` - `Consensus` Trait and `RethQbftFinalState` Implementation**
+**Date: 2025-05-23 - `neura-consensus-qbft` - `Consensus` Trait and `RethQbftFinalState` Implementation**
     ***Build Status:*** The `neura_consensus_qbft` crate compiles. Warnings related to unused imports and variables have been addressed.
     *   **`neura-qbft` Crate (`block.rs`):**
         *   Implemented `From<TransactionSigned>` and `From<&TransactionSigned>` for `neura_qbft_core::types::block::Transaction`.
@@ -165,7 +165,7 @@ The below sections of this implementation plan which consists of completed work 
             *   `quorum_size()`: Implemented.
     *   **Overall:** Significant progress in implementing core QBFT consensus logic within `neura-consensus-qbft` and integrating it with Reth's interfaces. Key methods of `RethQbftFinalState` are complete.
 
-**Date: 2024-05-24 - `neura-consensus-qbft` Build Success & Final State Methods Completion**
+**Date: 2025-05-24 - `neura-consensus-qbft` Build Success & Final State Methods Completion**
     ***Build Status:*** The `neura-consensus-qbft` crate now compiles successfully.
     *   The main compilation blockers related to `RethQbftFinalState` trait bounds and the `ommers()` method in `get_block_by_hash` have been resolved.
     *   The `ommers()` issue was addressed by stubbing the ommers list to be empty (`Vec::new()`) in `get_block_by_hash`, which is acceptable as QBFT typically does not use ommers.
@@ -178,7 +178,7 @@ The below sections of this implementation plan which consists of completed work 
         *   The previous TODO regarding `self.controller.validate_header_for_proposal` was re-evaluated. The current implementation, which performs QBFT-specific nonce checks and `BftExtraData` decode checks, is considered the correct approach for this standalone header validation. This item is now resolved.
     *   **Overall:** The `neura-consensus-qbft` crate is in a much more stable state. The core structures and adaptations are largely in place.
 
-**Date: 2024-05-26 - `neura-consensus-qbft` - `RethQbftFinalState` Unit Tests Completed**
+**Date: 2025-05-26 - `neura-consensus-qbft` - `RethQbftFinalState` Unit Tests Completed**
     ***Build Status:*** The `neura_consensus_qbft` crate compiles successfully and all its tests, including comprehensive unit tests for `RethQbftFinalState`, are passing.
     *   **`RethQbftFinalState` Testing:**
         *   All public methods of `RethQbftFinalState` (`node_key`, `local_address`, `get_validators_for_block`, `get_block_header`, `get_proposer_for_round`, `current_validators`, `validators`, `is_validator`, `byzantine_fault_tolerance_f`, `quorum_size`, `is_proposer_for_round`, `get_validator_node_key`, `get_block_by_hash`) now have corresponding unit tests in the `reth_qbft_final_state_tests` module.
@@ -186,7 +186,7 @@ The below sections of this implementation plan which consists of completed work 
         *   Issues related to `TestStageDB` setup (inserting full blocks vs. headers only) and type mismatches (especially for `Withdrawal` types and `SealedBlock` construction) were resolved.
     *   **Overall:** The `neura-consensus-qbft` crate is in a much more stable state. The core structures and adaptations are largely in place.
 
-**Date: 2024-05-27 - `neura_qbft_core` Warnings Addressed & `neura-consensus-qbft` Tests Enhanced**
+**Date: 2025-05-27 - `neura_qbft_core` Warnings Addressed & `neura-consensus-qbft` Tests Enhanced**
     ***Build Status (neura_qbft_core):*** All tests in the `neura_qbft_core` crate are passing. The 8 `dead_code` warnings previously present in `validation/tests/common_helpers.rs` have been addressed by commenting out the unused helper functions. The crate is now considered clean in terms of actionable warnings.
     ***Build Status (neura_consensus_qbft):*** All tests in `neura_consensus_qbft` are passing, and all compiler warnings have been resolved.
     *   **`neura_qbft_core` Cleanup:** Commented out unused test helper functions in `neura_qbft_core/src/validation/tests/common_helpers.rs`.
@@ -198,13 +198,30 @@ The below sections of this implementation plan which consists of completed work 
 4. **Address Compiler Warnings (Optional):** - **COMPLETED** (Warnings in `neura_qbft_core` test helpers commented out; warnings in `neura-consensus-qbft` resolved)
     - Manually review and fix the remaining compiler warnings (unused imports, variables, functions).
 
-5. **Implement QBFT State Machine Logic (`neura_qbft_core`):** - **ONGOING / NEXT MAJOR STEP**
+5. **Implement QBFT State Machine Logic (`neura_qbft_core`):** - **IN PROGRESS (QbftRound core logic complete, QbftBlockHeightManager next)**
     - Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`. This involves:
         - Handling incoming messages (Proposals, Prepares, Commits, RoundChanges) by dispatching them to the appropriate round and state.
         - Implementing the state transition logic within `RoundState` and `QbftRound` based on message validation and quorum achievement.
         - Managing round timeouts and initiating round changes.
         - Handling block proposal creation and re-proposal logic (including use of `PreparedCertificateWrapper`).
         - Interacting with placeholder traits for block creation, validation, and networking (`QbftBlockCreator`, `QbftBlockImporter`, `ValidatorMulticaster`, `RoundTimer`, `BlockTimer`).
+        - **`QbftRound` Core Logic & Testing (Execution Client Focus):** - **COMPLETED**
+            - Implemented `handle_proposal_message` to validate and accept proposals.
+            - Implemented `handle_prepare_message` to process prepares, update locked block, and trigger commit sending.
+            - Implemented `handle_commit_message` to process commits and trigger block import.
+            - Implemented `send_prepare` to create, sign, and multicast prepare messages.
+            - Implemented `send_commit` to create, sign, and multicast commit messages.
+            - Implemented `import_block_to_chain` to finalize block extra data and use the block importer.
+            - Added comprehensive unit tests for `QbftRound` covering:
+                - Valid proposal handling (from proposer).
+                - Proposal from non-proposer.
+                - Proposal with invalid signature.
+                - Proposal with invalid block header.
+                - Duplicate proposal handling.
+                - Proposal handling when round is already prepared.
+                - Prepare handling leading to a "prepared" state and commit sending.
+                - Prepare handling with an invalid signature (from a specific author).
+            - Resolved various linter errors and test failures related to mock setup, error propagation, and quorum logic.
     - Address `// TODO:` comments within the `neura_qbft_core` codebase.
 
 6. **Complete Placeholder Trait Definitions:**
