@@ -37,7 +37,6 @@ pub struct QbftRound {
     multicaster: Arc<dyn ValidatorMulticaster>,
     round_timer: Arc<dyn RoundTimer>,
     extra_data_codec: Arc<dyn BftExtraDataCodec>,
-    mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
     #[allow(dead_code)] // Passed to RoundState
     proposal_validator: Arc<dyn ProposalValidator + Send + Sync>,
     #[allow(dead_code)] // Passed to RoundState
@@ -67,7 +66,7 @@ impl QbftRound {
         prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
         commit_validator: Arc<dyn CommitValidator + Send + Sync>,
         config: Arc<QbftConfig>,
-        mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+        _mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>, // Parameter can be kept if new() signature is public API, but mark unused
         initial_locked_info: Option<CertifiedPrepareInfo>,
     ) -> Self {
         let round_state = RoundState::new(
@@ -92,7 +91,6 @@ impl QbftRound {
             multicaster: validator_multicaster,
             round_timer,
             extra_data_codec,
-            mined_block_observers,
             proposal_validator,
             prepare_validator,
             commit_validator,
@@ -348,7 +346,7 @@ impl QbftRound {
         prepared_certificate_artifact: Option<(BftMessage<ProposalPayload>, Vec<SignedData<PreparePayload>>)>,
         block_hash_for_log: Hash,
     ) -> Result<(), QbftError> {
-        eprintln!("INSIDE QbftRound::propose_block - THIS IS A TEST PRINT"); // TEST PRINT
+        // eprintln!("INSIDE QbftRound::propose_block - THIS IS A TEST PRINT"); // TEST PRINT REMOVED
         log::debug!("[QBFT_ROUND.PROPOSE_BLOCK] Called for block {:?}, round {:?}", block_hash_for_log, self.round_identifier());
         let round_change_proofs: Vec<RoundChange> = round_change_payloads
             .into_iter()
@@ -644,12 +642,6 @@ impl QbftRound {
                 );
                 Err(e)
             }
-        }
-    }
-
-    fn notify_new_block_listeners(&self, block: &QbftBlock) {
-        for observer in &self.mined_block_observers {
-            observer.block_imported(block);
         }
     }
 
@@ -1009,7 +1001,7 @@ mod tests {
         prepare_validator: Arc<dyn PrepareValidator + Send + Sync>,
         commit_validator: Arc<dyn CommitValidator + Send + Sync>,
         config: Arc<QbftConfig>,
-        mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>,
+        _mined_block_observers: Vec<Arc<dyn QbftMinedBlockObserver>>, // Parameter can be kept if new() signature is public API, but mark unused
         initial_locked_info: Option<CertifiedPrepareInfo>,
     ) -> QbftRound {
         QbftRound::new(
@@ -1026,7 +1018,7 @@ mod tests {
             prepare_validator,
             commit_validator,
             config,
-            mined_block_observers,
+            _mined_block_observers, // REMOVED from struct init
             initial_locked_info,
         )
     }
