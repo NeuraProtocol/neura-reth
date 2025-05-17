@@ -106,26 +106,6 @@ impl RoundState {
         &self.round_identifier
     }
 
-    pub fn set_proposal(&mut self, proposal_message: Proposal) -> Result<(), QbftError> {
-        if self.proposal.is_some() {
-            return Err(QbftError::ProposalAlreadyReceived);
-        }
-        // Create context for validation
-        let context = self.create_validation_context();
-        self.proposal_validator.validate_proposal(&proposal_message, &context)?;
-        
-        self.prepare_messages.clear();
-        self.commit_messages.clear();
-        
-        // Update accepted_proposal_digest after successful validation
-        self.accepted_proposal_digest = Some(proposal_message.block().hash());
-        self.proposal = Some(proposal_message); 
-        self.is_prepared = false; 
-        self.is_committed = false;
-        self.update_derived_state(); 
-        Ok(())
-    }
-
     pub fn add_prepare(&mut self, prepare: Prepare) -> Result<(), QbftError> {
         let author = prepare.author()?;
         if self.prepare_messages.contains_key(&author) {
@@ -239,5 +219,102 @@ impl RoundState {
         } else {
             None
         }
+    }
+
+    // Stores the accepted proposal and its digest, and clears previous round-specific messages.
+    // If the proposal includes a valid prepared certificate for the same block, it also populates
+    // prepare_messages from the certificate and updates the prepared state.
+    pub fn set_proposal(&mut self, proposal_message: Proposal) -> Result<(), QbftError> {
+        if self.proposal.is_some() {
+            // Check if it's the exact same proposal for logging differentiation
+            if self.proposal.as_ref().unwrap().block().hash() == proposal_message.block().hash() &&
+               self.proposal.as_ref().unwrap().author()? == proposal_message.author()? {
+                log::debug!(
+                    "RoundState {:?}: Received benign duplicate proposal (same author, same block hash). Erroring as per duplicate handling policy.", 
+                    self.round_identifier
+                );
+            } else {
+                log::warn!(
+                    "RoundState {:?}: Received conflicting proposal (different author or block hash) when one already exists. Erroring.", 
+                    self.round_identifier
+                );
+            }
+            return Err(QbftError::ProposalAlreadyReceived); // Always return error if a proposal is already set.
+        }
+        
+        let mut context = self.create_validation_context();
+        context.expected_proposer = self.final_state.get_proposer_for_round(&self.round_identifier)?;
+
+        self.proposal_validator.validate_proposal(&proposal_message, &context)?;
+        
+        let new_proposal_block_hash = proposal_message.block().hash();
+        self.accepted_proposal_digest = Some(new_proposal_block_hash);
+        self.proposal = Some(proposal_message.clone()); 
+
+        self.prepare_messages.clear();
+        self.commit_messages.clear();
+        self.is_prepared = false; 
+        self.is_committed = false;
+
+        if let Some(cert_wrapper) = proposal_message.prepared_certificate.as_ref() {
+            log::debug!(
+                "RoundState {:?}: Proposal for block hash {:?} has a PreparedCertificateWrapper. Cert block hash: {:?}.", 
+                self.round_identifier, 
+                new_proposal_block_hash,
+                cert_wrapper.proposal_message.payload().proposed_block.hash()
+            );
+            if cert_wrapper.proposal_message.payload().proposed_block.hash() == new_proposal_block_hash {
+                log::debug!("RoundState {:?}: Certificate is for the current proposal's block. Processing {} prepares from certificate.", 
+                    self.round_identifier, cert_wrapper.prepares.len());
+                let current_validators = self.final_state.validators();
+                let mut prepares_added_from_cert = 0;
+                for p_from_cert in &cert_wrapper.prepares {
+                    let author_res = p_from_cert.author();
+                    let p_digest = p_from_cert.payload().digest;
+                    log::trace!(
+                        "RoundState {:?}: Cert Prepare: Author={:?}, Digest={:?}. Current proposal digest: {:?}.", 
+                        self.round_identifier, author_res, p_digest, new_proposal_block_hash
+                    );
+                    if let Ok(author) = author_res {
+                        let is_validator = current_validators.contains(&author);
+                        let digest_matches = p_digest == new_proposal_block_hash;
+                        log::trace!(
+                            "RoundState {:?}: Cert Prepare from {:?}: IsValidator={}, DigestMatches={}.", 
+                            self.round_identifier, author, is_validator, digest_matches
+                        );
+                        if is_validator && digest_matches {
+                            self.prepare_messages.insert(author, p_from_cert.clone());
+                            prepares_added_from_cert += 1;
+                        } else {
+                            log::warn!(
+                                "RoundState {:?}: Prepare in certificate from {:?} for digest {:?} was ignored (IsValidator={}, DigestMatches={}).", 
+                                self.round_identifier, author, p_digest, is_validator, digest_matches
+                            );
+                        }
+                    } else {
+                         log::warn!(
+                            "RoundState {:?}: Prepare in certificate has invalid author. Ignoring prepare with digest {:?}.", 
+                            self.round_identifier, p_digest
+                        );
+                    }
+                }
+                log::debug!(
+                    "RoundState {:?}: Added {} prepares from certificate. Total prepares now: {}. Quorum: {}.", 
+                    self.round_identifier, prepares_added_from_cert, self.prepare_messages.len(), self.quorum_size
+                );
+            } else {
+                log::warn!("RoundState {:?}: Proposal for block {:?} included certificate, but it's for a different block {:?}. Ignoring certificate prepares.", 
+                    self.round_identifier, new_proposal_block_hash, cert_wrapper.proposal_message.payload().proposed_block.hash());
+            }
+        } else {
+            log::debug!("RoundState {:?}: Proposal for block hash {:?} does not have a PreparedCertificateWrapper.", self.round_identifier, new_proposal_block_hash);
+        }
+        
+        self.update_derived_state(); 
+        log::debug!(
+            "RoundState {:?}: After update_derived_state: is_prepared={}, is_committed={}, prepare_msg_count={}, commit_msg_count={}, quorum={}", 
+            self.round_identifier, self.is_prepared, self.is_committed, self.prepare_messages.len(), self.commit_messages.len(), self.quorum_size
+        );
+        Ok(())
     }
 } 

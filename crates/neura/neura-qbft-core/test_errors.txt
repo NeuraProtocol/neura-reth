@@ -1,58 +1,113 @@
-   Compiling neura-qbft-core v0.1.0 (/home/peastew/src/neura-reth/crates/neura/neura-qbft-core)
-error[E0599]: no function or associated item named `from_word` found for struct `FixedBytes<32>` in the current scope
-   --> crates/neura/neura-qbft-core/src/statemachine/qbft_round.rs:944:33
-    |
-944 |         let parent_hash = B256::from_word(sequence_number -1); // Corrected B256 creation
-    |                                 ^^^^^^^^^ function or associated item not found in `FixedBytes<32>`
-    |
-note: if you're trying to build a new `FixedBytes<32>` consider using one of the following associated functions:
-      FixedBytes::<N>::new
-      FixedBytes::<N>::with_last_byte
-      FixedBytes::<N>::repeat_byte
-      FixedBytes::<N>::random
-      and 4 others
-   --> /home/peastew/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/alloy-primitives-1.1.0/src/bits/fixed.rs:389:5
-    |
-389 |     pub const fn new(bytes: [u8; N]) -> Self {
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-...
-395 |     pub const fn with_last_byte(x: u8) -> Self {
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-...
-405 |     pub const fn repeat_byte(byte: u8) -> Self {
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-...
-422 |     pub fn random() -> Self {
-    |     ^^^^^^^^^^^^^^^^^^^^^^^
-help: there is an associated function `from_str` with a similar name
-    |
-944 -         let parent_hash = B256::from_word(sequence_number -1); // Corrected B256 creation
-944 +         let parent_hash = B256::from_str(sequence_number -1); // Corrected B256 creation
-    |
+failures:
 
-error[E0599]: no method named `set_proposer_for_round` found for struct `Arc<MockQbftFinalState>` in the current scope
-   --> crates/neura/neura-qbft-core/src/statemachine/qbft_round.rs:949:26
-    |
-949 |         mock_final_state.set_proposer_for_round(round_id, local_address);
-    |                          ^^^^^^^^^^^^^^^^^^^^^^
-    |
-help: there is a method `get_proposer_for_round` with a similar name, but with different arguments
-   --> crates/neura/neura-qbft-core/src/types/qbft_final_state.rs:97:5
-    |
-97  |     fn get_proposer_for_round(&self, round_identifier: &ConsensusRoundIdentifier) -> Result<Address, QbftError>;
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---- statemachine::qbft_block_height_manager::tests::test_bhm_handle_prepare_future_round_buffered stdout ----
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] Starting consensus for height 1
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] For round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }, local node is_proposer: true
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Local node IS proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }. Determining action.
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Starting round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 } by CREATING AND PROPOSING new block. Timestamp: 5
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }: Accepted Proposal with digest: 0xdef388eba6183a91e23b820906ef86d7f3fd9bc5f08f431c2cb7498515b04056. Current state: prepared=false, committed=false
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }: Node is validator. Sending PREPARE for accepted block digest: 0xdef388eba6183a91e23b820906ef86d7f3fd9bc5f08f431c2cb7498515b04056
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }: Became PREPARED after processing proposal (possibly from cert). Validator sending COMMIT for digest: 0xdef388eba6183a91e23b820906ef86d7f3fd9bc5f08f431c2cb7498515b04056. Prepare was sent: true
+[INFO  neura_qbft_core::statemachine::qbft_round] [QBFT_ROUND.PROPOSE_BLOCK] Node 0x47259855e279f73cce0256e5f02dfd19844f5f52 successfully processed own proposal for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }, block hash 0xdef388eba6183a91e23b820906ef86d7f3fd9bc5f08f431c2cb7498515b04056. Actions based on proposer status.
+[INFO  neura_qbft_core::statemachine::qbft_round] [QBFT_ROUND.PROPOSE_BLOCK] Local node IS proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }. Multicasting proposal.
 
-error[E0599]: no method named `add_validator` found for struct `Arc<MockQbftFinalState>` in the current scope
-   --> crates/neura/neura-qbft-core/src/statemachine/qbft_round.rs:950:26
-    |
-950 |         mock_final_state.add_validator(local_address);
-    |                          ^^^^^^^^^^^^^
-    |
-help: there is a method `is_validator` with a similar name
-    |
-950 -         mock_final_state.add_validator(local_address);
-950 +         mock_final_state.is_validator(local_address);
-    |
+thread 'statemachine::qbft_block_height_manager::tests::test_bhm_handle_prepare_future_round_buffered' panicked at crates/neura/neura-qbft-core/src/statemachine/qbft_block_height_manager.rs:2055:9:
+assertion `left == right` failed
+  left: 1
+ right: 0
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/std/src/panicking.rs:695:5
+   1: core::panicking::panic_fmt
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/panicking.rs:75:14
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/panicking.rs:380:5
+   4: test_bhm_handle_prepare_future_round_buffered
+             at ./src/statemachine/qbft_block_height_manager.rs:2055:9
+   5: neura_qbft_core::statemachine::qbft_block_height_manager::tests::test_bhm_handle_prepare_future_round_buffered::{{closure}}
+             at ./src/statemachine/qbft_block_height_manager.rs:1957:55
+   6: core::ops::function::FnOnce::call_once
+             at /home/peastew/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
 
-For more information about this error, try `rustc --explain E0599`.
-error: could not compile `neura-qbft-core` (lib test) due to 3 previous errors
+---- statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_future_round_buffered stdout ----
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] Starting consensus for height 1
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] For round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }, local node is_proposer: true
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Local node IS proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }. Determining action.
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Starting round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 } by CREATING AND PROPOSING new block. Timestamp: 5
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }: Accepted Proposal with digest: 0x65efc53dec11ef1cf1cdd5b4f51b286b50b9e518d47173aa50a0dae5d015f299. Current state: prepared=false, committed=false
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }: Node is validator. Sending PREPARE for accepted block digest: 0x65efc53dec11ef1cf1cdd5b4f51b286b50b9e518d47173aa50a0dae5d015f299
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }: Became PREPARED after processing proposal (possibly from cert). Validator sending COMMIT for digest: 0x65efc53dec11ef1cf1cdd5b4f51b286b50b9e518d47173aa50a0dae5d015f299. Prepare was sent: true
+[INFO  neura_qbft_core::statemachine::qbft_round] [QBFT_ROUND.PROPOSE_BLOCK] Node 0x47259855e279f73cce0256e5f02dfd19844f5f52 successfully processed own proposal for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }, block hash 0x65efc53dec11ef1cf1cdd5b4f51b286b50b9e518d47173aa50a0dae5d015f299. Actions based on proposer status.
+[INFO  neura_qbft_core::statemachine::qbft_round] [QBFT_ROUND.PROPOSE_BLOCK] Local node IS proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }. Multicasting proposal.
+
+thread 'statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_future_round_buffered' panicked at crates/neura/neura-qbft-core/src/statemachine/qbft_block_height_manager.rs:1581:9:
+assertion `left == right` failed: No Commit should be sent
+  left: 1
+ right: 0
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/std/src/panicking.rs:695:5
+   1: core::panicking::panic_fmt
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/panicking.rs:75:14
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/panicking.rs:380:5
+   4: test_bhm_handle_proposal_future_round_buffered
+             at ./src/statemachine/qbft_block_height_manager.rs:1581:9
+   5: neura_qbft_core::statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_future_round_buffered::{{closure}}
+             at ./src/statemachine/qbft_block_height_manager.rs:1428:56
+   6: core::ops::function::FnOnce::call_once
+             at /home/peastew/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_past_round_ignored stdout ----
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] Starting consensus for height 1
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] For round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }, local node is_proposer: false
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Local node is NOT proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }. Waiting for proposal or using artifacts.
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Non-proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 0 }, no artifacts. Round will wait for messages.
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] For round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }, local node is_proposer: true
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Local node IS proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }. Determining action.
+[INFO  neura_qbft_core::statemachine::qbft_block_height_manager] [BHM_ADVANCE_ROUND] Starting round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 } by CREATING AND PROPOSING new block. Timestamp: 5
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }: Accepted Proposal with digest: 0x3f297d41080ddfd373847ee33fb921734818084476cae34f1f861201885cd73e. Current state: prepared=false, committed=false
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }: Node is validator. Sending PREPARE for accepted block digest: 0x3f297d41080ddfd373847ee33fb921734818084476cae34f1f861201885cd73e
+[INFO  neura_qbft_core::statemachine::qbft_round] Round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }: Became PREPARED after processing proposal (possibly from cert). Validator sending COMMIT for digest: 0x3f297d41080ddfd373847ee33fb921734818084476cae34f1f861201885cd73e. Prepare was sent: true
+[INFO  neura_qbft_core::statemachine::qbft_round] [QBFT_ROUND.PROPOSE_BLOCK] Node 0x6370ef2f4db3611d657b90667de398a2cc2a370c successfully processed own proposal for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }, block hash 0x3f297d41080ddfd373847ee33fb921734818084476cae34f1f861201885cd73e. Actions based on proposer status.
+[INFO  neura_qbft_core::statemachine::qbft_round] [QBFT_ROUND.PROPOSE_BLOCK] Local node IS proposer for round ConsensusRoundIdentifier { sequence_number: 1, round_number: 1 }. Multicasting proposal.
+
+thread 'statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_past_round_ignored' panicked at crates/neura/neura-qbft-core/src/statemachine/qbft_block_height_manager.rs:1712:9:
+assertion `left == right` failed: Commit sent for past proposal
+  left: 1
+ right: 0
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/std/src/panicking.rs:695:5
+   1: core::panicking::panic_fmt
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/panicking.rs:75:14
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/panicking.rs:380:5
+   4: test_bhm_handle_proposal_past_round_ignored
+             at ./src/statemachine/qbft_block_height_manager.rs:1712:9
+   5: neura_qbft_core::statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_past_round_ignored::{{closure}}
+             at ./src/statemachine/qbft_block_height_manager.rs:1585:53
+   6: core::ops::function::FnOnce::call_once
+             at /home/peastew/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/05f9846f893b09a1be1fc8560e33fc3c815cfecb/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    statemachine::qbft_block_height_manager::tests::test_bhm_handle_prepare_future_round_buffered
+    statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_future_round_buffered
+    statemachine::qbft_block_height_manager::tests::test_bhm_handle_proposal_past_round_ignored
+
+test result: FAILED. 92 passed; 3 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p neura-qbft-core --lib`

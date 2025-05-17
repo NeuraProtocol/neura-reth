@@ -385,29 +385,39 @@ impl QbftRound {
         )?;
         log::trace!("Proposing block {:?} for round {:?}", block_hash_for_log, self.round_identifier());
         
-        match self.round_state.set_proposal(proposal.clone()) {
-            Ok(()) => {
-                log::info!(
-                    "[QBFT_ROUND.PROPOSE_BLOCK] Node {:?} successfully set proposal in RoundState for round {:?}, block hash {:?}. Proceeding to multicast.", 
-                    self.final_state.local_address(), 
-                    self.round_identifier(), 
-                    block_hash_for_log
-                );
-                self.multicaster.multicast_proposal(&proposal);
-                self.send_prepare(block, block_hash_for_log)
-            }
-            Err(QbftError::ProposalAlreadyReceived) => {
-                log::warn!(
-                    "[QBFT_ROUND.PROPOSE_BLOCK] Node {:?} attempted to set proposal in RoundState for round {:?}, block hash {:?} (new), but a proposal was already received for this round. NOT MULTICASTING DUPLICATE.", 
-                    self.final_state.local_address(), 
-                    self.round_identifier(), 
-                    block_hash_for_log
-                );
-                Ok(())
+        // Call the helper that internally calls RoundState's set_proposal
+        match self.handle_proposal_message_for_state(proposal.clone()) { 
+            Ok(processed) => {
+                if processed {
+                    log::info!(
+                        "[QBFT_ROUND.PROPOSE_BLOCK] Node {:?} successfully processed own proposal for round {:?}, block hash {:?}. Actions based on proposer status.", 
+                        self.final_state.local_address(), 
+                        self.round_identifier(), 
+                        block_hash_for_log
+                    );
+                    // Determine if this node is the proposer for the current round
+                    let current_round_proposer = self.final_state.get_proposer_for_round(self.round_identifier())?;
+                    if self.final_state.local_address() == current_round_proposer {
+                        log::info!("[QBFT_ROUND.PROPOSE_BLOCK] Local node IS proposer for round {:?}. Multicasting proposal.", self.round_identifier());
+                        self.multicaster.multicast_proposal(&proposal);
+                    } else {
+                        log::info!("[QBFT_ROUND.PROPOSE_BLOCK] Local node IS NOT proposer for round {:?}. Proposal was processed internally (e.g. from RC artifacts), NOT multicasting new proposal message.", self.round_identifier());
+                    }
+                    // The call to send_prepare is handled within handle_proposal_message_for_state if needed.
+                    Ok(())
+                } else {
+                    log::warn!(
+                        "[QBFT_ROUND.PROPOSE_BLOCK] Node {:?} attempted to set proposal in RoundState for round {:?}, block hash {:?} (new), but it was considered a duplicate or not processed further by handle_proposal_message_for_state. NOT MULTICASTING.", 
+                        self.final_state.local_address(), 
+                        self.round_identifier(), 
+                        block_hash_for_log
+                    );
+                    Ok(()) // Not an error, just not processed as new
+                }
             }
             Err(e) => {
                 log::error!(
-                    "[QBFT_ROUND.PROPOSE_BLOCK] Node {:?} failed to set proposal in RoundState for round {:?}, block hash {:?}: {:?}. NOT MULTICASTING.",
+                    "[QBFT_ROUND.PROPOSE_BLOCK] Node {:?} failed to process own proposal via handle_proposal_message_for_state for round {:?}, block hash {:?}: {:?}. NOT MULTICASTING.",
                     self.final_state.local_address(), 
                     self.round_identifier(), 
                     block_hash_for_log,
@@ -426,54 +436,22 @@ impl QbftRound {
             proposal.block().hash()
         );
 
-        // The QbftBlockHeightManager ensures this message is for the current round.
-        // Validation of the sender (is it the expected proposer?) and the proposal content
-        // is handled by the ProposalValidator, which is called within self.round_state.set_proposal().
-
-        match self.round_state.set_proposal(proposal.clone()) { // Clone if proposal is used by send_prepare
-            Ok(()) => {
-                log::info!(
-                    "Round {:?}: Accepted Proposal with digest: {:?}. Current state: prepared={}, committed={}",
-                    self.round_identifier(),
-                    self.round_state.get_prepared_digest().unwrap_or_default(),
-                    self.round_state.is_prepared(),
-                    self.round_state.is_committed()
-                );
-
-                // If this node is a validator, it should now send a PREPARE message.
-                // The is_local_node_validator() method needs to be implemented on QbftFinalState.
-                if self.final_state.is_local_node_validator() {
-                    if let Some(accepted_block_digest) = self.round_state.get_prepared_digest() {
-                        if let Some(accepted_proposal_block) = self.round_state.proposed_block() {
-                             log::info!(
-                                "Round {:?}: Node is validator. Sending PREPARE for accepted block digest: {:?}",
-                                self.round_identifier(),
-                                accepted_block_digest
-                            );
-                            // Pass a clone of the block to send_prepare.
-                            return self.send_prepare(accepted_proposal_block.clone(), accepted_block_digest);
-                        } else {
-                            log::warn!(
-                                "Round {:?}: Node is validator, but could not retrieve proposed block from RoundState after accepting proposal. Cannot send PREPARE.",
-                                self.round_identifier()
-                            );
-                        }
-                    } else {
-                        log::warn!(
-                            "Round {:?}: Node is validator, but no prepared digest found in RoundState after accepting proposal. Cannot send PREPARE.",
-                            self.round_identifier()
-                        );
-                    }
+        // Call the helper that internally calls RoundState's set_proposal and then sends Prepare if needed.
+        match self.handle_proposal_message_for_state(proposal.clone()) { 
+            Ok(processed_newly) => {
+                if processed_newly {
+                    log::debug!("Round {:?}: Proposal processed successfully and was new.", self.round_identifier());
+                } else {
+                    log::debug!("Round {:?}: Proposal processed, but was likely a duplicate or already handled.", self.round_identifier());
                 }
-                // If not a validator, or if prepare couldn't be sent, successfully return Ok.
-                // The proposal was still accepted by RoundState.
                 Ok(())
             }
             Err(e) => {
                 log::warn!(
-                    "Round {:?}: Rejected Proposal (block digest {:?}): {:?}",
+                    "Round {:?}: Rejected Proposal (block digest {:?} from {:?}): {:?}",
                     self.round_identifier(),
                     proposal.block().hash(),
+                    proposal.author().unwrap_or_default(),
                     e
                 );
                 Err(e)
@@ -834,6 +812,104 @@ impl QbftRound {
             }
         } else {
             None 
+        }
+    }
+
+    // Internal helper to process a proposal and update round state.
+    // This is called by both `propose_block` (for self-generated proposals) 
+    // and `handle_proposal_message` (for externally received proposals).
+    fn handle_proposal_message_for_state(&mut self, proposal: Proposal) -> Result<bool, QbftError> {
+        // Basic validation: ensure the proposal is for the current round of this QbftRound instance.
+        if proposal.round_identifier() != self.round_identifier() {
+            log::error!(
+                "Internal Error: QbftRound {:?} received proposal for different round {:?} in handle_proposal_message_for_state. This should not happen.", 
+                self.round_identifier(), proposal.round_identifier()
+            );
+            // This indicates a logic error in how messages are routed or QbftRound instances are managed.
+            return Err(QbftError::InternalError(format!(
+                "Proposal for round {:?} processed by QbftRound instance for {:?}",
+                proposal.round_identifier(), self.round_identifier()
+            )));
+        }
+
+        // `RoundState::set_proposal` will perform further validation (e.g., proposer, block header) 
+        // and update its internal state, including `is_prepared` if the proposal contains a valid certificate.
+        match self.round_state.set_proposal(proposal.clone()) { // Use the renamed set_proposal
+            Ok(()) => {
+                log::info!(
+                    "Round {:?}: Accepted Proposal with digest: {:?}. Current state: prepared={}, committed={}",
+                    self.round_identifier(),
+                    self.round_state.get_prepared_digest().unwrap_or_default(),
+                    self.round_state.is_prepared(),
+                    self.round_state.is_committed()
+                );
+                // If the round became prepared (either by this proposal's cert or later by prepares),
+                // and we are a validator, we might need to send a commit and/or prepare.
+                // For a proposal being processed (either self-generated or external):
+                // 1. If validator: always send PREPARE.
+                // 2. If prepared (possibly from cert in proposal) AND validator AND commit not sent: send COMMIT.
+
+                let mut prepare_sent_this_call = false;
+                if self.final_state.is_local_node_validator() {
+                    if let Some(accepted_block_digest) = self.round_state.get_prepared_digest() {
+                        if let Some(accepted_proposal_block) = self.round_state.proposed_block() {
+                             log::info!(
+                                "Round {:?}: Node is validator. Sending PREPARE for accepted block digest: {:?}",
+                                self.round_identifier(),
+                                accepted_block_digest
+                            );
+                            if let Err(e) = self.send_prepare(accepted_proposal_block.clone(), accepted_block_digest) {
+                                log::error!("Round {:?}: Error sending PREPARE after proposal: {:?}", self.round_identifier(), e);
+                                return Err(e); // Propagate error from send_prepare
+                            }
+                            prepare_sent_this_call = true;
+                        } else {
+                            log::warn!(
+                                "Round {:?}: Node is validator, but could not retrieve proposed block from RoundState after accepting proposal. Cannot send PREPARE.",
+                                self.round_identifier()
+                            );
+                        }
+                    } else {
+                        log::warn!(
+                            "Round {:?}: Node is validator, but no prepared digest found in RoundState after accepting proposal. Cannot send PREPARE.",
+                            self.round_identifier()
+                        );
+                    }
+                }
+
+                if self.round_state.is_prepared() && self.final_state.is_local_node_validator() && !self.commit_sent {
+                    if let Some(prepared_digest) = self.round_state.get_prepared_digest() {
+                        log::info!(
+                            "Round {:?}: Became PREPARED after processing proposal (possibly from cert). Validator sending COMMIT for digest: {:?}. Prepare was sent: {}", 
+                            self.round_identifier(), prepared_digest, prepare_sent_this_call
+                        );
+                        let prepared_block = self.round_state.proposed_block().expect("Proposed block must exist if round is prepared");
+                        if let Err(e) = self.send_commit(prepared_block.clone(), prepared_digest) {
+                            log::error!("Round {:?}: Error sending commit after becoming prepared from proposal: {:?}", self.round_identifier(), e);
+                            return Err(e); // Propagate error from send_commit
+                        }
+                    } else {
+                        log::error!(
+                            "Round {:?}: Is prepared after proposal, but no prepared digest found. Cannot send commit.", self.round_identifier()
+                        );
+                    }
+                }
+                Ok(true) // Proposal was accepted and processed by RoundState (either new or benign duplicate)
+            }
+            Err(QbftError::ProposalAlreadyReceived) => {
+                log::warn!(
+                    "Round {:?}: ProposalAlreadyReceived error from RoundState. Propagating.",
+                    self.round_identifier()
+                );
+                Err(QbftError::ProposalAlreadyReceived) // Propagate the error directly
+            }
+            Err(e) => {
+                log::error!(
+                    "Round {:?}: Error setting proposal in RoundState: {:?}", 
+                    self.round_identifier(), e
+                );
+                Err(e) // Propagate other errors
+            }
         }
     }
 }

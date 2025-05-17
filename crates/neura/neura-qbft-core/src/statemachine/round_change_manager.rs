@@ -123,6 +123,18 @@ impl RoundChangeManager {
 
         RoundChangeArtifacts::new(round_changes_payloads, best_prepared_certificate)
     }
+
+    /// Clears all stored RoundChange messages for the given target round.
+    pub fn clear_messages_for_round(&mut self, round_id: &ConsensusRoundIdentifier) {
+        if self.round_change_messages.remove(round_id).is_some() {
+            log::debug!("Cleared RoundChange messages for round {:?}", round_id);
+        } else {
+            log::trace!("No RoundChange messages found for round {:?} to clear.", round_id);
+        }
+        // Note: known_prepared_certificates are not cleared here as they represent the best
+        // certificate seen for a block hash across any round at this height, which might
+        // still be relevant for future rounds if no better certificate is found.
+    }
 }
 
 /// Artifacts gathered from RoundChange messages for a specific target round.

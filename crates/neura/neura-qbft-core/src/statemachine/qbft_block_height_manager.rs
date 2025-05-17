@@ -375,7 +375,7 @@ impl QbftBlockHeightManager {
             );
             return Ok(());
         }
-
+    
         if let Some(current_round) = self.current_round.as_mut() {
             if *current_round.round_identifier() == *prepare.round_identifier() {
                 log::debug!("Dispatching Prepare to current round: {:?}", prepare.round_identifier());
@@ -388,9 +388,37 @@ impl QbftBlockHeightManager {
                     Ok(None) => None, // Processed, no block finalized yet
                     Err(e) => return Err(e),
                 };
-
+    
                 if let Some(imported_block) = block_finalized_in_round {
                     return self.process_round_state_change(round_number, imported_block);
+                } else {
+                    // If the round processed the prepare but didn't finalize,
+                    // check if the round became prepared and update BHM's lock.
+                    if current_round.round_state().is_prepared() {
+                        if let Some(round_lock_info) = current_round.locked_info() {
+                            // Update BHM's lock if it's None, or if the round's lock is for a newer round,
+                            // or for a different block in the same round.
+                            let should_update_bhm_lock = self.locked_block.as_ref().map_or(true, |bhm_current_lock| {
+                                round_lock_info.prepared_round > bhm_current_lock.prepared_round ||
+                                (round_lock_info.prepared_round == bhm_current_lock.prepared_round && round_lock_info.block.hash() != bhm_current_lock.block.hash())
+                            });
+    
+                            if should_update_bhm_lock {
+                                log::debug!(
+                                    "BHM height {}: Current round {:?} is prepared. Updating BHM locked_block from {:?}@R{:?} to {:?}@R{}.",
+                                    self.height,
+                                    current_round.round_identifier(),
+                                    self.locked_block.as_ref().map(|lb| lb.block.hash()),
+                                    self.locked_block.as_ref().map(|lb| lb.prepared_round), // Uses {:?} for Option<u32>
+                                    round_lock_info.block.hash(),
+                                    round_lock_info.prepared_round
+                                );
+                                self.locked_block = Some(round_lock_info);
+                            }
+                        } else {
+                            log::warn!("BHM height {}: Current round {:?} is_prepared, but its locked_info is None. Cannot update BHM lock.", self.height, current_round.round_identifier());
+                        }
+                    }
                 }
                 return Ok(()); 
             } else if prepare.round_identifier().round_number > current_round.round_identifier().round_number {
@@ -571,7 +599,7 @@ impl QbftBlockHeightManager {
                         );
                         let artifacts = self.round_change_manager.get_round_change_artifacts(&target_round_identifier);
                         // Clear messages for this target round from RoundChangeManager as we are acting on it.
-                        // TODO: Add method to RoundChangeManager to prune processed rounds.
+                        self.round_change_manager.clear_messages_for_round(&target_round_identifier);
                         return self.advance_to_new_round(target_round_identifier.round_number, Some(artifacts));
                     } else {
                         log::debug!(
@@ -721,6 +749,7 @@ impl QbftBlockHeightManager {
                         self.height, new_target_round_id
                     );
                     let artifacts = self.round_change_manager.get_round_change_artifacts(&new_target_round_id);
+                    self.round_change_manager.clear_messages_for_round(&new_target_round_id);
                     return self.advance_to_new_round(new_target_round_id.round_number, Some(artifacts));
                 } else {
                     log::trace!(
@@ -1507,6 +1536,9 @@ mod tests {
         let prepares_after_r0_start = mock_multicaster_v1.prepares.lock().unwrap().len();
         assert_eq!(prepares_after_r0_start, 1, "V1 should have sent 1 prepare for its R0 proposal");
 
+        // Clear multicaster logs before testing the specific action
+        mock_multicaster_v1.clear();
+
         // Action: V3 (proposer for R1) creates and sends a Proposal for future_round_id (R1).
         let proposed_block_by_v3_r1 = mock_block_creator_v3.create_block(
             &parent_h,
@@ -1548,7 +1580,7 @@ mod tests {
         );
 
         // No new Prepare/Commit messages should have been sent by V1 due to future proposal
-        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), prepares_after_r0_start, "No new Prepare should be sent for future proposal");
+        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), 0, "No new Prepare should be sent for future proposal after clear");
         assert_eq!(mock_multicaster_v1.commits.lock().unwrap().len(), 0, "No Commit should be sent");
     }
 
@@ -1641,8 +1673,11 @@ mod tests {
         assert!(bhm_v1.current_round.is_some(), "BHM should have a current round after advancing");
         assert_eq!(*bhm_v1.current_round.as_ref().unwrap().round_identifier(), bhm_current_round_id, "BHM not in expected Round 1");
 
+        // Clear multicaster logs before testing the specific action of handling a past proposal
+        mock_multicaster_v1.clear();
+
         let proposal_in_bhm_round1_before = bhm_v1.current_round.as_ref().unwrap().round_state().proposal_message().cloned();
-        let prepares_count_before = mock_multicaster_v1.prepares.lock().unwrap().len();
+        // let prepares_count_before = mock_multicaster_v1.prepares.lock().unwrap().len(); // This would be 0 now
         let future_proposals_count_before = bhm_v1.future_proposals.len();
 
         // Action: Proposer for R0 sends a Proposal for past_round_id (R0).
@@ -1679,9 +1714,9 @@ mod tests {
         assert_eq!(bhm_v1.future_proposals.len(), future_proposals_count_before, "future_proposals count changed");
 
         // No new messages should have been sent
-        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), prepares_count_before, "New Prepare sent for past proposal");
+        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), 0, "New Prepare sent for past proposal after clear");
         assert_eq!(mock_multicaster_v1.commits.lock().unwrap().len(), 0, "Commit sent for past proposal");
-        assert_eq!(mock_multicaster_v1.proposals.lock().unwrap().len(), if mock_final_state_v1.is_local_node_proposer_for_round(&bhm_current_round_id) {1} else {0} + if mock_final_state_v1.is_local_node_proposer_for_round(&ConsensusRoundIdentifier::new(sequence_number,0)) {1} else {0} , "New Proposal sent by BHM");
+        assert_eq!(mock_multicaster_v1.proposals.lock().unwrap().len(), 0 , "New Proposal sent by BHM after clear");
 
     }
 
@@ -1995,6 +2030,9 @@ mod tests {
         let r0_prepare_count_in_state = bhm_v1.current_round.as_ref().unwrap().round_state().get_prepare_messages().len();
         assert_eq!(r0_prepare_count_in_state, 1, "R0 state should have 1 prepare from V1");
 
+        // Clear multicaster logs before testing the specific action
+        mock_multicaster_v1.clear();
+
         // Action: V3 sends a Prepare for future_round_id (R1) for some hypothetical digest.
         let hypothetical_r1_proposal_digest = B256::random(); 
         let prepare_from_v3_for_r1 = preparer_mf_v3_r1.create_prepare(future_round_id, hypothetical_r1_proposal_digest).unwrap();
@@ -2021,8 +2059,8 @@ mod tests {
         assert_eq!(*buffered_prepares_for_r1[0].round_identifier(), future_round_id, "Buffered prepare R1 has wrong round_id");
 
         // No new messages (beyond initial R0 proposal/prepare) should have been sent by V1
-        assert_eq!(mock_multicaster_v1.proposals.lock().unwrap().len(), 1);
-        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), 1);
+        assert_eq!(mock_multicaster_v1.proposals.lock().unwrap().len(), 0);
+        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), 0);
         assert_eq!(mock_multicaster_v1.commits.lock().unwrap().len(), 0);
     }
 
@@ -2644,7 +2682,197 @@ mod tests {
         }
     }
 
-} // THIS IS THE FINAL BRACE OF MOD TESTS
-// ... existing code ...
+    #[test]
+    fn test_bhm_round_change_with_prepared_certificate_advances_and_adopts_block() {
+        // Setup: N=4 (V1-local, V2-proposer R0, V3, V4). F=1.
+        // RC Quorum = F+1 = 2. Consensus Quorum = 2F+1 = 3.
+        // R0 becomes prepared with P0. V1 times out, sends RC_R1(P0_cert).
+        // V3 sends RC_R1(P0_cert). Quorum. V1 advances to R1.
+        // V1 should adopt P0 for R1. If V1 is proposer R1, it proposes P0.
+        // V1 sends Prepare(P0, R1) and Commit(P0, R1).
 
-}
+        let key_v1_local = deterministic_node_key(41);
+        let addr_v1_local = address_from_arc_key(&key_v1_local);
+        let key_v2_actor = deterministic_node_key(42); // Will be proposer R0 and a preparer
+        let addr_v2_actor = address_from_arc_key(&key_v2_actor);
+        let key_v3_actor = deterministic_node_key(43); // Will be a preparer and send RC
+        let addr_v3_actor = address_from_arc_key(&key_v3_actor);
+        let key_v4_actor = deterministic_node_key(44); // Will be a preparer
+        let addr_v4_actor = address_from_arc_key(&key_v4_actor);
+
+        let mut all_addresses_for_sort = vec![addr_v1_local, addr_v2_actor, addr_v3_actor, addr_v4_actor];
+        all_addresses_for_sort.sort();
+        let validators: HashSet<Address> = all_addresses_for_sort.iter().cloned().collect();
+        assert_eq!(validators.len(), 4); // This is the correct set of unique validator addresses
+
+        let parent_block_num = 0u64;
+        let sequence_number = parent_block_num + 1;
+        let round_0_num = 0u32;
+        let round_0_id = ConsensusRoundIdentifier::new(sequence_number, round_0_num);
+        let round_1_num = 1u32;
+        let round_1_id = ConsensusRoundIdentifier::new(sequence_number, round_1_num);
+
+        let parent_h = simple_parent_header(parent_block_num, B256::random());
+        let arc_parent_h = Arc::new(parent_h.clone());
+        let config = default_test_qbft_config();
+        let test_codec = Arc::new(AlloyBftExtraDataCodec::default());
+
+        // Determine proposer for R0. We want an actor (e.g., one mapped from key_v2_actor) to be it.
+        // Proposer index for R0 = (H+R0)%N = (1+0)%4 = 1.
+        let r0_proposer_addr_target = all_addresses_for_sort[1];
+        
+        let final_key_v1_local = key_v1_local.clone(); // V1 is always local
+        // let final_addr_v1_local = addr_v1_local; // Already defined by addr_v1_local effectively
+
+        // Ensure final_key_v2_proposer_r0 corresponds to r0_proposer_addr_target
+        let final_key_v2_proposer_r0 = if addr_v2_actor == r0_proposer_addr_target { key_v2_actor.clone() }
+            else if addr_v1_local == r0_proposer_addr_target { key_v1_local.clone() }
+            else if addr_v3_actor == r0_proposer_addr_target { key_v3_actor.clone() }
+            else { key_v4_actor.clone() }; // Must be one of them
+        let final_addr_v2_proposer_r0 = address_from_arc_key(&final_key_v2_proposer_r0);
+        assert_eq!(final_addr_v2_proposer_r0, r0_proposer_addr_target, "V2 setup as R0 proposer failed");
+
+        // Other keys (V3, V4) are used as is for their respective actors.
+        let final_key_v3_actor = key_v3_actor.clone();
+        // let final_addr_v3_actor = addr_v3_actor; // Already defined
+        let final_key_v4_actor = key_v4_actor.clone();
+        // let final_addr_v4_actor = addr_v4_actor; // Already defined
+        
+        // The 'validators' HashSet defined above is the correct one to use for MockQbftFinalState.
+        // It is already asserted to contain 4 unique addresses.
+
+        let mut mutable_final_state_v1 = MockQbftFinalState::new(final_key_v1_local.clone(), validators.clone());
+        mutable_final_state_v1.add_known_header(arc_parent_h.clone()); // Add parent header
+        let mock_final_state_v1 = Arc::new(mutable_final_state_v1);
+        assert_eq!(mock_final_state_v1.get_byzantine_fault_tolerance(), 1, "F should be 1 for N=4");
+        assert_eq!(mock_final_state_v1.quorum_size(), 3, "Consensus Quorum should be 3 for N=4");
+
+        let mf_v1_local = Arc::new(MessageFactory::new(final_key_v1_local.clone()).unwrap());
+        let mf_v2_proposer_r0 = Arc::new(MessageFactory::new(final_key_v2_proposer_r0.clone()).unwrap());
+        let mf_v3_actor = Arc::new(MessageFactory::new(final_key_v3_actor.clone()).unwrap());
+        let mf_v4_actor = Arc::new(MessageFactory::new(final_key_v4_actor.clone()).unwrap());
+
+        // Also ensure the block_creator's final_state knows about the parent header if it's a MockQbftFinalState
+        let mut mutable_block_creator_final_state_r0 = MockQbftFinalState::new(final_key_v2_proposer_r0.clone(), validators.clone());
+        mutable_block_creator_final_state_r0.add_known_header(arc_parent_h.clone());
+        let block_creator_final_state_r0 = Arc::new(mutable_block_creator_final_state_r0);
+        let mock_block_creator_r0 = Arc::new(MockQbftBlockCreator::new(arc_parent_h.clone(), block_creator_final_state_r0, test_codec.clone()));
+
+        let mock_block_importer_v1 = Arc::new(MockQbftBlockImporter::default());
+        let mock_multicaster_v1 = Arc::new(MockValidatorMulticaster::default());
+        let mock_block_timer_v1 = Arc::new(MockBlockTimer::new(config.block_period_seconds));
+        let mock_round_timer_v1 = Arc::new(MockRoundTimer::new());
+        let mock_observer_v1 = Arc::new(MockObserver::default());
+
+        let actual_msg_validator_factory = Arc::new(ConfigurableMockMessageValidatorFactory::new());
+        let mock_rc_msg_val_factory = Arc::new(MockRoundChangeMessageValidatorFactory);
+        let proposal_validator = actual_msg_validator_factory.clone().create_proposal_validator();
+        let prepare_validator = actual_msg_validator_factory.clone().create_prepare_validator();
+        let commit_validator = actual_msg_validator_factory.clone().create_commit_validator();
+
+        let mut bhm_v1 = setup_bhm(
+            arc_parent_h.clone(), mock_final_state_v1.clone(), mock_block_creator_r0.clone(), 
+            mock_block_importer_v1.clone(), mf_v1_local.clone(), mock_multicaster_v1.clone(), 
+            mock_block_timer_v1.clone(), mock_round_timer_v1.clone(), test_codec.clone(), config.clone(),
+            proposal_validator, prepare_validator, commit_validator, 
+            actual_msg_validator_factory.clone(), mock_rc_msg_val_factory.clone(),
+            vec![mock_observer_v1.clone()],
+        );
+
+        // --- Phase 1: Reach PREPARED state for R0 with block P0 ---
+        bhm_v1.start_consensus().expect("BHM V1 start_consensus (R0) failed");
+
+        let proposed_block_p0 = mock_block_creator_r0.create_block(&parent_h, &round_0_id, parent_h.timestamp + 1).unwrap();
+        let proposal_p0_digest = proposed_block_p0.hash();
+        let proposal_msg_p0 = mf_v2_proposer_r0.create_proposal(round_0_id, proposed_block_p0.clone(), vec![], None).unwrap();
+        
+        if addr_v1_local != final_addr_v2_proposer_r0 { 
+            bhm_v1.handle_proposal_message(proposal_msg_p0.clone()).expect("BHM V1 handle P0 failed");
+        } else { 
+            assert!(bhm_v1.current_round.as_ref().unwrap().round_state().proposal_message().is_some(), "V1 (proposer R0) should have proposal after start");
+            assert_eq!(bhm_v1.current_round.as_ref().unwrap().round_state().proposal_message().unwrap().block().hash(), proposal_p0_digest, "V1's proposal digest mismatch if it was proposer");
+        }
+        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), 1, "V1 should have sent self-Prepare for P0");
+        assert_eq!(bhm_v1.current_round.as_ref().unwrap().round_state().get_prepare_messages().len(), 1, "V1 R0 state should have 1 prepare (self)");
+
+        let prepare_msg_v3_for_p0 = mf_v3_actor.create_prepare(round_0_id, proposal_p0_digest).unwrap();
+        bhm_v1.handle_prepare_message(prepare_msg_v3_for_p0).expect("BHM V1 handle V3 Prepare(P0) failed");
+        assert_eq!(bhm_v1.current_round.as_ref().unwrap().round_state().get_prepare_messages().len(), 2, "V1 R0 state should have 2 prepares");
+
+        let prepare_msg_v4_for_p0 = mf_v4_actor.create_prepare(round_0_id, proposal_p0_digest).unwrap();
+        bhm_v1.handle_prepare_message(prepare_msg_v4_for_p0).expect("BHM V1 handle V4 Prepare(P0) failed");
+        
+        assert!(bhm_v1.current_round.as_ref().unwrap().round_state().is_prepared(), "V1 R0 should be PREPARED");
+        assert_eq!(bhm_v1.current_round.as_ref().unwrap().round_state().get_prepare_messages().len(), 3, "V1 R0 state should have 3 prepares");
+        assert_eq!(mock_multicaster_v1.commits.lock().unwrap().len(), 1, "V1 should have sent self-Commit for P0");
+        assert!(bhm_v1.locked_block.is_some(), "BHM V1 should have locked_block after R0 prepared");
+        assert_eq!(bhm_v1.locked_block.as_ref().unwrap().block.hash(), proposal_p0_digest, "BHM V1 locked_block digest mismatch");
+
+        // --- Phase 2: V1 times out from R0, initiates RC for R1 with P0 certificate ---
+        let timeout_res_v1 = bhm_v1.handle_round_timeout_event(round_0_id);
+        assert!(timeout_res_v1.is_ok(), "V1 handle_round_timeout_event for R0 failed");
+        
+        let v1_sent_round_changes = mock_multicaster_v1.round_changes.lock().unwrap();
+        assert_eq!(v1_sent_round_changes.len(), 1, "V1 should have sent one RoundChange for R1");
+        let rc_msg_v1_for_r1 = v1_sent_round_changes.get(0).unwrap();
+        assert_eq!(*rc_msg_v1_for_r1.round_identifier(), round_1_id, "V1's RC has incorrect target round ID");
+        assert!(rc_msg_v1_for_r1.payload().prepared_round_metadata.is_some(), "V1's RC should have prepared_round_metadata");
+        let prepared_meta_in_v1_rc = rc_msg_v1_for_r1.payload().prepared_round_metadata.as_ref().unwrap();
+        assert_eq!(prepared_meta_in_v1_rc.prepared_block_hash, proposal_p0_digest, "V1's RC metadata has wrong block hash");
+        assert_eq!(prepared_meta_in_v1_rc.prepared_round, round_0_id.round_number, "V1's RC metadata has wrong prepared round");
+        assert!(rc_msg_v1_for_r1.payload().prepared_block.is_some(), "V1's RC should include the prepared block P0");
+        assert_eq!(rc_msg_v1_for_r1.payload().prepared_block.as_ref().unwrap().hash(), proposal_p0_digest, "Block in V1's RC is not P0");
+        assert_eq!(bhm_v1.round_change_manager.get_round_change_messages_for_target_round(&round_1_id).unwrap().len(), 1, "RCM should have V1's RC");
+
+        // --- Phase 3: V3 sends RC for R1 (also with P0 cert), V1 achieves quorum and advances ---
+        let locked_block_info_for_rc = bhm_v1.locked_block.as_ref().expect("BHM V1 should have a locked block for creating RC metadata");
+        
+        let prepared_metadata_for_v3_rc = PreparedRoundMetadata {
+            prepared_round: locked_block_info_for_rc.prepared_round,
+            prepared_block_hash: locked_block_info_for_rc.block.hash(),
+            signed_proposal_payload: locked_block_info_for_rc.original_signed_proposal.clone(),
+            prepares: locked_block_info_for_rc.prepares.clone(),
+        };
+
+        let rc_msg_v3_for_r1 = mf_v3_actor.create_round_change(
+            round_1_id, 
+            Some(prepared_metadata_for_v3_rc.clone()), 
+            Some(proposed_block_p0.clone()) 
+        ).unwrap();
+
+        let handle_rc_v3_res = bhm_v1.handle_round_change_message(rc_msg_v3_for_r1);
+        assert!(handle_rc_v3_res.is_ok(), "BHM V1 failed to handle RoundChange from V3: {:?}", handle_rc_v3_res.err());
+
+        assert_eq!(*bhm_v1.current_round.as_ref().unwrap().round_identifier(), round_1_id, "BHM V1 should have advanced to Round 1");
+        // After advancing, the RCM should no longer have messages for round_1_id, or the list should be empty.
+        // The .remove() in clear_messages_for_round should result in None from get_round_change_messages_for_target_round.
+        assert!(bhm_v1.round_change_manager.get_round_change_messages_for_target_round(&round_1_id).map_or(true, |v| v.is_empty()), "RCM should have cleared RCs for R1 after advancing");
+
+        let r1_round_v1 = bhm_v1.current_round.as_ref().unwrap();
+        assert_eq!(r1_round_v1.locked_info().as_ref().unwrap().block.hash(), proposal_p0_digest, "R1 in V1 should have P0 as locked_block (from RC artifacts)");
+        assert_eq!(r1_round_v1.round_state().proposal_message().unwrap().block().hash(), proposal_p0_digest, "R1 state in V1 should have P0 as proposal");
+        assert!(r1_round_v1.round_state().is_prepared(), "R1 state in V1 should be prepared from RC artifacts");
+
+        assert_eq!(mock_multicaster_v1.prepares.lock().unwrap().len(), 2, "V1 should have sent 2 Prepares total (P0@R0, P0@R1)");
+        assert_eq!(mock_multicaster_v1.commits.lock().unwrap().len(), 2, "V1 should have sent 2 Commits total (P0@R0, P0@R1)");
+
+        let is_v1_proposer_for_r1 = mock_final_state_v1.is_local_node_proposer_for_round(&round_1_id);
+        let expected_proposals_total = if mock_final_state_v1.is_local_node_proposer_for_round(&round_0_id) { 1 } else { 0 } + 
+                                     if is_v1_proposer_for_r1 { 1 } else { 0 };
+        assert_eq!(mock_multicaster_v1.proposals.lock().unwrap().len(), expected_proposals_total, "V1 proposal count mismatch for R0 and R1");
+        if is_v1_proposer_for_r1 {
+            let r1_proposal = mock_multicaster_v1.proposals.lock().unwrap().iter().find(|p| *p.round_identifier() == round_1_id).cloned();
+            assert!(r1_proposal.is_some(), "V1 (proposer R1) did not send proposal for R1");
+            assert_eq!(r1_proposal.unwrap().block().hash(), proposal_p0_digest, "V1 (proposer R1) did not propose P0 from certificate");
+        }
+
+        let active_timers = mock_round_timer_v1.get_active_timers();
+        assert!(!active_timers.contains(&round_0_id), "Timer for Round 0 should have been cancelled");
+        assert!(active_timers.contains(&round_1_id), "Timer for Round 1 should have been started");
+        
+        assert!(bhm_v1.finalized_block.is_none(), "Block P0 should not be finalized in BHM V1 yet, needs more commits for R1");
+        assert_eq!(mock_block_importer_v1.get_imported_blocks().len(), 0, "No block should be imported yet");
+        assert_eq!(mock_observer_v1.blocks_imported(), 0, "Observer should not have seen imported block yet");
+    }
+
+} // THIS IS THE FINAL BRACE OF MOD TESTS
