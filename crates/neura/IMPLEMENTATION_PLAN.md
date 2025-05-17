@@ -24,18 +24,18 @@ The below sections of this implementation plan which consists of completed work 
 
 **Phase 0: Planning and Initial Setup - COMPLETED**
 
-- Detailed implementation plan drafted and reviewed.
-- Workspace and dependencies understood.
+*   Detailed implementation plan drafted and reviewed.
+*   Workspace and dependencies understood.
 
 **Phase 1: Research and Foundation (Understanding Besu's QBFT) - COMPLETED**
 
-- **Deep Dive into Besu's QBFT:**
-  - Analyzed QBFT implementation in `neura-chain` (Besu fork) Java codebase.
-  - Focused on core logic in `neura-chain/consensus/qbft-core/` and adaptor classes in `neura-chain/consensus/qbft/adaptor/`.
-  - Key Java classes and their roles identified across `statemachine/`, `validation/`, `types/`, `messagedata/`, `messagewrappers/`, `payload/` directories.
-  - Studied the official QBFT specification (entethalliance.github.io) and EIP-650.
-- **Library/Crate Review:**
-  - Relevant dependencies from `neura-reth` root `Cargo.toml` (e.g., `alloy-primitives`, `k256`) incorporated into `neura_qbft_core`.
+*   **Deep Dive into Besu's QBFT:**
+    *   Analyzed QBFT implementation in `neura-chain` (Besu fork) Java codebase.
+    *   Focused on core logic in `neura-chain/consensus/qbft-core/` and adaptor classes in `neura-chain/consensus/qbft/adaptor/`.
+    *   Key Java classes and their roles identified across `statemachine/`, `validation/`, `types/`, `messagedata/`, `messagewrappers/`, `payload/` directories.
+    *   Studied the official QBFT specification (entethalliance.github.io) and EIP-650.
+*   **Library/Crate Review:**
+    *   Relevant dependencies from `neura-reth` root `Cargo.toml` (e.g., `alloy-primitives`, `k256`) incorporated into `neura_qbft_core`.
 
 **Phase 2: Core Crates Implementation**
 
@@ -43,10 +43,15 @@ The below sections of this implementation plan which consists of completed work 
     *   **Crate Setup & Module Structure:** Completed.
     *   **Core Data Structures & Logic Translation:** Completed. Includes QBFT messages, payloads, types, state machine components. RLP encoding/decoding and ECDSA logic implemented.
     *   **Validation Module:** All core validation logic (Proposal, Prepare, Commit, RoundChange) implemented and unit tested. Refactored into individual validator files.
+    *   **State Machine Logic:**
+        *   `QbftRound` (`statemachine/qbft_round.rs`): Core message handlers (`handle_proposal_message`, `handle_prepare_message`, `handle_commit_message`, `import_block_to_chain`) and message sending (`send_prepare`, `send_commit`) implemented and unit tested.
+        *   `QbftBlockHeightManager` (`statemachine/qbft_block_height_manager.rs`): Message/event handlers (`handle_round_change_message`, `handle_round_timeout_event`, `handle_block_timer_expiry`, and handlers for proposals, prepares, commits) implemented and unit tested. Logic for advancing rounds also implemented.
+        *   `QbftController` (`statemachine/qbft_controller.rs`): Reviewed; manages `QbftBlockHeightManager` instances, dispatches messages/timer events.
     *   **RLP Testing:** Comprehensive unit tests for RLP serialization/deserialization of all core QBFT message types and payloads completed.
+    *   **Service Trait Definitions (`types/`):** Definitions for `QbftBlockCreator` & `QbftBlockCreatorFactory`, `QbftBlockImporter`, `ValidatorMulticaster`, `RoundTimer` & `BlockTimer` reviewed and deemed sufficiently defined.
     *   **Build Status:** Compiles without errors or actionable warnings. All unit tests passing.
 
-2.  **`neura_consensus_qbft` Crate (Initial Reth Integration Layer) - LARGELY COMPLETED**
+2.  **`neura_consensus_qbft` Crate (Initial Reth Integration Layer) - IN PROGRESS**
     *   **Crate Setup & Dependencies:** Completed. Resolved `Cargo.toml` issues, including workspace dependency for `reth-node-api`.
     *   **Module Structure:** Basic `lib.rs`, `consensus.rs`, `error.rs`, `services.rs` created and cleaned up.
         *   `consensus.rs`: Now an empty module placeholder, as main `QbftConsensus<NT>` struct and trait implementations are in `lib.rs`.
@@ -57,7 +62,7 @@ The below sections of this implementation plan which consists of completed work 
         *   Implemented `reth_consensus::Consensus` trait (methods `validate_block_pre_execution`, `validate_body_against_header`).
         *   `RethQbftFinalState<NT>`: Adapter struct implementing `neura_qbft_core::types::QbftFinalState` using Reth's provider. All methods implemented and unit tested.
         *   `RethRoundTimer`: Adapter struct implementing `neura_qbft_core::types::RoundTimer` using Tokio. All methods implemented and unit tested.
-    *   **Build Status:** Compiles without errors or warnings. All unit tests passing.
+    *   **Build Status:** Compiles without errors or warnings. All unit tests reported as passing. Linter warnings resolved.
 
 3.  **Implement QBFT State Machine Logic (`neura_qbft_core`):** - **IN PROGRESS (QbftRound core logic complete, QbftBlockHeightManager next)**
     *   Flesh out the internal logic of methods within `QbftRound`, `QbftBlockHeightManager`, and `QbftController`.
@@ -83,11 +88,14 @@ The below sections of this implementation plan which consists of completed work 
 *   This phase now focuses on completing the implementations within `neura_consensus_qbft` that bridge `neura_qbft_core` traits to Reth components, beyond the already completed `RethQbftFinalState` and `RethRoundTimer`.
 1.  **Implement Remaining `neura_qbft_core` Service Traits:**
     *   Provide concrete implementations in `neura_consensus_qbft/src/services.rs` for:
-        *   `QbftBlockCreatorFactory` and `QbftBlockCreator` (using Reth's payload building capabilities).
-        *   `QbftBlockImporter` (using Reth's block processing and chain update logic).
+        *   `BlockTimer` (as `RethBlockTimer`): **COMPLETED**. Uses Tokio tasks and event sender.
+        *   `QbftBlockCreatorFactory` and `QbftBlockCreator` (as `RethBlockCreatorFactory` and `RethBlockCreator`): **COMPLETED** for creating empty blocks. Correctly formats `BftExtraData`.
+        *   `QbftBlockImporter` (as `RethQbftBlockImporter`): **IN PROGRESS**.
+            *   Helper function `qbft_block_to_reth_sealed_block` **COMPLETED**: Correctly converts `QbftBlock` to `reth_primitives::SealedBlock` (handles nonce, empty transactions/ommers, sealing).
+            *   Main `import_block` method is a **STUB**. Next step is to implement actual block execution and chain update logic using `BlockExecutorFactory` and `ProviderFactory`.
         *   `ValidatorMulticaster` (using Reth's P2P layer/network service).
-        *   `BlockTimer` (similar to `RethRoundTimer`, using Tokio).
         *   `QbftMinedBlockObserver` (if needed, or integrate its logic directly).
+    *   **Build Status:** Compiles without errors or warnings. All unit tests reported as passing. Linter warnings resolved.
 
 **Phase 4: Integration with Reth Node**
 
@@ -131,12 +139,18 @@ The below sections of this implementation plan which consists of completed work 
 
 ## Summary
 
-The project aims to integrate QBFT consensus into Reth.
+The project aims to integrate QBFT consensus into Reth, with an initial focus on an execution client capable of syncing with Besu QBFT nodes, deferring full validator functionality.
 
-**`neura_qbft_core` Crate:** This crate, encapsulating the core QBFT data structures, validation logic, and RLP encoding, now successfully passes all its unit tests. This includes all individual validator test suites (`ProposalValidator`, `PrepareValidator`, `CommitValidator`, `RoundChangeMessageValidator`) and RLP tests. The `QbftRound` component's core logic and unit tests are also complete. Compiler warnings have been addressed.
+**`neura_qbft_core` Crate:** This crate is now **COMPLETED**. It encapsulates the core QBFT data structures, validation logic, RLP encoding, and the state machine (`QbftRound`, `QbftBlockHeightManager`, `QbftController`). All service trait definitions in `types/` have been reviewed. The crate compiles without errors or warnings, and all unit tests are passing.
 
-**`neura_consensus_qbft` Crate:** This crate, which adapts `neura_qbft_core` to Reth's interfaces, now compiles cleanly without errors or warnings. It includes foundational implementations for `QbftConsensus<NT>` (implementing `reth_consensus::Consensus` and `reth_consensus::HeaderValidator`), `RethQbftFinalState<NT>`, and `RethRoundTimer`. All unit tests within this crate are passing.
+**`neura_consensus_qbft` Crate:** This crate is **IN PROGRESS** and adapts `neura_qbft_core` to Reth's interfaces.
+*   It includes foundational implementations for `QbftConsensus<NT>` (implementing `reth_consensus::Consensus` and `reth_consensus::HeaderValidator`), with methods currently stubbed.
+*   Service implementations in `services.rs`:
+    *   `RethQbftFinalState<NT>`: Completed and tested.
+    *   `RethRoundTimer`: Completed and tested.
+    *   `RethBlockTimer`: Completed and tested.
+    *   `RethBlockCreatorFactory` and `RethBlockCreator`: Implemented and tested for creating empty blocks with correct `BftExtraData`.
+    *   `RethQbftBlockImporter`: The `qbft_block_to_reth_sealed_block` function is complete and correctly converts QBFT blocks to Reth's `SealedBlock`. The main `import_block` method is a stub.
+*   The crate compiles without errors or warnings, and all unit tests are reported as passing.
 
-The `Cargo.toml` dependency issues (e.g., `reth-interfaces` vs. `reth-node-api`) and subsequent build errors related to unresolved imports and trait generics have been resolved.
-
-The immediate next step is to continue with the implementation of the QBFT state
+The immediate next step is to implement the block execution and chain update logic within the `import_block` method of `RethQbftBlockImporter` in the `neura_consensus_qbft` crate.
