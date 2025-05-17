@@ -17,10 +17,14 @@ reth-node-api = { workspace = true }
 reth-db = { workspace = true }
 reth-db-api = { workspace = true }
 reth-node-builder = { workspace = true }
+
+reth-chainspec = { workspace = true }
+
+# alloy dependencies
+alloy-evm = { workspace = true } 
 alloy-primitives = { workspace = true }
 alloy-consensus = { workspace = true }
 alloy-eips = { version = "0.15.10", default-features = false }
-reth-chainspec = { workspace = true }
 
 # Other common dependencies
 tracing = "0.1"
@@ -35,5 +39,3 @@ reth-ethereum-primitives = { workspace = true, features = ["serde"] }
 reth-stages = { workspace = true, features = ["test-utils"] }
 alloy-rlp = { workspace = true }
 
-[features]
-# ... existing features ... 
