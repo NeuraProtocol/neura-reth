@@ -46,7 +46,7 @@ use reth_provider::{ProviderFactory};
 use reth_chainspec::ChainSpec;
 
 use alloy_evm::block::BlockExecutorFactory;
-use neura_qbft_core::types::block_importer::{QbftBlockImporter, ImportResult};
+use neura_qbft_core::types::block_importer::{QbftBlockImporter};
 use reth_primitives::{
     BlockBody, Header as RethHeader, TransactionSigned, SealedBlock, Block as RethBlock
 };
@@ -341,9 +341,9 @@ where
     DB: RethDatabaseTrait + ProviderNodeTypes + Send + Sync + 'static,
     BEF: BlockExecutorFactory<Transaction = TransactionSigned, Receipt = reth_primitives::Receipt> + Send + Sync + 'static,
 {
-    chain_spec: Arc<ChainSpec>,
-    provider_factory: ProviderFactory<DB>,
-    block_executor_factory: BEF, 
+    _chain_spec: Arc<ChainSpec>,
+    _provider_factory: ProviderFactory<DB>,
+    _block_executor_factory: BEF,
     _phantom_db: PhantomData<DB>,
 }
 
@@ -358,14 +358,14 @@ where
         block_executor_factory: BEF,
     ) -> Self {
         Self {
-            chain_spec,
-            provider_factory,
-            block_executor_factory,
+            _chain_spec: chain_spec,
+            _provider_factory: provider_factory,
+            _block_executor_factory: block_executor_factory,
             _phantom_db: PhantomData,
         }
     }
 
-    fn qbft_block_to_reth_sealed_block(&self, block: &QbftBlock) -> Result<reth_primitives::SealedBlock, QbftError> {
+    fn qbft_block_to_reth_sealed_block(&self, block: &QbftBlock) -> Result<SealedBlock, QbftError> {
         let nonce_bytes_slice = block.header.nonce.as_ref();
         let nonce_array: [u8; 8] = nonce_bytes_slice.try_into().map_err(|_e|
             QbftError::InvalidBlock(format!("Nonce conversion error: expected 8 bytes, got {}", nonce_bytes_slice.len()))
@@ -427,7 +427,7 @@ where
             body: block_body,
         };
 
-        Ok(reth_primitives::SealedBlock::new_unchecked(reth_block, block_hash))
+        Ok(SealedBlock::new_unchecked(reth_block, block_hash))
     }
 }
 
